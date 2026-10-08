@@ -23,6 +23,8 @@ import {
   RefreshOutline,
   TimeOutline,
   DocumentTextOutline,
+  QrCodeOutline,
+  DownloadOutline,
 } from '@vicons/ionicons5';
 import {
   getShareLinks,
@@ -30,6 +32,7 @@ import {
   getShareLinkUrl,
   getShareAccessLogs,
 } from '@/api/share';
+import QrCode from '@/components/qr-code.vue';
 import type { ShareLink, ShareAccessLog } from '@vakao/shared';
 
 defineOptions({
@@ -43,8 +46,8 @@ const searchText = ref('');
 
 /** 窄屏（手机）：操作列不固定、按钮图标化，避免固定操作列占满视口 */
 const isMobile = useMediaQuery('(max-width: 767px)');
-/** 表格最小滚动宽度：窄屏操作列 120 + 文件列 180，宽屏操作列 300 + 文件列 200 */
-const tableScrollX = computed(() => (isMobile.value ? 1040 : 1240));
+/** 表格最小滚动宽度：窄屏操作列 160 + 文件列 180，宽屏操作列 460 + 文件列 200 */
+const tableScrollX = computed(() => (isMobile.value ? 1080 : 1400));
 
 const filteredLinks = computed(() => {
   if (!searchText.value) return shareLinks.value;
@@ -113,6 +116,43 @@ function closeAccessLogs() {
   logsModalVisible.value = false;
   currentLogLink.value = null;
 }
+
+// 二维码弹窗状态
+const qrModalVisible = ref(false);
+const currentQrLink = ref<ShareLink | null>(null);
+const qrCodeRef = ref<{ save: () => void } | null>(null);
+
+function openQrCode(link: ShareLink) {
+  currentQrLink.value = link;
+  qrModalVisible.value = true;
+}
+
+function closeQrCode() {
+  qrModalVisible.value = false;
+  currentQrLink.value = null;
+}
+
+function saveQrCode() {
+  qrCodeRef.value?.save();
+}
+
+/** 复制当前二维码对应的分享链接 */
+function copyCurrentQrLink() {
+  if (!currentQrLink.value) return;
+  copyLink(currentQrLink.value.token);
+}
+
+/** 二维码保存文件名，避免 token 中的特殊字符 */
+const qrSaveName = computed(() =>
+  currentQrLink.value
+    ? `vakao-share-${currentQrLink.value.token.slice(0, 8)}`
+    : 'vakao-share',
+);
+
+/** 当前二维码对应的分享链接 URL */
+const currentQrUrl = computed(() =>
+  currentQrLink.value ? getShareLinkUrl(currentQrLink.value.token) : '',
+);
 
 function formatAccessTime(ts: number) {
   return new Date(ts).toLocaleString();
@@ -237,7 +277,7 @@ const columns = computed<DataTableColumns<ShareLink>>(() => [
   {
     title: '操作',
     key: 'actions',
-    width: isMobile.value ? 120 : 300,
+    width: isMobile.value ? 160 : 380,
     fixed: isMobile.value ? undefined : 'right',
     render(row) {
       // 窄屏：仅显示图标按钮（悬浮显示名称），不固定在右侧
@@ -259,6 +299,23 @@ const columns = computed<DataTableColumns<ShareLink>>(() => [
                 },
               ),
             default: () => '复制链接',
+          }),
+          h(NTooltip, null, {
+            trigger: () =>
+              h(
+                NButton,
+                {
+                  size: 'small',
+                  quaternary: true,
+                  circle: true,
+                  type: 'success',
+                  onClick: () => openQrCode(row),
+                },
+                {
+                  icon: () => h(NIcon, null, () => h(QrCodeOutline)),
+                },
+              ),
+            default: () => '二维码',
           }),
           h(NTooltip, null, {
             trigger: () =>
@@ -303,7 +360,7 @@ const columns = computed<DataTableColumns<ShareLink>>(() => [
           ),
         ]);
       }
-      return h(NSpace, { size: 'small' }, () => [
+      return h(NSpace, { size: 'small', wrap: false }, () => [
         h(
           NButton,
           {
@@ -315,6 +372,19 @@ const columns = computed<DataTableColumns<ShareLink>>(() => [
           {
             icon: () => h(NIcon, null, () => h(CopyOutline)),
             default: () => '复制',
+          },
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            quaternary: true,
+            type: 'success',
+            onClick: () => openQrCode(row),
+          },
+          {
+            icon: () => h(NIcon, null, () => h(QrCodeOutline)),
+            default: () => '二维码',
           },
         ),
         h(
@@ -477,6 +547,54 @@ onMounted(() => {
         <div class="flex justify-center">
           <NButton @click="closeAccessLogs">关闭</NButton>
         </div>
+      </template>
+    </NModal>
+
+    <NModal
+      :show="qrModalVisible"
+      preset="card"
+      title="分享二维码"
+      :mask-closable="true"
+      style="max-width: 420px"
+      @update:show="
+        (value) => {
+          if (!value) closeQrCode();
+        }
+      "
+    >
+      <div v-if="currentQrLink" class="flex flex-col items-center gap-3">
+        <div class="text-xs text-gray-500 break-all text-center">
+          {{ currentQrLink.filePath }}
+        </div>
+        <QrCode
+          ref="qrCodeRef"
+          :value="currentQrUrl"
+          :size="220"
+          label="分享链接二维码"
+          :save-name="qrSaveName"
+          mode="plain"
+          :show-save-button="false"
+        />
+        <div class="text-xs text-gray-400 break-all text-center max-w-full">
+          {{ currentQrUrl }}
+        </div>
+      </div>
+      <template #footer>
+        <NSpace justify="end" :wrap="false">
+          <NButton @click="closeQrCode">关闭</NButton>
+          <NButton type="primary" @click="copyCurrentQrLink">
+            <template #icon>
+              <NIcon :component="CopyOutline" />
+            </template>
+            复制链接
+          </NButton>
+          <NButton type="success" @click="saveQrCode">
+            <template #icon>
+              <NIcon :component="DownloadOutline" />
+            </template>
+            保存二维码
+          </NButton>
+        </NSpace>
       </template>
     </NModal>
   </main>

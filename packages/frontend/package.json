@@ -20,11 +20,13 @@
     "naive-ui": "^2.44.1",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
+    "qrcode": "^1.5.4",
     "vue": "^3.5.38",
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
+    "@types/qrcode": "^1.5.6",
     "@unocss/preset-attributify": "^66.7.2",
     "@unocss/preset-uno": "^66.7.2",
     "@vicons/ionicons5": "^0.13.0",

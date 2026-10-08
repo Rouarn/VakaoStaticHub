@@ -9,10 +9,12 @@ import {
   NSpace,
   NInput,
   NTag,
+  NIcon,
   useMessage,
 } from 'naive-ui';
+import { DownloadOutline } from '@vicons/ionicons5';
 import { createShareLink, getShareLinkUrl } from '@/api/share';
-import CopyableCode from '@/components/copyable-code.vue';
+import QrCode from '@/components/qr-code.vue';
 import { useFileListStore } from '@/stores/modules/file-list';
 
 const props = defineProps<{
@@ -32,6 +34,11 @@ const store = useFileListStore();
 
 const loading = ref(false);
 const createdToken = ref('');
+const qrCodeRef = ref<{ save: () => void } | null>(null);
+
+function saveQrCode() {
+  qrCodeRef.value?.save();
+}
 
 const expireOptions = [
   { label: '永不过期', value: 0 },
@@ -186,28 +193,37 @@ function copyLink() {
       <template v-else>
         <div class="space-y-3">
           <div class="text-sm text-green-600 font-medium">分享链接已创建</div>
-          <CopyableCode
-            :code="getShareLinkUrl(createdToken)"
-            language="text"
-            label="分享链接"
-            mode="button"
+          <div class="text-xs text-gray-400 break-all">
+            {{ getShareLinkUrl(createdToken) }}
+          </div>
+          <QrCode
+            ref="qrCodeRef"
+            :value="getShareLinkUrl(createdToken)"
+            :size="200"
+            label="分享链接二维码"
+            save-name="vakao-share"
+            mode="plain"
+            :show-save-button="false"
           />
         </div>
       </template>
     </div>
 
     <template #footer>
-      <NSpace justify="end">
+      <NSpace justify="end" :wrap="false">
         <NButton @click="close">{{ createdToken ? '关闭' : '取消' }}</NButton>
-        <NButton
-          v-if="!createdToken"
-          type="primary"
-          :loading="loading"
-          @click="handleCreate"
-        >
+        <template v-if="createdToken">
+          <NButton type="primary" @click="copyLink"> 复制链接 </NButton>
+          <NButton type="success" @click="saveQrCode">
+            <template #icon>
+              <NIcon :component="DownloadOutline" />
+            </template>
+            保存二维码
+          </NButton>
+        </template>
+        <NButton v-else type="primary" :loading="loading" @click="handleCreate">
           创建链接
         </NButton>
-        <NButton v-else type="primary" @click="copyLink"> 复制链接 </NButton>
       </NSpace>
     </template>
   </NModal>

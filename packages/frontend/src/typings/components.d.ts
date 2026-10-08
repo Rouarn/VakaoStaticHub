@@ -14,6 +14,7 @@ declare module 'vue' {
     CopyableCode: typeof import('./../components/copyable-code.vue')['default']
     LoadingScreen: typeof import('./../components/loading-screen.vue')['default']
     NInput: typeof import('naive-ui')['NInput']
+    QrCode: typeof import('./../components/qr-code.vue')['default']
     RootManagement: typeof import('./../components/root-management.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
