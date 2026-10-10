@@ -23,6 +23,7 @@ import {
   SearchOutline,
 } from '@vicons/ionicons5';
 import { getAuditLogs, type AuditLog, type AuditLogQuery } from '@/api/system';
+import { getErrorMessage } from '@/utils/request';
 
 defineOptions({
   name: 'audit-logs',
@@ -159,10 +160,8 @@ async function loadLogs() {
     const result = await getAuditLogs(params);
     logs.value = result.items;
     total.value = result.total;
-  } catch (error: any) {
-    message.error(
-      error.response?.data?.message || error.message || '加载审计日志失败',
-    );
+  } catch (error) {
+    message.error(getErrorMessage(error, '加载审计日志失败'));
   } finally {
     loading.value = false;
   }

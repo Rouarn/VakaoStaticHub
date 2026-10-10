@@ -9,6 +9,7 @@ import {
   LockClosedOutline,
 } from '@vicons/ionicons5';
 import { getShareInfo, unlockShare, getShareFileUrl } from '@/api/share';
+import { getErrorMessage } from '@/utils/request';
 
 defineOptions({ name: 'share-access' });
 
@@ -74,9 +75,8 @@ async function ensureUnlocked() {
     try {
       await unlock();
       return true;
-    } catch (e: any) {
-      error.value =
-        e.response?.data?.message || e.message || '解锁分享链接失败';
+    } catch (e) {
+      error.value = getErrorMessage(e, '解锁分享链接失败');
       return false;
     }
   }
@@ -123,8 +123,8 @@ async function loadShareInfo() {
     if (!hasPassword.value) {
       await unlock();
     }
-  } catch (e: any) {
-    error.value = e.response?.data?.message || e.message || '加载分享信息失败';
+  } catch (e) {
+    error.value = getErrorMessage(e, '加载分享信息失败');
   } finally {
     loading.value = false;
   }
@@ -136,9 +136,8 @@ async function verifyPassword() {
   verifyError.value = '';
   try {
     await unlock(password.value);
-  } catch (e: any) {
-    verifyError.value =
-      e.response?.data?.message || e.message || '密码验证失败';
+  } catch (e) {
+    verifyError.value = getErrorMessage(e, '密码验证失败');
   } finally {
     verifying.value = false;
   }

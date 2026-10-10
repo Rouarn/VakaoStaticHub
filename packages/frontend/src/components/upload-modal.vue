@@ -13,7 +13,7 @@ import {
   completeChunkUpload,
 } from '@/api/files';
 import { DEFAULT_CATEGORY } from '@/stores/modules/file-list';
-import type { AxiosError, AxiosProgressEvent } from 'axios';
+import type { RequestError } from '@vakao-ui/axios';
 
 interface UploadItem {
   file: File;
@@ -260,7 +260,7 @@ async function uploadSingleFile(
   if (file.size <= CHUNK_THRESHOLD) {
     // 小文件走普通上传
     await uploadFile(rootId, category, file, {
-      onUploadProgress: (e: AxiosProgressEvent) => {
+      onUploadProgress: (e) => {
         if (!e.total) return;
         onProgress((e.loaded / e.total) * 100);
       },
@@ -333,19 +333,16 @@ async function handleUpload() {
         .then(() => {
           successCount++;
         })
-        .catch((err: AxiosError) => {
+        .catch((err: RequestError) => {
           failCount++;
           const currentItem = uploadItems.value[index];
           if (currentItem) {
             currentItem.error = true;
             currentItem.progress = 100;
-            if (err.response && err.response.status === 413) {
-              currentItem.errorMessage = '文件过大';
-            } else {
-              const data = err.response?.data as
-                { message?: string } | undefined;
-              currentItem.errorMessage = data?.message || '上传失败';
-            }
+            currentItem.errorMessage =
+              err.type === 'http' && err.code === 413
+                ? '文件过大'
+                : err.message || '上传失败';
           }
         });
     });

@@ -13,5 +13,5 @@ export const getBaseUrl = () => {
  * 自动添加 /static 前缀
  */
 export const getApiBaseUrl = () => {
-  return getBaseUrl() + '/static';
+  return `${getBaseUrl()}/static`;
 };

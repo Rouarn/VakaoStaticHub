@@ -1,4 +1,4 @@
-import { get, post, del } from '../utils/request';
+import { request } from '../utils/request';
 import { getApiBaseUrl, getBaseUrl } from '@/utils/env';
 import type {
   ShareLink,
@@ -8,20 +8,20 @@ import type {
 } from '@vakao/shared';
 
 export function createShareLink(params: CreateShareLinkParams) {
-  return post<ShareLink>('/share', params);
+  return request.post<ShareLink>('/share', params);
 }
 
 export function getShareLinks() {
-  return get<ShareLink[]>('/share/list');
+  return request.get<ShareLink[]>('/share/list');
 }
 
 export function revokeShareLink(token: string) {
-  return del<{ success: true }>(`/share/${token}`);
+  return request.delete<{ success: true }>(`/share/${token}`);
 }
 
 /** 获取指定分享链接的访问记录列表 */
 export function getShareAccessLogs(token: string) {
-  return get<ShareAccessLog[]>(`/share/${token}/access-logs`);
+  return request.get<ShareAccessLog[]>(`/share/${token}/access-logs`);
 }
 
 /**
@@ -35,7 +35,7 @@ export function getShareLinkUrl(token: string) {
 
 /** 获取分享链接的公开信息 */
 export function getShareInfo(token: string) {
-  return get<ShareInfo>(`/share/${token}/info`);
+  return request.get<ShareInfo>(`/share/${token}/info`);
 }
 
 /**
@@ -43,7 +43,7 @@ export function getShareInfo(token: string) {
  * 一次解锁 = 消耗一次"打开次数"；无密码链接不传密码即可自动解锁
  */
 export function unlockShare(token: string, password?: string) {
-  return post<{ success: boolean; accessToken: string }>(
+  return request.post<{ success: boolean; accessToken: string }>(
     `/share/${token}/verify`,
     password ? { password } : {},
   );

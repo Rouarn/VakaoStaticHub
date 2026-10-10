@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { NModal, NButton, NInput, useMessage } from 'naive-ui';
 import { renameFile } from '@/api/files';
+import { getErrorMessage } from '@/utils/request';
 import { useFileListStore } from '@/stores/modules/file-list';
 
 const props = defineProps<{
@@ -74,8 +75,8 @@ async function handleRename() {
     emit('renamed');
     await store.loadFiles();
     close();
-  } catch (error: any) {
-    message.error(error.response?.data?.message || '重命名失败');
+  } catch (error) {
+    message.error(getErrorMessage(error, '重命名失败'));
   } finally {
     loading.value = false;
   }

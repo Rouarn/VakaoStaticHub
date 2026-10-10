@@ -13,6 +13,7 @@ import {
 import { CloudOutline } from '@vicons/ionicons5';
 import { useAuthStore } from '@/stores/modules/auth';
 import { login } from '@/api/auth';
+import { getErrorMessage } from '@/utils/request';
 
 const username = ref('');
 const password = ref('');
@@ -45,10 +46,9 @@ async function handleSubmit() {
     authStore.setAuth(data.accessToken, data.user);
     const redirect = (route.query.redirect as string) || '/file-list';
     await router.replace(redirect);
-  } catch (error: any) {
+  } catch (error) {
     authStore.clearAuth();
-    errorMessage.value =
-      error.response?.data?.message || error.message || '请求失败，请稍后重试';
+    errorMessage.value = getErrorMessage(error, '请求失败，请稍后重试');
   } finally {
     loading.value = false;
   }

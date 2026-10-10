@@ -16,8 +16,9 @@ import {
   type UploadFileInfo,
 } from 'naive-ui';
 import { createVersion } from '@/api/app-update';
+import { getErrorMessage } from '@/utils/request';
 import { formatSize } from '@/utils/format';
-import type { AxiosError } from 'axios';
+import { RequestError } from '@vakao-ui/axios';
 
 const props = defineProps<{ show: boolean; appKey: string }>();
 const emit = defineEmits<{
@@ -163,11 +164,11 @@ async function handleSubmit() {
     emit('saved');
     handleClose();
   } catch (err) {
-    const axiosErr = err as AxiosError<{ message?: string }>;
-    const msg =
-      axiosErr.response?.data?.message ||
-      (axiosErr.response?.status === 413 ? '文件过大' : '上传失败');
-    message.error(msg);
+    message.error(
+      err instanceof RequestError && err.type === 'http' && err.code === 413
+        ? '文件过大'
+        : getErrorMessage(err, '上传失败'),
+    );
   } finally {
     submitting.value = false;
   }

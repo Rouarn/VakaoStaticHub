@@ -1,31 +1,31 @@
-import axios, { type AxiosRequestConfig, type AxiosError } from 'axios';
-import type { ApiResponse } from '@vakao/shared';
+import { createClient, RequestError } from '@vakao-ui/axios';
 import { getApiBaseUrl } from '@/utils/env';
 import { useAuthStore } from '@/stores/modules/auth';
 import router from '@/router';
 
-const baseURL = getApiBaseUrl();
-
-export const http = axios.create({
-  baseURL,
+/**
+ * 全局请求客户端（基于 @vakao-ui/axios）
+ *
+ * - 默认适配后端 { code, message, data } 响应信封，成功直接返回业务数据
+ * - 自动注入 Authorization；401 时清除登录态并跳转登录页
+ * - 失败统一抛出 RequestError，调用方可用 getErrorMessage 提取用户可见文案
+ */
+export const request = createClient({
+  baseURL: getApiBaseUrl(),
   timeout: 10000,
-});
-
-http.interceptors.request.use((config) => {
-  const authStore = useAuthStore();
-  if (authStore.isLoggedIn) {
-    config.headers.Authorization = `Bearer ${authStore.accessToken}`;
-  }
-  return config;
-});
-
-http.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
-    if (error.response && error.response.status === 401) {
+  auth: {
+    getToken: () => {
+      const authStore = useAuthStore();
+      return authStore.isLoggedIn
+        ? `Bearer ${authStore.accessToken}`
+        : undefined;
+    },
+  },
+  onError: (error) => {
+    // 已在登录页时不重复跳转，并保留 redirect 便于登录后回跳
+    if (error.type === 'http' && error.code === 401) {
       const authStore = useAuthStore();
       authStore.clearAuth();
-      // 已在登录页时不重复跳转，并保留 redirect 便于登录后回跳
       if (router.currentRoute.value.name !== 'login') {
         void router.push({
           name: 'login',
@@ -33,31 +33,10 @@ http.interceptors.response.use(
         });
       }
     }
-    return Promise.reject(
-      error instanceof Error ? error : new Error(String(error)),
-    );
   },
-);
+});
 
-export async function get<T>(
-  url: string,
-  config?: AxiosRequestConfig,
-): Promise<T> {
-  const { data } = await http.get<ApiResponse<T>>(url, config);
-  return data.data as T;
-}
-
-export async function post<T>(url: string, body?: unknown): Promise<T> {
-  const { data } = await http.post<ApiResponse<T>>(url, body);
-  return data.data as T;
-}
-
-export async function patch<T>(url: string, body?: unknown): Promise<T> {
-  const { data } = await http.patch<ApiResponse<T>>(url, body);
-  return data.data as T;
-}
-
-export async function del<T>(url: string): Promise<T> {
-  const { data } = await http.delete<ApiResponse<T>>(url);
-  return data.data as T;
+/** 提取请求错误中用户可见的文案；非请求错误返回兜底文案 */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof RequestError ? error.message : fallback;
 }

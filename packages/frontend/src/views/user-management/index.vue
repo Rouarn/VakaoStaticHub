@@ -11,6 +11,7 @@ import {
 } from 'naive-ui';
 import type { UserInfo } from '@vakao/shared';
 import { listUsers, deleteUser } from '@/api/auth';
+import { getErrorMessage } from '@/utils/request';
 import { useAuthStore } from '@/stores/modules/auth';
 import RegisterForm from './register.vue';
 
@@ -33,10 +34,8 @@ async function loadUsers() {
   loading.value = true;
   try {
     users.value = await listUsers();
-  } catch (error: any) {
-    message.error(
-      error.response?.data?.message || error.message || '加载用户列表失败',
-    );
+  } catch (error) {
+    message.error(getErrorMessage(error, '加载用户列表失败'));
   } finally {
     loading.value = false;
   }
@@ -61,8 +60,8 @@ async function confirmDelete() {
     message.success(`用户 ${deleteTarget.value.username} 已删除`);
     showDeleteModal.value = false;
     await loadUsers();
-  } catch (error: any) {
-    message.error(error.response?.data?.message || error.message || '删除失败');
+  } catch (error) {
+    message.error(getErrorMessage(error, '删除失败'));
   } finally {
     deleting.value = false;
   }

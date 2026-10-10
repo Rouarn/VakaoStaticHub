@@ -28,6 +28,7 @@ import { useDark, useToggle } from '@vueuse/core';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/modules/auth';
 import { changePassword } from '@/api/auth';
+import { getErrorMessage } from '@/utils/request';
 
 const isDark = useDark();
 const toggleDark = useToggle(isDark);
@@ -77,10 +78,8 @@ async function submitChangePassword() {
     message.success('密码修改成功，请重新登录');
     authStore.clearAuth();
     void router.push({ name: 'login' });
-  } catch (error: any) {
-    message.error(
-      error.response?.data?.message || error.message || '密码修改失败',
-    );
+  } catch (error) {
+    message.error(getErrorMessage(error, '密码修改失败'));
   } finally {
     passwordLoading.value = false;
   }

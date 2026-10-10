@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { NForm, NFormItem, NInput, NButton, NAlert } from 'naive-ui';
 import { register } from '@/api/auth';
+import { getErrorMessage } from '@/utils/request';
 
 const emit = defineEmits<{
   (e: 'success', username: string): void;
@@ -46,9 +47,8 @@ async function handleSubmit() {
     password.value = '';
     confirmPassword.value = '';
     emit('success', created);
-  } catch (error: any) {
-    errorMessage.value =
-      error.response?.data?.message || error.message || '创建失败，请稍后重试';
+  } catch (error) {
+    errorMessage.value = getErrorMessage(error, '创建失败，请稍后重试');
   } finally {
     loading.value = false;
   }

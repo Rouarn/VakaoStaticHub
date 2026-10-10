@@ -1,14 +1,11 @@
-import { http } from '@/utils/request';
+import { getApiBaseUrl } from '@/utils/env';
 
 export const buildFileUrl = (
   rootId: string,
   category: string,
   path: string,
 ) => {
-  const base = (http.defaults.baseURL || window.location.origin).replace(
-    /\/$/,
-    '',
-  );
+  const base = (getApiBaseUrl() || window.location.origin).replace(/\/$/, '');
   const encodedPath = path.split('/').map(encodeURIComponent).join('/');
   return `${base}/files/${rootId}/${encodeURIComponent(category)}/${encodedPath}`;
 };

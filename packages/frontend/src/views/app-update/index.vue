@@ -55,11 +55,11 @@ import {
   removeVersion,
 } from '@/api/app-update';
 import type { AppVersion } from '@vakao/shared';
+import { getErrorMessage } from '@/utils/request';
 import { formatSize, formatDate } from '@/utils/format';
 import VersionFormModal from './version-form-modal.vue';
 import PublishModal from './publish-modal.vue';
 import AppActionModal from './app-action-modal.vue';
-import type { AxiosError } from 'axios';
 
 defineOptions({
   name: 'app-update',
@@ -369,8 +369,7 @@ async function saveEdit() {
 }
 
 function extractErrMsg(err: unknown, fallback: string): string {
-  const axiosErr = err as AxiosError<{ message?: string }>;
-  return axiosErr.response?.data?.message || fallback;
+  return getErrorMessage(err, fallback);
 }
 
 async function handleForceToggle(row: AppVersion, enabled: boolean) {

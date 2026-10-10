@@ -1,6 +1,6 @@
-import { get, post, patch, del, http } from '../utils/request';
+import { request } from '../utils/request';
+import type { RequestOptions } from '@vakao-ui/axios';
 import type {
-  ApiResponse,
   PagedResult,
   AppVersion,
   ListVersionsQuery,
@@ -8,7 +8,6 @@ import type {
   RollbackResult,
   FunnelStatsResult,
 } from '@vakao/shared';
-import type { AxiosProgressEvent } from 'axios';
 
 export type { FunnelStatItem, GrayIncrementStep } from '@vakao/shared';
 
@@ -16,17 +15,17 @@ export type ListVersionsParams = ListVersionsQuery;
 
 /** 获取全部应用标识（software-update 根下的分类目录） */
 export function getApps() {
-  return get<string[]>('/app-updates/apps');
+  return request.get<string[]>('/app-updates/apps');
 }
 
 /** 新建应用（创建应用目录） */
 export function createApp(appKey: string) {
-  return post<{ appKey: string }>('/app-updates/apps', { appKey });
+  return request.post<{ appKey: string }>('/app-updates/apps', { appKey });
 }
 
 /** 修改应用标识（重命名目录，迁移全部版本/事件/索引记录） */
 export function renameApp(appKey: string, newAppKey: string) {
-  return patch<{ appKey: string }>(
+  return request.patch<{ appKey: string }>(
     `/app-updates/apps/${encodeURIComponent(appKey)}`,
     { newAppKey },
   );
@@ -34,7 +33,7 @@ export function renameApp(appKey: string, newAppKey: string) {
 
 /** 删除应用（删除整个目录及全部关联数据库记录，不可恢复） */
 export function deleteApp(appKey: string) {
-  return del<{
+  return request.delete<{
     success: true;
     versionCount: number;
     eventCount: number;
@@ -43,11 +42,11 @@ export function deleteApp(appKey: string) {
 }
 
 export function getVersions(params: ListVersionsParams) {
-  return get<PagedResult<AppVersion>>('/app-updates/versions', { params });
+  return request.get<PagedResult<AppVersion>>('/app-updates/versions', params);
 }
 
 export function getVersion(id: number) {
-  return get<AppVersion>(`/app-updates/versions/${id}`);
+  return request.get<AppVersion>(`/app-updates/versions/${id}`);
 }
 
 /**
@@ -66,7 +65,7 @@ export function createVersion(
     scheduledPublishMode?: 'full' | 'gray';
     scheduledGrayPercent?: number;
   },
-  onUploadProgress?: (e: AxiosProgressEvent) => void,
+  onUploadProgress?: RequestOptions['onUploadProgress'],
 ) {
   const fd = new FormData();
   fd.append('file', payload.file);
@@ -84,12 +83,11 @@ export function createVersion(
   if (payload.scheduledGrayPercent !== undefined) {
     fd.append('scheduledGrayPercent', String(payload.scheduledGrayPercent));
   }
-  return http
-    .post<ApiResponse<AppVersion>>('/app-updates/versions', fd, {
-      timeout: 0,
-      onUploadProgress,
-    })
-    .then((r) => r.data.data);
+  return request.upload<AppVersion>('/app-updates/versions', fd, {
+    timeout: 0,
+    dedupe: false,
+    onUploadProgress,
+  });
 }
 
 export function updateVersion(
@@ -103,7 +101,7 @@ export function updateVersion(
     scheduledGrayPercent?: number;
   },
 ) {
-  return patch<AppVersion>(`/app-updates/versions/${id}`, payload);
+  return request.patch<AppVersion>(`/app-updates/versions/${id}`, payload);
 }
 
 export function publishVersion(
@@ -115,29 +113,30 @@ export function publishVersion(
     grayIncrementSchedule?: GrayIncrementStep[];
   },
 ) {
-  return post<AppVersion>(`/app-updates/versions/${id}/publish`, payload);
+  return request.post<AppVersion>(
+    `/app-updates/versions/${id}/publish`,
+    payload,
+  );
 }
 
-/** 远程强更开关（逃生口）：PUT 语义，经 http 直发 */
+/** 远程强更开关（逃生口）：PUT 语义 */
 export function setForceUpdate(
   id: number,
   payload: { forceUpdate: boolean; minVersionCode?: number },
 ) {
-  return http
-    .put<ApiResponse<AppVersion>>(`/app-updates/versions/${id}/force`, payload)
-    .then((r) => r.data.data);
+  return request.put<AppVersion>(`/app-updates/versions/${id}/force`, payload);
 }
 
 export function offlineVersion(id: number) {
-  return post<AppVersion>(`/app-updates/versions/${id}/offline`);
+  return request.post<AppVersion>(`/app-updates/versions/${id}/offline`);
 }
 
 export function rollbackVersion(id: number) {
-  return post<RollbackResult>(`/app-updates/versions/${id}/rollback`);
+  return request.post<RollbackResult>(`/app-updates/versions/${id}/rollback`);
 }
 
 export function removeVersion(id: number) {
-  return del<{ success: true }>(`/app-updates/versions/${id}`);
+  return request.delete<{ success: true }>(`/app-updates/versions/${id}`);
 }
 
 /** 升级漏斗统计（按版本聚合各事件转化率） */
@@ -146,7 +145,8 @@ export function getFunnelStats(params: {
   startTime?: number;
   endTime?: number;
 }) {
-  return get<FunnelStatsResult>('/app-updates/versions/stats/funnel', {
+  return request.get<FunnelStatsResult>(
+    '/app-updates/versions/stats/funnel',
     params,
-  });
+  );
 }

@@ -144,6 +144,9 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@vakao-ui/axios':
+        specifier: ^0.0.2
+        version: 0.0.2(axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2))
       '@vakao/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1361,6 +1364,11 @@ packages:
     resolution: {integrity: sha512-aFJ+lTcqIbtqxsKD1OI1gtvfEieJPVa9KOZr1Wj/ChrSCStcS7QP/DTbYvM6hC+qa07W6hEbSEgYqOUtCvFKVw==}
     peerDependencies:
       vite: ^5.0.0-0 || ^6.0.0-0 || ^7.0.0-0 || ^8.0.0-0
+
+  '@vakao-ui/axios@0.0.2':
+    resolution: {integrity: sha512-+sV4XSWnGGka4MhP+ytzWNbVqMsVLMlz2OUTngtj4YDXjw/UFHTgabc25kgMGBpUaFl+lEf+vnnSRa6eKzcqHg==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao-ui/axios/-/@vakao-ui/axios-0.0.2.tgz}
+    peerDependencies:
+      axios: '>=1.0.0'
 
   '@vakao-ui/scripts-utils@0.0.2':
     resolution: {integrity: sha512-4rdfj/Q4cNBp5gSX9muW8umUCPMkZZPsITOOx0BdPtgQOiJdNwJVSjY3pMuEhPZ3eag10xtpcVfZKWuB2RKucA==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao-ui/scripts-utils/-/@vakao-ui/scripts-utils-0.0.2.tgz}
@@ -4712,6 +4720,10 @@ snapshots:
       - cac
       - ocache
       - srvx
+
+  '@vakao-ui/axios@0.0.2(axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2))':
+    dependencies:
+      axios: 1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
 
   '@vakao-ui/scripts-utils@0.0.2': {}
 

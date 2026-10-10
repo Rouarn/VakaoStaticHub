@@ -1,5 +1,5 @@
-import { get, post, patch, del } from '../utils/request';
-import { http } from '../utils/request';
+import { request } from '../utils/request';
+import type { RequestOptions } from '@vakao-ui/axios';
 import type {
   ResourceRoot,
   FileItem,
@@ -13,30 +13,30 @@ import type {
 } from '@vakao/shared';
 
 export function getRoots() {
-  return get<ResourceRoot[]>('/roots');
+  return request.get<ResourceRoot[]>('/roots');
 }
 
 export function addRoot(root: ResourceRoot) {
-  return post<ResourceRoot[]>('/roots', root);
+  return request.post<ResourceRoot[]>('/roots', root);
 }
 
 export function updateRoot(
   id: string,
   root: Partial<Omit<ResourceRoot, 'id'>>,
 ) {
-  return patch<ResourceRoot[]>(`/roots/${id}`, root);
+  return request.patch<ResourceRoot[]>(`/roots/${id}`, root);
 }
 
 export function removeRoot(id: string) {
-  return del<{ success: true }>(`/roots/${id}`);
+  return request.delete<{ success: true }>(`/roots/${id}`);
 }
 
 export function getFileConfig() {
-  return get<FileConfig>('/files/config');
+  return request.get<FileConfig>('/files/config');
 }
 
 export function getCategories(rootId: string) {
-  return get<string[]>(`/files/${rootId}/categories`);
+  return request.get<string[]>(`/files/${rootId}/categories`);
 }
 
 export function renameCategory(
@@ -44,7 +44,7 @@ export function renameCategory(
   category: string,
   newCategory: string,
 ) {
-  return patch<{ category: string }>(
+  return request.patch<{ category: string }>(
     `/files/${rootId}/categories/${encodeURIComponent(category)}`,
     { newCategory },
   );
@@ -61,24 +61,25 @@ export function getFiles(
     order?: string;
   },
 ) {
-  return get<PagedResult<FileItem>>(
+  return request.get<PagedResult<FileItem>>(
     `/files/${rootId}/${encodeURIComponent(category)}`,
-    { params },
+    params,
   );
 }
 
 export function getUsageStats() {
-  return get<UsageStatsResult>('/files/stats/usage');
+  return request.get<UsageStatsResult>('/files/stats/usage');
 }
 
 export function getDuplicates(rootId?: string) {
-  return get<DuplicateScanResult>('/files/duplicates', {
-    params: rootId ? { rootId } : undefined,
-  });
+  return request.get<DuplicateScanResult>(
+    '/files/duplicates',
+    rootId ? { rootId } : undefined,
+  );
 }
 
 export interface UploadOptions {
-  onUploadProgress?: (e: any) => void;
+  onUploadProgress?: RequestOptions['onUploadProgress'];
 }
 
 export function uploadFile(
@@ -90,10 +91,9 @@ export function uploadFile(
   const fd = new FormData();
   fd.append('files', file);
   fd.append('category', category);
-  return http.post(`/files/${rootId}/upload`, fd, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+  return request.upload(`/files/${rootId}/upload`, fd, {
+    // 上传具有副作用，禁用重复请求取消，避免同名文件并发上传被误取消
+    dedupe: false,
     onUploadProgress: options?.onUploadProgress,
   });
 }
@@ -107,7 +107,7 @@ export function initChunkUpload(
   size: number,
   chunkSize: number,
 ) {
-  return post<ChunkUploadInitResult>('/files/upload/init', {
+  return request.post<ChunkUploadInitResult>('/files/upload/init', {
     rootId,
     category,
     filename,
@@ -119,12 +119,10 @@ export function initChunkUpload(
 export function uploadChunk(uploadId: string, index: number, chunk: Blob) {
   const fd = new FormData();
   fd.append('chunk', chunk);
-  return http.post(
+  return request.upload(
     `/files/upload/chunk?uploadId=${uploadId}&index=${index}`,
     fd,
-    {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    },
+    { dedupe: false },
   );
 }
 
@@ -135,14 +133,18 @@ export function completeChunkUpload(
   filename: string,
   size: number,
 ) {
-  return post<{ name: string; path: string; size: number; mtime: number }>(
-    '/files/upload/complete',
-    { uploadId, rootId, category, filename, size },
-  );
+  return request.post<{
+    name: string;
+    path: string;
+    size: number;
+    mtime: number;
+  }>('/files/upload/complete', { uploadId, rootId, category, filename, size });
 }
 
 export function cancelChunkUpload(uploadId: string) {
-  return post<{ success: boolean }>('/files/upload/cancel', { uploadId });
+  return request.post<{ success: boolean }>('/files/upload/cancel', {
+    uploadId,
+  });
 }
 
 export function batchDeleteFiles(
@@ -150,7 +152,7 @@ export function batchDeleteFiles(
   category: string,
   paths: string[],
 ) {
-  return post<BatchDeleteResult>('/files/batch-delete', {
+  return request.post<BatchDeleteResult>('/files/batch-delete', {
     rootId,
     category,
     paths,
@@ -163,7 +165,7 @@ export function batchMoveFiles(
   paths: string[],
   targetCategory: string,
 ) {
-  return post<BatchMoveResult>('/files/batch-move', {
+  return request.post<BatchMoveResult>('/files/batch-move', {
     rootId,
     category,
     paths,
@@ -177,7 +179,9 @@ export function deleteFile(rootId: string, category: string, path: string) {
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/');
-  return del<null>(`/files/${rootId}/${encodedCategory}/${encodedPath}`);
+  return request.delete<null>(
+    `/files/${rootId}/${encodedCategory}/${encodedPath}`,
+  );
 }
 
 export function renameFile(
@@ -191,15 +195,19 @@ export function renameFile(
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/');
-  return patch<FileItem>(`/files/${rootId}/${encodedCategory}/${encodedPath}`, {
-    newName,
-  });
+  return request.patch<FileItem>(
+    `/files/${rootId}/${encodedCategory}/${encodedPath}`,
+    { newName },
+  );
 }
 
 export function syncFileIndex() {
-  return post<{ message: string }>('/files/sync');
+  return request.post<{ message: string }>('/files/sync');
 }
 
 export function getSystemDirectories(path?: string) {
-  return get<any[]>('/roots/system/directories', { params: { path } });
+  return request.get<any[]>(
+    '/roots/system/directories',
+    path ? { path } : undefined,
+  );
 }

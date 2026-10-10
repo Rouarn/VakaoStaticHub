@@ -14,6 +14,7 @@ import {
 } from 'naive-ui';
 import { DownloadOutline } from '@vicons/ionicons5';
 import { createShareLink, getShareLinkUrl } from '@/api/share';
+import { getErrorMessage } from '@/utils/request';
 import QrCode from '@/components/qr-code.vue';
 import { useFileListStore } from '@/stores/modules/file-list';
 
@@ -101,8 +102,8 @@ async function handleCreate() {
     const data = await createShareLink(params);
     createdToken.value = data.token;
     message.success('分享链接已创建');
-  } catch (error: any) {
-    message.error(error.response?.data?.message || '创建失败');
+  } catch (error) {
+    message.error(getErrorMessage(error, '创建失败'));
   } finally {
     loading.value = false;
   }

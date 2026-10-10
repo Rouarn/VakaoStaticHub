@@ -38,6 +38,7 @@ import RenameCategoryModal from './components/rename-category-modal.vue';
 import CreateShareModal from './components/create-share-modal.vue';
 import { useFileListStore } from '@/stores/modules/file-list/index.ts';
 import { batchDeleteFiles, batchMoveFiles } from '@/api/files';
+import { getErrorMessage } from '@/utils/request';
 import type { SortField } from '@vakao/shared';
 import { formatSize, formatDate } from '@/utils/format';
 import { buildFileUrl } from '@/utils/url';
@@ -333,8 +334,8 @@ async function confirmBatchMove() {
     batchMoveTarget.value = null;
     clearSelection();
     await store.loadFiles();
-  } catch (e: any) {
-    message.error(e?.response?.data?.message ?? '批量移动失败');
+  } catch (e) {
+    message.error(getErrorMessage(e, '批量移动失败'));
   } finally {
     batchLoading.value = false;
   }

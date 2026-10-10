@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { uploadFile } from '@/api/files';
-import type { AxiosError, AxiosProgressEvent } from 'axios';
+import type { RequestError } from '@vakao-ui/axios';
 
 interface UploadItem {
   file: File;
@@ -58,7 +58,7 @@ export function useFileUpload(rootId: () => string) {
         }
 
         return uploadFile(rootId(), finalCategory, item.file, {
-          onUploadProgress: (e: AxiosProgressEvent) => {
+          onUploadProgress: (e) => {
             if (!e.total) return;
             const percent = (e.loaded / e.total) * 100;
             const currentItem = uploadItems.value[index];
@@ -70,19 +70,16 @@ export function useFileUpload(rootId: () => string) {
           .then(() => {
             successCount++;
           })
-          .catch((err: AxiosError) => {
+          .catch((err: RequestError) => {
             failCount++;
             const currentItem = uploadItems.value[index];
             if (currentItem) {
               currentItem.error = true;
               currentItem.progress = 100;
-              if (err.response && err.response.status === 413) {
-                currentItem.errorMessage = '文件过大';
-              } else {
-                const data = err.response?.data as
-                  { message?: string } | undefined;
-                currentItem.errorMessage = data?.message || '上传失败';
-              }
+              currentItem.errorMessage =
+                err.type === 'http' && err.code === 413
+                  ? '文件过大'
+                  : err.message || '上传失败';
             }
           });
       });

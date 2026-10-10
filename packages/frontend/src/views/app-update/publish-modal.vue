@@ -14,8 +14,8 @@ import {
 } from 'naive-ui';
 import { AddOutline, RemoveOutline } from '@vicons/ionicons5';
 import { publishVersion, type GrayIncrementStep } from '@/api/app-update';
+import { getErrorMessage } from '@/utils/request';
 import type { AppVersion } from '@vakao/shared';
-import type { AxiosError } from 'axios';
 
 const props = defineProps<{ show: boolean; version: AppVersion | null }>();
 const emit = defineEmits<{
@@ -100,8 +100,7 @@ async function handleConfirm() {
     emit('saved');
     emit('update:show', false);
   } catch (err) {
-    const axiosErr = err as AxiosError<{ message?: string }>;
-    message.error(axiosErr.response?.data?.message || '发布失败');
+    message.error(getErrorMessage(err, '发布失败'));
   } finally {
     submitting.value = false;
   }

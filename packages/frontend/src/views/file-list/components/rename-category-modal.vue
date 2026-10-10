@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { NModal, NButton, NInput, useMessage } from 'naive-ui';
+import { getErrorMessage } from '@/utils/request';
 import { useFileListStore } from '@/stores/modules/file-list';
 
 const props = defineProps<{
@@ -57,8 +58,8 @@ async function handleRename() {
     message.success('分类重命名成功');
     emit('renamed');
     close();
-  } catch (error: any) {
-    message.error(error.response?.data?.message || '分类重命名失败');
+  } catch (error) {
+    message.error(getErrorMessage(error, '分类重命名失败'));
   } finally {
     loading.value = false;
   }

@@ -25,6 +25,7 @@ import {
   PulseOutline,
 } from '@vicons/ionicons5';
 import { getSystemMetrics, type SystemMetrics } from '@/api/system';
+import { getErrorMessage } from '@/utils/request';
 import { formatSize } from '@/utils/format';
 
 defineOptions({
@@ -83,10 +84,8 @@ async function loadMetrics() {
   loading.value = true;
   try {
     metrics.value = await getSystemMetrics();
-  } catch (error: any) {
-    message.error(
-      error.response?.data?.message || error.message || '加载系统指标失败',
-    );
+  } catch (error) {
+    message.error(getErrorMessage(error, '加载系统指标失败'));
   } finally {
     loading.value = false;
   }
