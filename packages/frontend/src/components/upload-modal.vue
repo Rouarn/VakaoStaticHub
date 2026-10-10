@@ -13,6 +13,7 @@ import {
   completeChunkUpload,
 } from '@/api/files';
 import { DEFAULT_CATEGORY } from '@/stores/modules/file-list';
+import { getErrorMessage } from '@/utils/request';
 import type { RequestError } from '@vakao-ui/axios';
 
 interface UploadItem {
@@ -342,7 +343,7 @@ async function handleUpload() {
             currentItem.errorMessage =
               err.type === 'http' && err.code === 413
                 ? '文件过大'
-                : err.message || '上传失败';
+                : getErrorMessage(err, '上传失败');
           }
         });
     });

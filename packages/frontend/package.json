@@ -14,30 +14,30 @@
   "dependencies": {
     "@vakao-ui/axios": "^0.0.2",
     "@vakao/shared": "workspace:*",
-    "@vueuse/core": "^14.3.0",
-    "axios": "^1.18.1",
-    "dayjs": "^1.11.21",
+    "@vueuse/core": "^14.4.0",
+    "axios": "^1.20.0",
+    "dayjs": "^1.11.23",
     "jit-viewer": "^1.5.0",
-    "naive-ui": "^2.44.1",
+    "naive-ui": "^2.45.3",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "qrcode": "^1.5.4",
-    "vue": "^3.5.38",
-    "vue-router": "^5.1.0"
+    "vue": "^3.5.43",
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.6.4",
     "@types/qrcode": "^1.5.6",
-    "@unocss/preset-attributify": "^66.7.2",
-    "@unocss/preset-uno": "^66.7.2",
+    "@unocss/preset-attributify": "^66.10.5",
+    "@unocss/preset-uno": "^66.10.5",
     "@vicons/ionicons5": "^0.13.0",
-    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitejs/plugin-vue": "^6.0.9",
     "@vue/tsconfig": "^0.9.1",
     "typescript": "~6.0.3",
-    "unocss": "^66.7.2",
-    "unplugin-auto-import": "^21.0.0",
+    "unocss": "^66.10.5",
+    "unplugin-auto-import": "^21.1.0",
     "unplugin-vue-components": "^32.1.0",
-    "vite": "^8.1.0",
-    "vue-tsc": "^3.3.5"
+    "vite": "^8.3.4",
+    "vue-tsc": "^3.3.12"
   }
 }

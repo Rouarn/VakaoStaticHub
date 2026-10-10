@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import { uploadFile } from '@/api/files';
+import { getErrorMessage } from '@/utils/request';
 import type { RequestError } from '@vakao-ui/axios';
 
 interface UploadItem {
@@ -79,7 +80,7 @@ export function useFileUpload(rootId: () => string) {
               currentItem.errorMessage =
                 err.type === 'http' && err.code === 413
                   ? '文件过大'
-                  : err.message || '上传失败';
+                  : getErrorMessage(err, '上传失败');
             }
           });
       });
