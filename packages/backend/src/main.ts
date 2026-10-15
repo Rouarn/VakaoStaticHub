@@ -32,14 +32,22 @@ async function bootstrap() {
 
   app.setGlobalPrefix(serverCfg?.staticPrefix ?? 'static');
 
-  // CORS 白名单：默认不开放跨域（生产同源部署、开发走 Vite proxy）；
-  // 需要跨域时通过 CORS_ORIGIN 配置逗号分隔的来源列表
+  // CORS 来源：默认不开放跨域（生产同源部署、开发走 Vite proxy）；
+  // 需要跨域时通过 CORS_ORIGIN 配置逗号分隔的来源白名单，填 '*' 表示放通全部来源
   const corsOrigins = (serverCfg?.corsOrigin ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  // 注意：cors 包对数组形式的 origin 是逐项全等比较，传 ['*'] 匹配不上任何来源，
+  // 必须把 '*' 还原成字符串通配符才生效
+  let corsOrigin: string | string[] | boolean = false;
+  if (corsOrigins.includes('*')) {
+    corsOrigin = '*';
+  } else if (corsOrigins.length > 0) {
+    corsOrigin = corsOrigins;
+  }
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : false,
+    origin: corsOrigin,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });

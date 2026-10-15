@@ -96,7 +96,7 @@ pnpm dev
 | `PORT`           | `9865`   | 后端监听端口                                                         |
 | `BODY_LIMIT`     | `10mb`   | JSON 请求体大小限制（不作用于 multipart 上传；APK 单包硬上限 500MB） |
 | `STATIC_PREFIX`  | `static` | API 与静态文件 URL 前缀                                              |
-| `CORS_ORIGIN`    | `''`     | 跨域来源白名单，逗号分隔；留空不开放跨域                             |
+| `CORS_ORIGIN`    | `''`     | 跨域来源白名单，逗号分隔；留空不开放跨域，填 `*` 放通全部来源        |
 | `ENABLE_SWAGGER` | `true`   | 是否挂载 Swagger 文档（`/docs`），生产环境建议关闭                   |
 
 ### 认证
