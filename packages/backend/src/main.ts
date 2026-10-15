@@ -47,7 +47,8 @@ async function bootstrap() {
   app.use(
     helmet({
       contentSecurityPolicy: false, // SPA 内联脚本与 Swagger 需要，先关闭 CSP
-      crossOriginEmbedderPolicy: false,
+      crossOriginEmbedderPolicy: false, // 关闭 COEP，允许跨源嵌入
+      crossOriginResourcePolicy: { policy: 'cross-origin' }, // 静态资源服务需要允许跨源嵌入，放开 CORP
     }),
   );
 
