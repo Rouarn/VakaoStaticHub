@@ -1,3 +1,5 @@
+export const videoExtensions = ['mp4', 'mov', 'webm', 'avi', 'mkv', 'ogv'];
+
 export const supportedExtensions = [
   // PDF
   'pdf',
@@ -35,11 +37,7 @@ export const supportedExtensions = [
   'ico',
   'avif',
   // Video
-  'mp4',
-  'mov',
-  'webm',
-  'avi',
-  'mkv',
+  ...videoExtensions,
   // Audio
   'mp3',
   'wav',
@@ -85,6 +83,26 @@ export const getFileExtension = (path: string): string => {
 export const isImage = (path: string): boolean => {
   const ext = getFileExtension(path);
   return imageExtensions.includes(ext);
+};
+
+export const isVideo = (path: string): boolean => {
+  const ext = getFileExtension(path);
+  return videoExtensions.includes(ext);
+};
+
+/** 视频扩展名对应的 MIME 类型，供播放器声明 source type（未知回退 video/mp4） */
+const VIDEO_MIME_TYPES: Record<string, string> = {
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  ogv: 'video/ogg',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
+  avi: 'video/x-msvideo',
+};
+
+export const getVideoMimeType = (path: string): string => {
+  const ext = getFileExtension(path);
+  return VIDEO_MIME_TYPES[ext] || 'video/mp4';
 };
 
 export const isSupported = (path: string): boolean => {

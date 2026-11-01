@@ -26,6 +26,8 @@ export const MIME_TYPES: Record<string, string> = {
   txt: 'text/plain',
   mp4: 'video/mp4',
   webm: 'video/webm',
+  ogv: 'video/ogg',
+  mov: 'video/quicktime',
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
   apk: 'application/vnd.android.package-archive',

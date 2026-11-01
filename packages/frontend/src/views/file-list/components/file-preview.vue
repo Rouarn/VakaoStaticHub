@@ -7,7 +7,9 @@ import {
   prefetchJitViewer,
   type ViewerInstance,
 } from '@/utils/jit-viewer-loader';
-import { isSupported } from '@/utils/file-types';
+import { prefetchVideoPlayer } from '@/utils/video-player-loader';
+import VideoPreview from '@/components/video-preview.vue';
+import { isSupported, isVideo } from '@/utils/file-types';
 import { useDark } from '@vueuse/core';
 
 const isDark = useDark();
@@ -29,17 +31,31 @@ const errorMessage = ref('');
 const viewerRef = ref<HTMLDivElement | null>(null);
 let viewerInstance: ViewerInstance | null = null;
 
+// 视频走专属流式预览组件（video.js + 后端 Range），不经过 jit-viewer 的整文件下载逻辑
+const isVideoFile = computed(() => isVideo(props.filePath));
+const videoReloadKey = ref(0);
+
 const previewUrl = () => props.fileUrl(props.filePath);
 
 const handleClick = () => {
   showModal.value = true;
-  loading.value = true;
   loadError.value = false;
   errorMessage.value = '';
 
+  if (isVideoFile.value) {
+    // 加载态由 VideoPreview 内部 spinner 承担
+    return;
+  }
+
   if (isSupported(props.filePath)) {
+    loading.value = true;
     initViewer();
   }
+};
+
+const handleVideoError = (err: Error) => {
+  loadError.value = true;
+  errorMessage.value = err.message || '视频加载失败';
 };
 
 const initViewer = async () => {
@@ -88,12 +104,21 @@ const handleClose = () => {
 };
 
 const handleReload = () => {
+  if (isVideoFile.value) {
+    // 通过 key 重建 VideoPreview 实现重试
+    loadError.value = false;
+    errorMessage.value = '';
+    videoReloadKey.value++;
+    return;
+  }
   handleClick();
 };
 
 // 卡片渲染后趁浏览器空闲预取，首次点击预览时几乎无等待
 onMounted(() => {
-  if (isSupported(props.filePath)) {
+  if (isVideoFile.value) {
+    prefetchVideoPlayer();
+  } else if (isSupported(props.filePath)) {
     prefetchJitViewer();
   }
 });
@@ -132,16 +157,26 @@ defineExpose({
       <div
         v-if="isSupported(filePath)"
         class="max-w-4xl h-[75vh] mx-auto p-3 flex items-center justify-center bg-container rounded-xl overflow-hidden relative"
+        :class="{ 'w-[80vw]': isVideoFile }"
       >
-        <div ref="viewerRef" style="width: 100%; height: 100%"></div>
-        <div
-          v-if="loading"
-          class="absolute inset-0 bg-white/80 flex items-center justify-center z-10"
-        >
-          <NSpin :show="loading" size="large">
-            <template #description>加载中...</template>
-          </NSpin>
-        </div>
+        <VideoPreview
+          v-if="isVideoFile"
+          :key="videoReloadKey"
+          :src="previewUrl()"
+          :filename="filePath"
+          @error="handleVideoError"
+        />
+        <template v-else>
+          <div ref="viewerRef" style="width: 100%; height: 100%"></div>
+          <div
+            v-if="loading"
+            class="absolute inset-0 bg-white/80 flex items-center justify-center z-10"
+          >
+            <NSpin :show="loading" size="large">
+              <template #description>加载中...</template>
+            </NSpin>
+          </div>
+        </template>
       </div>
 
       <template v-else>

@@ -73,11 +73,11 @@ export default defineConfig({
             return 'rolldown-runtime';
           }
           if (id.includes('node_modules')) {
-            // jit-viewer 仅被动态 import（见 utils/jit-viewer-loader），
-            // 必须交给默认分包，切勿 return 固定 chunk 名：
-            // Rolldown 会把 __vitePreload 助手合并进该命名 chunk，
-            // 迫使入口静态依赖整个预览 SDK。
-            if (id.includes('jit-viewer')) {
+            // jit-viewer / video.js 仅被动态 import（见 utils/jit-viewer-loader、
+            // utils/video-player-loader），必须交给默认分包，切勿 return 固定
+            // chunk 名：Rolldown 会把 __vitePreload 助手合并进该命名 chunk，
+            // 迫使入口静态依赖整个预览 SDK / 播放器。
+            if (id.includes('jit-viewer') || id.includes('video.js')) {
               return;
             }
             if (id.includes('naive-ui')) {
