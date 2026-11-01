@@ -15,7 +15,7 @@ import DefaultFilePreview from './components/default-file-preview.vue';
 import CopyLinkModal from './components/copy-link-modal.vue';
 import CreateShareModal from './components/create-share-modal.vue';
 import RenameFileModal from './components/rename-file-modal.vue';
-import { isSupported, isArchive, isImage } from '@/utils/file-types';
+import { isSupported, isArchive, isImage, isPptExternal } from '@/utils/file-types';
 
 interface FileItem {
   path: string;
@@ -62,7 +62,9 @@ function closeCopyModal() {
             :file-url="props.fileUrl"
           />
         </template>
-        <template v-else-if="isSupported(props.file.path)">
+        <template
+          v-else-if="isSupported(props.file.path) || isPptExternal(props.file.path)"
+        >
           <FilePreview :file-path="props.file.path" :file-url="props.fileUrl" />
         </template>
         <template v-else-if="isArchive(props.file.path)">

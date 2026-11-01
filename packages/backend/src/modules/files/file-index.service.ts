@@ -59,10 +59,18 @@ export class FileIndexService implements OnApplicationBootstrap {
 
   async syncRoot(rootId: string) {
     const rootPath = this.resourceRoots.resolveRootPath(rootId);
-    await mkdir(rootPath, { recursive: true });
-    const categories = (await readdir(rootPath, { withFileTypes: true }))
-      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-      .map((d) => d.name);
+    let categories: string[];
+    try {
+      await mkdir(rootPath, { recursive: true });
+      categories = (await readdir(rootPath, { withFileTypes: true }))
+        .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+        .map((d) => d.name);
+    } catch (error) {
+      if (!this.isSkippableError(error)) throw error;
+      // 整个根目录不可读：保留上一轮索引，跳过本轮同步，避免影响服务启动
+      this.logger.warn(`跳过无权限读取的资源根目录：${rootPath}`);
+      return;
+    }
 
     // 全量重建前先快照已有 contentHash：文件大小与修改时间均未变化时
     // 内容必然未变，可直接保留哈希，避免每次定时同步后重复文件检测都要重新扫盘
@@ -113,13 +121,28 @@ export class FileIndexService implements OnApplicationBootstrap {
     }
   }
 
+  /** 权限不足 / 目标已消失等可恢复错误：跳过该项，不中断整次同步 */
+  private isSkippableError(error: unknown): boolean {
+    const code = (error as NodeJS.ErrnoException | null)?.code;
+    return code === 'EPERM' || code === 'EACCES' || code === 'ENOENT';
+  }
+
   private async walkCategory(
     rootId: string,
     category: string,
     dir: string,
     relBase = '',
   ): Promise<FileRecord[]> {
-    const entries = await readdir(dir, { withFileTypes: true });
+    // 目录不可读（如 macOS 的 Photos Library 受系统保护）时整棵子树跳过
+    const entries = await readdir(dir, { withFileTypes: true }).catch(
+      (error) => {
+        if (!this.isSkippableError(error)) throw error;
+        this.logger.warn(`跳过无权限读取的目录：${dir}`);
+        return null;
+      },
+    );
+    if (!entries) return [];
+
     const results: FileRecord[] = [];
 
     for (const entry of entries) {
@@ -135,7 +158,12 @@ export class FileIndexService implements OnApplicationBootstrap {
       }
       if (!entry.isFile()) continue;
 
-      const s = await stat(absPath);
+      // 单个文件 stat 失败（权限/失效软链）只跳过该文件
+      const s = await stat(absPath).catch((error) => {
+        if (!this.isSkippableError(error)) throw error;
+        return null;
+      });
+      if (!s) continue;
       const ext = extname(entry.name).toLowerCase();
       results.push({
         rootId,

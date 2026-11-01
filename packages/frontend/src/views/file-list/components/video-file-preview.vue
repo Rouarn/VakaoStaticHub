@@ -149,3 +149,61 @@ defineExpose({
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * video.js 控制栏主题化：与音频预览统一的绿色系（#18a058）
+ * 播放器 DOM 由 video.js 动态创建（无组件 scope 属性），需 :deep 穿透
+ */
+
+/* 中央大播放键：圆形主题色，与音频的圆形播放键呼应 */
+.video-preview :deep(.video-js .vjs-big-play-button) {
+  width: 72px;
+  height: 72px;
+  line-height: 72px;
+  border: none;
+  border-radius: 50%;
+  background-color: rgba(24, 160, 88, 0.9);
+  font-size: 42px;
+  transition: background-color 0.2s;
+}
+
+.video-preview :deep(.video-js .vjs-big-play-button:hover),
+.video-preview :deep(.video-js:hover .vjs-big-play-button) {
+  background-color: #0c7a43;
+}
+
+/* 底部控制栏：透明渐变，弱化默认的灰蓝色块 */
+.video-preview :deep(.video-js .vjs-control-bar) {
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+}
+
+/* 进度条：轨道/缓冲/播放三层圆角对齐，已播段主题绿 */
+.video-preview :deep(.video-js .vjs-progress-holder),
+.video-preview :deep(.video-js .vjs-progress-holder .vjs-play-progress),
+.video-preview :deep(.video-js .vjs-progress-holder .vjs-load-progress),
+.video-preview :deep(.video-js .vjs-progress-holder .vjs-load-progress div),
+.video-preview :deep(.video-js .vjs-volume-bar),
+.video-preview :deep(.video-js .vjs-volume-level) {
+  border-radius: 9999px;
+}
+
+.video-preview :deep(.video-js .vjs-play-progress) {
+  background-color: #18a058;
+}
+
+.video-preview :deep(.video-js .vjs-load-progress div) {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.video-preview :deep(.video-js .vjs-volume-level) {
+  background-color: #18a058;
+}
+
+/* 控制按钮悬停：主题浅绿，去掉默认文字阴影 */
+.video-preview :deep(.video-js .vjs-control:focus),
+.video-preview :deep(.video-js .vjs-control:hover) {
+  color: #36ad6a;
+  text-shadow: none;
+}
+</style>

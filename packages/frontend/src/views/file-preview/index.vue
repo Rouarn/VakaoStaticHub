@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useDark } from '@vueuse/core';
 import UrlInput from './components/url-input.vue';
 import FileViewer from './components/file-viewer.vue';
 import StatusDisplay from './components/status-display.vue';
 import { useFilePreview } from '@/composables/use-file-preview';
 
 defineOptions({ name: 'FilePreviewPage' });
-
-const isDark = useDark();
-const theme = computed(() => (isDark.value ? 'dark' : 'light'));
 
 const {
   fileUrl,
@@ -88,7 +83,6 @@ const getCurrentStatus = (): 'empty' | 'unsupported' | 'error' | 'preview' => {
           v-else
           ref="fileViewerRef"
           :file-url="fileUrl"
-          :theme="theme"
           @ready="handleReady"
           @load="handleLoad"
           @error="handleError"
@@ -115,7 +109,6 @@ const getCurrentStatus = (): 'empty' | 'unsupported' | 'error' | 'preview' => {
           v-else
           ref="fileViewerRef"
           :file-url="fileUrl"
-          :theme="theme"
           @ready="handleReady"
           @load="handleLoad"
           @error="handleError"

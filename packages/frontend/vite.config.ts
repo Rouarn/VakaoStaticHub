@@ -46,24 +46,13 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        chunkFileNames(chunkInfo) {
-          // jit-viewer 走默认分包（保持其内部 CAD/3D 等二级懒加载 chunk），
-          // 这里仅统一加 jit- 前缀，便于在 Network 面板识别
-          if (
-            (chunkInfo.moduleIds ?? []).some((id) =>
-              id.includes('node_modules/jit-viewer'),
-            )
-          ) {
-            return 'assets/js/jit-[name]-[hash].js';
-          }
-          return 'assets/js/[name]-[hash].js';
-        },
+        chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
         manualChunks(id) {
           // Vite/Rolldown/Vue 运行时助手必须固定到 runtime chunk。
-          // 否则 Rolldown 会把 vite/preload-helper 合并进 jit-viewer chunk，
-          // 导致入口 chunk 为了该助手静态依赖 8MB 的预览 SDK，
+          // 否则 Rolldown 会把 vite/preload-helper 合并进懒加载 chunk，
+          // 导致入口 chunk 为了该助手静态依赖整个懒加载库，
           // index.html 首屏直接 modulepreload 它，造成白屏。
           if (
             id.includes('vite/preload-helper') ||
@@ -73,13 +62,12 @@ export default defineConfig({
             return 'rolldown-runtime';
           }
           if (id.includes('node_modules')) {
-            // jit-viewer / video.js 仅被动态 import（见 utils/jit-viewer-loader、
-            // utils/video-player-loader），必须交给默认分包，切勿 return 固定
+            // 仅对入口静态依赖的库做固定分包；按需加载的预览库
+            // （video.js / pdfjs-dist / xlsx / docx-preview / highlight.js /
+            // markdown-it 等，见 utils/preview-registry）绝不能 return 固定
             // chunk 名：Rolldown 会把 __vitePreload 助手合并进该命名 chunk，
-            // 迫使入口静态依赖整个预览 SDK / 播放器。
-            if (id.includes('jit-viewer') || id.includes('video.js')) {
-              return;
-            }
+            // 迫使入口静态依赖它们。不设 vendor 兜底同理——交给默认分包
+            // 才能保持懒加载语义。
             if (id.includes('naive-ui')) {
               return 'naive-ui';
             }
@@ -96,7 +84,6 @@ export default defineConfig({
             if (id.includes('@iconify') || id.includes('@vicons')) {
               return 'icons-vendor';
             }
-            return 'vendor';
           }
         },
       },
@@ -107,16 +94,10 @@ export default defineConfig({
         ) {
           return;
         }
-        if (warning.code === 'EVAL' && warning.message.includes('jit-viewer')) {
-          return;
-        }
-        if (warning.message?.includes('jit-viewer')) {
-          return;
-        }
         warn(warning);
       },
     },
-    // jit-viewer 核心 chunk 约 8MB（仅点击预览时按需加载），调高阈值避免误报
-    chunkSizeWarningLimit: 12000,
+    // pdfjs-dist 懒加载 chunk 约 1MB（仅打开 PDF 预览时按需加载），调高阈值避免误报
+    chunkSizeWarningLimit: 1500,
   },
 });
