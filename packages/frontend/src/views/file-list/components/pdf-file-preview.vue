@@ -136,10 +136,7 @@ const init = async () => {
   } catch (error) {
     if (generation !== renderGeneration) return;
     loading.value = false;
-    emit(
-      'error',
-      error instanceof Error ? error : new Error('PDF 加载失败'),
-    );
+    emit('error', error instanceof Error ? error : new Error('PDF 加载失败'));
   }
 };
 
@@ -180,7 +177,12 @@ defineExpose({
       v-if="pageCount > 0"
       class="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-lg bg-base/90 shadow-md border border-base"
     >
-      <NButton quaternary size="small" :focusable="false" @click="zoom(-SCALE_STEP)">
+      <NButton
+        quaternary
+        size="small"
+        :focusable="false"
+        @click="zoom(-SCALE_STEP)"
+      >
         <template #icon>
           <NIcon><RemoveOutline /></NIcon>
         </template>
@@ -188,7 +190,12 @@ defineExpose({
       <span class="text-xs w-12 text-center select-none">
         {{ Math.round(scale * 100) }}%
       </span>
-      <NButton quaternary size="small" :focusable="false" @click="zoom(SCALE_STEP)">
+      <NButton
+        quaternary
+        size="small"
+        :focusable="false"
+        @click="zoom(SCALE_STEP)"
+      >
         <template #icon>
           <NIcon><AddOutline /></NIcon>
         </template>

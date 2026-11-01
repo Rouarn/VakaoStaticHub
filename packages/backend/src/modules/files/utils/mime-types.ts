@@ -91,6 +91,7 @@ export function isPreviewable(mimeType: string): boolean {
     mimeType === 'application/pdf' ||
     mimeType.startsWith('video/') ||
     mimeType.startsWith('audio/') ||
-    mimeType === 'text/plain'
+    mimeType === 'text/plain' ||
+    mimeType === 'text/html'
   );
 }

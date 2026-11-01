@@ -48,10 +48,7 @@ const init = async () => {
   } catch (error) {
     if (generation !== loadGeneration) return;
     loading.value = false;
-    emit(
-      'error',
-      error instanceof Error ? error : new Error('文档解析失败'),
-    );
+    emit('error', error instanceof Error ? error : new Error('文档解析失败'));
   }
 };
 

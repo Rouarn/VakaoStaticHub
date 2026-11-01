@@ -46,7 +46,9 @@ const playedPercent = computed(() =>
   duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0,
 );
 const bufferedPercent = computed(() =>
-  duration.value > 0 ? Math.min(100, (bufferedEnd.value / duration.value) * 100) : 0,
+  duration.value > 0
+    ? Math.min(100, (bufferedEnd.value / duration.value) * 100)
+    : 0,
 );
 
 const displayName = computed(() => {
@@ -219,9 +221,7 @@ defineExpose({ reload, destroy });
     <!-- 进度条：底层缓冲、上层已播、点击跳转（外层扩点击热区，内层统一坐标系） -->
     <div class="w-full max-w-xl">
       <div class="group cursor-pointer py-2" @click="onSeek">
-        <div
-          class="relative h-1.5 rounded-full bg-gray-200 dark:bg-gray-700"
-        >
+        <div class="relative h-1.5 rounded-full bg-gray-200 dark:bg-gray-700">
           <div
             class="absolute inset-y-0 left-0 rounded-full bg-gray-300 dark:bg-gray-600 transition-[width] duration-300"
             :style="{ width: `${bufferedPercent}%` }"

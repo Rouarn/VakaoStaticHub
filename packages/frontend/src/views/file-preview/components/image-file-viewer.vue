@@ -47,7 +47,9 @@ defineExpose({
 </script>
 
 <template>
-  <div class="image-viewer w-full h-full flex items-center justify-center bg-base overflow-hidden">
+  <div
+    class="image-viewer w-full h-full flex items-center justify-center bg-base overflow-hidden"
+  >
     <!-- NImage 自带点击查看原图与缩放，object-fit 保持完整画面 -->
     <NImage
       :key="reloadKey"

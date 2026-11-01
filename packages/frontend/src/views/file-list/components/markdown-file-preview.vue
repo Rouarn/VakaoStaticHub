@@ -140,8 +140,7 @@ defineExpose({
   padding: 2px 6px;
   border-radius: 4px;
   background: rgba(128, 128, 128, 0.15);
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.9em;
 }
 

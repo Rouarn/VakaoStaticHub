@@ -50,14 +50,15 @@ defineExpose({
 <template>
   <div class="html-preview relative w-full h-full bg-white overflow-hidden">
     <!--
-      sandbox 仅放行脚本：iframe 运行在 opaque origin，
+      sandbox 放行脚本和下载：iframe 运行在 opaque origin，
       无法访问父页面 DOM / Cookie / localStorage，防 XSS；
-      页面脚本可正常运行以保证 HTML 功能完整。
+      页面脚本可正常运行以保证 HTML 功能完整；
+      allow-downloads 允许 HTML 内部触发的下载（导出、附件等）。
     -->
     <iframe
       ref="iframeRef"
       :src="src"
-      sandbox="allow-scripts"
+      sandbox="allow-scripts allow-downloads"
       class="w-full h-full border-0"
       @load="handleLoad"
     />

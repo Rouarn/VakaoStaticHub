@@ -120,7 +120,10 @@ defineExpose({
 
 <template>
   <div class="text-preview relative w-full h-full overflow-auto bg-base">
-    <pre v-if="highlightedHtml" class="code-block"><code class="hljs" v-html="highlightedHtml" /></pre>
+    <pre
+      v-if="highlightedHtml"
+      class="code-block"
+    ><code class="hljs" v-html="highlightedHtml" /></pre>
     <pre v-else class="plain-block"><code>{{ content }}</code></pre>
     <div
       v-if="loading"

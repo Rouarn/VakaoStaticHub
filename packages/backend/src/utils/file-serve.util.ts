@@ -113,10 +113,7 @@ export async function serveStaticFile(
   if (rangeHeader && rangeUsable) {
     const parsed = parseHttpRange(rangeHeader, s.size);
     if (!parsed) {
-      res
-        .status(416)
-        .setHeader('Content-Range', `bytes */${s.size}`)
-        .end();
+      res.status(416).setHeader('Content-Range', `bytes */${s.size}`).end();
       return;
     }
 
@@ -190,10 +187,7 @@ export async function serveApkFile(
 
   const parsed = parseHttpRange(rangeHeader, size);
   if (!parsed) {
-    res
-      .status(416)
-      .setHeader('Content-Range', `bytes */${size}`)
-      .end();
+    res.status(416).setHeader('Content-Range', `bytes */${size}`).end();
     return;
   }
 

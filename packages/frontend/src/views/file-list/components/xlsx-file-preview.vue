@@ -115,7 +115,9 @@ defineExpose({
 </script>
 
 <template>
-  <div class="xlsx-preview relative w-full h-full flex flex-col bg-base overflow-hidden">
+  <div
+    class="xlsx-preview relative w-full h-full flex flex-col bg-base overflow-hidden"
+  >
     <NTabs
       v-if="sheets.length > 1"
       v-model:value="activeSheet"
