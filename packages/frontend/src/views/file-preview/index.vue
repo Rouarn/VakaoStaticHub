@@ -6,6 +6,7 @@ import { EyeOutline, LinkOutline } from '@vicons/ionicons5';
 import PublicPage from '@/components/common/public-page.vue';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
 import type { PreviewTarget } from '@/components/preview/types';
+import { buildFileUrl } from '@/utils/file-url';
 
 /**
  * 独立文件预览页（/file-preview，公开）
@@ -51,6 +52,38 @@ function openPreview() {
 }
 
 onMounted(() => {
+  // 优先使用结构化的 rootId/category/path：直链由 utils/file-url.ts 统一构造，
+  // 避免调用方手工拼 /static（历史 bug 就是这里多叠了一层前缀）。
+  const { rootId, category, path } = route.query;
+  if (
+    typeof rootId === 'string' &&
+    typeof category === 'string' &&
+    typeof path === 'string' &&
+    rootId &&
+    category &&
+    path
+  ) {
+    url.value = buildFileUrl({ rootId, category, relPath: path });
+    invalid.value = '';
+    const filename = path.split('/').pop() ?? 'file';
+    targets.value = [
+      {
+        filename,
+        src: url.value,
+        downloadSrc: buildFileUrl({
+          rootId,
+          category,
+          relPath: path,
+          download: true,
+        }),
+        size: 0,
+      },
+    ];
+    index.value = 0;
+    show.value = true;
+    return;
+  }
+
   const q = route.query.url;
   if (typeof q === 'string' && q.trim()) {
     url.value = q;

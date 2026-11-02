@@ -102,6 +102,26 @@ export interface ShareInfo {
   hasPassword: boolean;
 }
 
+/** 多文件分享（collection）中的单个文件项（含存在性探测，避免已删除文件静默消失） */
+export interface ShareCollectionFile {
+  /** 分类内相对路径 */
+  path: string;
+  /** 文件名 */
+  name: string;
+  /** 字节数；文件已删除时为 null */
+  size: number | null;
+  /** 磁盘上是否仍存在 */
+  exists: boolean;
+}
+
+/** 多文件分享文件列表（GET /share/:token?accessToken=...） */
+export interface ShareCollectionResult {
+  shareType: 'collection';
+  rootId: string;
+  category: string;
+  files: ShareCollectionFile[];
+}
+
 export interface CreateShareLinkParams {
   rootId: string;
   category: string;

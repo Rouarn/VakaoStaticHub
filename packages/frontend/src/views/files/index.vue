@@ -19,22 +19,20 @@ import {
   ListOutline,
   RefreshOutline,
   SearchOutline,
+  ShareSocialOutline,
   SwapHorizontalOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
 import type { FileItem } from '@vakao/shared';
 import {
-  absoluteUrl,
-} from '@/api/roots';
-import {
   batchDelete,
   batchMove,
   deleteFile,
   getFileConfig,
-  getFileUrl,
   listFiles,
   renameFile,
 } from '@/api/files';
+import { buildFileUrl } from '@/utils/file-url';
 import { getErrorMessage } from '@/utils/http';
 import { isImage } from '@/utils/file-types';
 import { useAppStore } from '@/stores/modules/app';
@@ -43,6 +41,7 @@ import FileCard from './components/file-card.vue';
 import UploadPanel from './components/upload-panel.vue';
 import RenameFileModal from './components/rename-file-modal.vue';
 import MoveFileModal from './components/move-file-modal.vue';
+import QuickShareModal from './components/quick-share-modal.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
 import type { PreviewTarget } from '@/components/preview/types';
@@ -181,10 +180,15 @@ const previewIndex = ref(0);
 const previewTargets = ref<PreviewTarget[]>([]);
 
 function toTarget(file: FileItem): PreviewTarget {
+  const params = {
+    rootId: rootId.value,
+    category: category.value,
+    relPath: file.path,
+  };
   return {
     filename: file.name,
-    src: getFileUrl(rootId.value, category.value, file.path),
-    downloadSrc: getFileUrl(rootId.value, category.value, file.path, { download: true }),
+    src: buildFileUrl(params),
+    downloadSrc: buildFileUrl({ ...params, download: true }),
     size: file.size,
   };
 }
@@ -206,7 +210,11 @@ function openPreview(file: FileItem) {
 
 // —— 复制直链 ——
 async function copyLink(file: FileItem) {
-  const url = absoluteUrl(getFileUrl(rootId.value, category.value, file.path));
+  const url = buildFileUrl({
+    rootId: rootId.value,
+    category: category.value,
+    relPath: file.path,
+  });
   try {
     await navigator.clipboard.writeText(url);
     message.success('直链已复制');
@@ -330,6 +338,24 @@ async function onUploaded() {
   await load();
   void categoryStore.loadCategories(rootId.value, { silent: true });
 }
+
+// —— 分享（单文件 / 多选批量） ——
+const shareShow = ref(false);
+const sharePaths = ref<string[]>([]);
+
+function openShare(file: FileItem) {
+  sharePaths.value = [file.path];
+  shareShow.value = true;
+}
+
+function openBatchShare() {
+  if (selected.value.size === 0) {
+    message.warning('请先选择文件');
+    return;
+  }
+  sharePaths.value = [...selected.value];
+  shareShow.value = true;
+}
 </script>
 
 <template>
@@ -419,6 +445,10 @@ async function onUploaded() {
         <template #icon><NIcon :size="14"><SwapHorizontalOutline /></NIcon></template>
         移动
       </NButton>
+      <NButton size="tiny" quaternary @click="openBatchShare">
+        <template #icon><NIcon :size="14"><ShareSocialOutline /></NIcon></template>
+        创建分享（{{ selected.size }} 个文件）
+      </NButton>
       <NButton size="tiny" quaternary type="error" @click="openBatchDelete">
         <template #icon><NIcon :size="14"><TrashOutline /></NIcon></template>
         删除
@@ -460,6 +490,7 @@ async function onUploaded() {
             @open="openPreview"
             @rename="openRename"
             @move="openMove"
+            @share="openShare"
             @copy-link="copyLink"
             @remove="openDelete"
           />
@@ -478,6 +509,7 @@ async function onUploaded() {
             @open="openPreview"
             @rename="openRename"
             @move="openMove"
+            @share="openShare"
             @copy-link="copyLink"
             @remove="openDelete"
           />
@@ -541,6 +573,14 @@ async function onUploaded() {
       v-model:show="previewShow"
       v-model:index="previewIndex"
       :files="previewTargets"
+    />
+
+    <!-- 快速分享（单文件 / 多选批量） -->
+    <QuickShareModal
+      v-model:show="shareShow"
+      :root-id="rootId"
+      :category="category"
+      :paths="sharePaths"
     />
   </div>
 </template>

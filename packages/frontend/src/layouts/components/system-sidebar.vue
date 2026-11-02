@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { computed, h } from 'vue';
+import { computed, h, ref } from 'vue';
 import type { Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { NTooltip, NIcon, NDropdown, NAvatar } from 'naive-ui';
+import {
+  NTooltip,
+  NIcon,
+  NDropdown,
+  NAvatar,
+  NModal,
+  NInput,
+  NButton,
+  useMessage,
+} from 'naive-ui';
 import {
   MoonOutline,
   SunnyOutline,
@@ -15,15 +24,10 @@ import {
 import { routes } from '@/router/routes';
 import { useAppStore } from '@/stores/modules/app';
 import { useAuthStore } from '@/stores/modules/auth';
+import { changeMyPassword } from '@/api/users';
+import { getErrorMessage } from '@/utils/http';
 
-/**
- * System Sidebar
- *
- * 只放系统级功能入口（来自路由表 meta.sidebar）。
- * - 收起态：72px 纯图标 + Hover Tooltip
- * - 展开态：208px 图标 + 文字，此时不再显示 Tooltip
- * 用户动态资源分类在 Category Panel。
- */
+const message = useMessage();
 const route = useRoute();
 const router = useRouter();
 const appStore = useAppStore();
@@ -35,6 +39,7 @@ interface NavItem {
   name: string;
   title: string;
   icon?: Component;
+  children?: { name: string; title: string }[];
 }
 
 /** 从路由表提取侧边栏项（单一来源，避免菜单与路由漂移） */
@@ -47,6 +52,12 @@ const navItems = computed<NavItem[]>(() => {
       name: String(r.name),
       title: String(r.meta?.title ?? r.name),
       icon: r.meta?.icon,
+      children: r.children
+        ?.filter((c) => c.meta?.title)
+        .map((c) => ({
+          name: String(c.name),
+          title: String(c.meta?.title ?? c.name),
+        })),
     }));
 });
 
@@ -69,12 +80,52 @@ const userOptions = [
   { label: '退出登录', key: 'logout', icon: () => h(LogOutOutline) },
 ];
 
+// —— 修改密码弹窗 ——
+const passwordShow = ref(false);
+const passwordBusy = ref(false);
+const passwordError = ref('');
+const passwordForm = { oldPassword: '', newPassword: '', confirm: '' };
+
+function openChangePassword() {
+  passwordForm.oldPassword = '';
+  passwordForm.newPassword = '';
+  passwordForm.confirm = '';
+  passwordError.value = '';
+  passwordShow.value = true;
+}
+
+async function submitPassword() {
+  if (!passwordForm.oldPassword) {
+    passwordError.value = '请输入当前密码';
+    return;
+  }
+  if (passwordForm.newPassword.length < 6 || passwordForm.newPassword.length > 64) {
+    passwordError.value = '新密码长度需在 6~64 个字符之间';
+    return;
+  }
+  if (passwordForm.newPassword !== passwordForm.confirm) {
+    passwordError.value = '两次输入的新密码不一致';
+    return;
+  }
+  passwordBusy.value = true;
+  passwordError.value = '';
+  try {
+    await changeMyPassword(passwordForm.oldPassword, passwordForm.newPassword);
+    message.success('密码已修改');
+    passwordShow.value = false;
+  } catch (e) {
+    passwordError.value = getErrorMessage(e, '密码修改失败');
+  } finally {
+    passwordBusy.value = false;
+  }
+}
+
 function onUserAction(key: string) {
   if (key === 'logout') {
     authStore.clearAuth();
     void router.push({ name: 'login' });
   } else if (key === 'change-password') {
-    // TODO(下一轮)：修改密码弹窗（PATCH /auth/password）
+    openChangePassword();
   }
 }
 </script>
@@ -104,33 +155,53 @@ function onUserAction(key: string) {
 
     <!-- 系统功能导航 -->
     <nav class="flex flex-col gap-1.5 overflow-y-auto w-full">
-      <NTooltip
-        v-for="item in navItems"
-        :key="item.name"
-        placement="right"
-        :delay="300"
-        :disabled="expanded"
-      >
-        <template #trigger>
-          <button
-            class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
-            :class="[
-              activeName === item.name ? 'rail-icon-active' : '',
-              expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11',
-            ]"
-            @click="go(item.name)"
-          >
-            <NIcon :size="22" class="shrink-0" :component="item.icon" />
-            <span
-              v-if="expanded"
-              class="text-13px whitespace-nowrap animate-fade-in"
+      <template v-for="item in navItems" :key="item.name">
+        <NTooltip
+          placement="right"
+          :delay="300"
+          :disabled="expanded"
+        >
+          <template #trigger>
+            <button
+              class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
+              :class="[
+                activeName === item.name ? 'rail-icon-active' : '',
+                expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11',
+              ]"
+              @click="go(item.name)"
             >
-              {{ item.title }}
-            </span>
+              <NIcon :size="22" class="shrink-0" :component="item.icon" />
+              <span
+                v-if="expanded"
+                class="text-13px whitespace-nowrap animate-fade-in"
+              >
+                {{ item.title }}
+              </span>
+            </button>
+          </template>
+          {{ item.title }}
+        </NTooltip>
+
+        <!-- 子菜单（仅展开态且当前项有子路由时显示） -->
+        <div
+          v-if="expanded && item.children?.length"
+          class="flex flex-col gap-1 pl-9 pr-2"
+        >
+          <button
+            v-for="child in item.children"
+            :key="child.name"
+            class="cursor-pointer border-none bg-transparent text-left rounded-lg px-2 py-1.5 text-12px whitespace-nowrap transition-colors"
+            :class="
+              route.name === child.name
+                ? 'text-brand-600 dark:text-brand-400 bg-white/60 dark:bg-white/8'
+                : 'text-ink-sub hover:text-ink hover:bg-white/40 dark:hover:bg-white/5'
+            "
+            @click="go(child.name)"
+          >
+            {{ child.title }}
           </button>
-        </template>
-        {{ item.title }}
-      </NTooltip>
+        </div>
+      </template>
     </nav>
 
     <div class="flex-1" />
@@ -208,4 +279,56 @@ function onUserAction(key: string) {
       </div>
     </NDropdown>
   </aside>
+
+  <!-- 修改密码弹窗 -->
+  <NModal
+    v-model:show="passwordShow"
+    preset="card"
+    title="修改密码"
+    style="width: 420px"
+    :mask-closable="false"
+  >
+    <div class="flex flex-col gap-3">
+      <div class="flex flex-col gap-1">
+        <label class="text-11px text-ink-sub">当前密码</label>
+        <NInput
+          v-model:value="passwordForm.oldPassword"
+          type="password"
+          show-password-on="click"
+          placeholder="请输入当前密码"
+        />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-11px text-ink-sub">新密码（6~64 位）</label>
+        <NInput
+          v-model:value="passwordForm.newPassword"
+          type="password"
+          show-password-on="click"
+          placeholder="请输入新密码"
+        />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-11px text-ink-sub">确认新密码</label>
+        <NInput
+          v-model:value="passwordForm.confirm"
+          type="password"
+          show-password-on="click"
+          placeholder="再次输入新密码"
+          @keyup.enter="passwordBusy || submitPassword()"
+        />
+      </div>
+      <p v-if="passwordError" class="m-0 text-12px text-red-500">{{ passwordError }}</p>
+      <div class="flex justify-end gap-2 pt-1">
+        <NButton size="small" quaternary @click="passwordShow = false">取消</NButton>
+        <NButton
+          size="small"
+          type="primary"
+          :loading="passwordBusy"
+          @click="submitPassword"
+        >
+          确认修改
+        </NButton>
+      </div>
+    </div>
+  </NModal>
 </template>

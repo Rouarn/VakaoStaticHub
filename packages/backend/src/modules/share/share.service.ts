@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { stat } from 'node:fs/promises';
 import type { ShareLinkStatus, ShareListResult } from '@vakao/shared';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
 import { ShareAccessLogEntity } from '#/infra/database/entities/share-access-log.entity.js';
@@ -16,6 +17,10 @@ import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
 import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
 import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
 import { hashPassword, verifyPassword } from '../auth/utils/password.util.js';
+import { FilesService } from '../files/files.service.js';
+
+/** 单个分享最多包含的文件数（防止一次分享吞掉整个目录） */
+const MAX_SHARE_FILES = 200;
 
 /** 分享访问令牌有效期：30 分钟 */
 const SHARE_ACCESS_TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -29,23 +34,70 @@ export class ShareService {
     private readonly repo: Repository<ShareLinkEntity>,
     @InjectRepository(ShareAccessLogEntity)
     private readonly accessLogRepo: Repository<ShareAccessLogEntity>,
+    private readonly filesService: FilesService,
   ) {}
 
   async createShareLink(dto: CreateShareLinkDto) {
     const token = this.generateToken();
     const shareType = dto.shareType ?? 'file';
 
-    // collection 类型时，将 filePaths 序列化为 JSON 存储；单文件保持原有行为
+    // 统一收敛为「路径数组」再校验：单文件就是长度 1 的数组
+    const rawPaths =
+      shareType === 'collection'
+        ? dto.filePaths?.length
+          ? dto.filePaths
+          : dto.filePath
+            ? [dto.filePath]
+            : []
+        : dto.filePath
+          ? [dto.filePath]
+          : [];
+
+    const paths = [...new Set(rawPaths.map((p) => p.trim()).filter(Boolean))];
+    if (paths.length === 0) {
+      throw new BadRequestException('请选择至少一个文件');
+    }
+    if (paths.length > MAX_SHARE_FILES) {
+      throw new BadRequestException(`一次最多分享 ${MAX_SHARE_FILES} 个文件`);
+    }
+
+    // 逐条校验：路径合法（禁止 .. / 绝对路径）且文件真实存在
+    const missing: string[] = [];
+    for (const filePath of paths) {
+      try {
+        const fullPath = this.filesService.safeJoinCategory(
+          dto.rootId,
+          dto.category,
+          [filePath],
+        );
+        await stat(fullPath);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw new BadRequestException(`文件路径不合法：${filePath}`);
+        }
+        const code = (error as NodeJS.ErrnoException | undefined)?.code;
+        if (!code) {
+          // safeJoin 抛出的纯 Error('Invalid path') 属于路径穿越，不是文件缺失
+          throw new BadRequestException(`文件路径不合法：${filePath}`);
+        }
+        missing.push(filePath);
+      }
+    }
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `以下文件不存在或已被删除：${missing.join('、')}`,
+      );
+    }
+
+    // collection 类型时，将 filePaths 序列化为 JSON 存储；filePath 保留首个路径以兼容旧逻辑
     const filePathsJson =
-      shareType === 'collection' && dto.filePaths?.length
-        ? JSON.stringify(dto.filePaths)
-        : null;
+      shareType === 'collection' ? JSON.stringify(paths) : null;
 
     const entity = this.repo.create({
       token,
       rootId: dto.rootId,
       category: dto.category,
-      filePath: dto.filePath,
+      filePath: paths[0],
       shareType,
       filePaths: filePathsJson,
       remark: dto.remark?.trim() || null,

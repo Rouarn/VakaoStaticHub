@@ -520,6 +520,8 @@ cd /opt/vakao-static-hub
 | 2026-11-02 | `share_links` | `remark` | varchar(255), nullable | 分享备注（列表关键字搜索与编辑） |
 | 2026-11-02 | `share_links` | `enabled` | integer, default 1 | 启停开关；停用后公开访问返回 410「分享链接已停用」 |
 | 2026-11-02 | `users` | `role` | varchar(16), default `user` | 角色 `admin` / `user`；启动迁移时若无管理员，会把最早创建的用户提升为 `admin` |
+| 2026-11-03 | `share_links` | `shareType` | varchar(32), default `file` | 分享类型：`file` 单文件 / `collection` 多文件集合 |
+| 2026-11-03 | `share_links` | `filePaths` | text, nullable | 多文件分享的相对路径 JSON 数组；单文件分享为 NULL |
 
 **回滚候选过滤规则：** 只有 `status=PUBLISHED` 或 `status=OFFLINE AND offlineReason='auto'` 的版本可作为 rollback 恢复目标。**升级前的历史版本 `offlineReason` 为 NULL**（因为那时候还没有全量发布机制），这些版本**不作为回滚候选**——它们被下架后无法通过 rollback 恢复。**升级后首次发布起**的版本会被正确标记 `offlineReason`，rollback 链路完整可用。
 

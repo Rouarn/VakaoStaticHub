@@ -23,13 +23,19 @@ import {
 import { RequestError } from '@vakao-ui/axios';
 import type { ShareInfo } from '@vakao/shared';
 import {
-  buildShareFileUrl,
   fetchShareCollection,
   getShareInfo,
   SHARE_TOKEN_RE,
   unlockShare,
 } from '@/api/shares';
-import { getFileKind, isImage, isPreviewable } from '@/utils/file-types';
+import type { ShareCollectionFile } from '@/api/shares';
+import { buildShareFileUrl } from '@/utils/file-url';
+import {
+  formatBytes,
+  getFileKind,
+  isImage,
+  isPreviewable,
+} from '@/utils/file-types';
 import { formatDateTime } from '@/utils/format';
 import PublicPage from '@/components/common/public-page.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -64,9 +70,14 @@ let rateLimitTimer: ReturnType<typeof setTimeout> | null = null;
 const unlocking = ref(false);
 const accessToken = ref('');
 
-const collectionFiles = ref<string[]>([]);
+const collectionFiles = ref<ShareCollectionFile[]>([]);
+const collectionRootId = ref('');
+const collectionCategory = ref('');
 const collectionLoading = ref(false);
 const collectionError = ref('');
+const collectionMissingCount = computed(
+  () => collectionFiles.value.filter((file) => !file.exists).length,
+);
 
 const isExpiredByTime = computed(
   () => info.value?.expiresAt !== null && info.value?.expiresAt !== undefined && info.value.expiresAt <= Date.now(),
@@ -99,6 +110,8 @@ async function init() {
   accessToken.value = '';
   info.value = null;
   collectionFiles.value = [];
+  collectionRootId.value = '';
+  collectionCategory.value = '';
   errorText.value = '';
   password.value = '';
   passwordError.value = '';
@@ -185,6 +198,8 @@ async function loadCollection() {
   try {
     const result = await fetchShareCollection(token.value, accessToken.value);
     collectionFiles.value = result.files ?? [];
+    collectionRootId.value = result.rootId ?? '';
+    collectionCategory.value = result.category ?? '';
   } catch (e) {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
@@ -199,14 +214,34 @@ async function loadCollection() {
 }
 
 function fileUrl(index: number, download = false) {
-  return buildShareFileUrl(token.value, accessToken.value, { index, download });
+  return buildShareFileUrl(token.value, {
+    accessToken: accessToken.value,
+    index,
+    download,
+  });
 }
+
+const singleSrc = computed(() =>
+  buildShareFileUrl(token.value, { accessToken: accessToken.value }),
+);
+const singleDownloadSrc = computed(() =>
+  buildShareFileUrl(token.value, {
+    accessToken: accessToken.value,
+    download: true,
+  }),
+);
 
 function nameOf(path: string) {
   return path.split('/').pop() ?? path;
 }
 
+/**
+ * 单文件视图仅在 shareType==='file' 时渲染。
+ * 注意：collection 分享的 filePath 也会被设置为首个文件，
+ * 不能仅凭 filePath 是否存在判断，否则会把集合误渲染成单文件。
+ */
 const singleFile = computed(() => {
+  if (info.value?.shareType !== 'file') return null;
   const path = info.value?.filePath;
   if (!path) return null;
   return { name: nameOf(path), path };
@@ -221,8 +256,8 @@ function openSinglePreview() {
   previewTargets.value = [
     {
       filename: singleFile.value.name,
-      src: buildShareFileUrl(token.value, accessToken.value),
-      downloadSrc: buildShareFileUrl(token.value, accessToken.value, { download: true }),
+      src: singleSrc.value,
+      downloadSrc: singleDownloadSrc.value,
       size: 0,
     },
   ];
@@ -231,13 +266,20 @@ function openSinglePreview() {
 }
 
 function openCollectionPreview(index: number) {
-  previewTargets.value = collectionFiles.value.map((path, i) => ({
-    filename: nameOf(path),
+  // 只把「存在且可预览」的文件放进预览队列，避免某个文件被删除后
+  // 下标错位导致点 A 却预览 B。
+  const previewable = collectionFiles.value
+    .map((file, i) => ({ file, i }))
+    .filter(({ file }) => file.exists && isPreviewable(file.name));
+  const position = previewable.findIndex(({ i }) => i === index);
+  if (position < 0) return;
+  previewTargets.value = previewable.map(({ file, i }) => ({
+    filename: file.name,
     src: fileUrl(i),
     downloadSrc: fileUrl(i, true),
-    size: 0,
+    size: file.size ?? 0,
   }));
-  previewIndex.value = index;
+  previewIndex.value = position;
   previewShow.value = true;
 }
 
@@ -409,7 +451,7 @@ onBeforeUnmount(() => {
 
             <img
               v-if="isImage(singleFile.name)"
-              :src="buildShareFileUrl(token, accessToken)"
+              :src="singleSrc"
               :alt="singleFile.name"
               class="max-h-64 w-auto mx-auto rounded-xl object-contain"
             />
@@ -426,7 +468,7 @@ onBeforeUnmount(() => {
               </NButton>
               <NButton
                 tag="a"
-                :href="buildShareFileUrl(token, accessToken, { download: true })"
+                :href="singleDownloadSrc"
                 size="small"
                 :type="isPreviewable(singleFile.name) ? 'default' : 'primary'"
               >
@@ -449,6 +491,10 @@ onBeforeUnmount(() => {
               </NButton>
             </div>
 
+            <p v-if="collectionCategory" class="m-0 text-11px text-ink-sub truncate">
+              {{ collectionRootId }} / {{ collectionCategory }}
+            </p>
+
             <NSpin :show="collectionLoading">
               <p v-if="collectionError" class="m-0 text-12px text-red-500 leading-5">
                 {{ collectionError }}
@@ -457,44 +503,67 @@ onBeforeUnmount(() => {
                 v-else-if="!collectionLoading && collectionFiles.length === 0"
                 class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-8 text-center text-12px text-ink-sub"
               >
-                文件集合为空，可能文件已被删除
+                文件集合为空：分享创建后文件可能已被全部删除，请联系分享者重新创建。
               </div>
-              <ul v-else class="m-0 p-0 list-none flex flex-col gap-2">
-                <li
-                  v-for="(path, index) in collectionFiles"
-                  :key="path"
-                  class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/45 dark:bg-white/4 px-3 py-2.5 flex items-center gap-3"
+              <div v-else class="flex flex-col gap-2">
+                <p
+                  v-if="collectionMissingCount > 0"
+                  class="m-0 text-11px text-amber-600 dark:text-amber-400"
                 >
-                  <div class="glass-chip w-8 h-8 flex items-center justify-center shrink-0">
-                    <NIcon :size="16" class="text-brand-600 dark:text-brand-400">
-                      <DocumentTextOutline />
-                    </NIcon>
-                  </div>
-                  <span class="min-w-0 flex-1">
-                    <span class="block text-12px text-ink truncate" :title="path">
-                      {{ nameOf(path) }}
+                  有 {{ collectionMissingCount }} 个文件已被删除，已标记为不可预览/下载。
+                </p>
+                <ul class="m-0 p-0 list-none flex flex-col gap-2">
+                  <li
+                    v-for="(file, index) in collectionFiles"
+                    :key="file.path"
+                    class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/45 dark:bg-white/4 px-3 py-2.5 flex items-center gap-3"
+                    :class="!file.exists ? 'opacity-60' : ''"
+                  >
+                    <div class="glass-chip w-8 h-8 flex items-center justify-center shrink-0">
+                      <NIcon :size="16" class="text-brand-600 dark:text-brand-400">
+                        <DocumentTextOutline />
+                      </NIcon>
+                    </div>
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-12px text-ink truncate" :title="file.path">
+                        {{ file.name }}
+                      </span>
+                      <span class="block text-10px text-ink-sub truncate">
+                        {{ file.path }}
+                        <template v-if="file.exists"> · {{ formatBytes(file.size ?? 0) }}</template>
+                      </span>
                     </span>
-                    <span class="block text-10px text-ink-sub truncate">{{ path }}</span>
-                  </span>
-                  <span class="text-10px text-ink-sub shrink-0">{{ getFileKind(path) }}</span>
-                  <NButton
-                    v-if="isPreviewable(path)"
-                    size="tiny"
-                    quaternary
-                    @click="openCollectionPreview(index)"
-                  >
-                    <template #icon><NIcon><EyeOutline /></NIcon></template>
-                  </NButton>
-                  <NButton
-                    tag="a"
-                    :href="fileUrl(index, true)"
-                    size="tiny"
-                    quaternary
-                  >
-                    <template #icon><NIcon><DownloadOutline /></NIcon></template>
-                  </NButton>
-                </li>
-              </ul>
+                    <span
+                      v-if="!file.exists"
+                      class="text-10px text-amber-600 dark:text-amber-400 shrink-0"
+                    >
+                      文件已删除
+                    </span>
+                    <span v-else class="text-10px text-ink-sub shrink-0">
+                      {{ getFileKind(file.name) }}
+                    </span>
+                    <NButton
+                      v-if="file.exists && isPreviewable(file.name)"
+                      size="tiny"
+                      quaternary
+                      @click="openCollectionPreview(index)"
+                    >
+                      <template #icon><NIcon><EyeOutline /></NIcon></template>
+                      预览
+                    </NButton>
+                    <NButton
+                      v-if="file.exists"
+                      tag="a"
+                      :href="fileUrl(index, true)"
+                      size="tiny"
+                      quaternary
+                    >
+                      <template #icon><NIcon><DownloadOutline /></NIcon></template>
+                      下载
+                    </NButton>
+                  </li>
+                </ul>
+              </div>
             </NSpin>
           </section>
 

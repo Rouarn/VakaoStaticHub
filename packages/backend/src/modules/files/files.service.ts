@@ -818,6 +818,9 @@ export class FilesService {
     return id;
   }
 
+  /** 已取消的 uploadId 集合：阻止取消瞬间仍在途的分片写入重建临时目录 */
+  private readonly cancelledUploads = new Set<string>();
+
   private getChunkUploadPath(uploadId: string): string {
     return resolve(this.chunkUploadDir, this.sanitizeUploadId(uploadId));
   }
@@ -843,6 +846,10 @@ export class FilesService {
       .update(`${userId}:${rootId}:${category}:${filename}:${size}`)
       .digest('hex');
 
+    // 新的上传尝试开始：清除上一次「已取消」标记，
+    // 否则相同文件取消后重新上传会被 saveChunk 误判为已取消。
+    this.cancelledUploads.delete(uploadId);
+
     const uploadDir = this.getChunkUploadPath(uploadId);
     await mkdir(uploadDir, { recursive: true });
 
@@ -865,9 +872,19 @@ export class FilesService {
    * 保存单个分片
    */
   async saveChunk(uploadId: string, index: number, buffer: Buffer) {
+    if (this.cancelledUploads.has(uploadId)) {
+      throw new BadRequestException('上传已取消');
+    }
     const uploadDir = this.getChunkUploadPath(uploadId);
     await mkdir(uploadDir, { recursive: true });
     await writeFile(resolve(uploadDir, String(index)), buffer);
+    // 取消与在途分片写入存在竞态：cancel 的 rm 可能先执行，
+    // 分片随后又重建了临时目录。写完后再检查一次并主动清理，
+    // 保证「取消后临时目录一定不存在」。
+    if (this.cancelledUploads.has(uploadId)) {
+      await rm(uploadDir, { recursive: true, force: true });
+      throw new BadRequestException('上传已取消');
+    }
     return { index, size: buffer.length };
   }
 
@@ -875,6 +892,14 @@ export class FilesService {
    * 取消分片上传，清理临时目录
    */
   async cancelChunkUpload(uploadId: string) {
+    const safeId = this.sanitizeUploadId(uploadId);
+    this.cancelledUploads.add(safeId);
+    // 标记只需覆盖「取消瞬间仍在途的分片请求」，5 分钟后自动释放，避免集合无限增长
+    const timer = setTimeout(
+      () => this.cancelledUploads.delete(safeId),
+      5 * 60 * 1000,
+    );
+    timer.unref?.();
     const uploadDir = this.getChunkUploadPath(uploadId);
     await rm(uploadDir, { recursive: true, force: true });
     return { success: true };
@@ -891,6 +916,11 @@ export class FilesService {
     expectedSize: number,
   ) {
     const uploadDir = this.getChunkUploadPath(uploadId);
+
+    if (this.cancelledUploads.has(uploadId)) {
+      await rm(uploadDir, { recursive: true, force: true });
+      throw new BadRequestException('上传已取消');
+    }
 
     // 读取所有分片索引
     const files = await readdir(uploadDir);

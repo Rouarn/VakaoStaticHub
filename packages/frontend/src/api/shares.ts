@@ -1,13 +1,18 @@
 import type {
   CreateShareLinkParams,
   ShareAccessLog,
+  ShareCollectionFile,
+  ShareCollectionResult,
   ShareInfo,
   ShareLink,
   ShareListQuery,
   ShareListResult,
   UpdateShareLinkParams,
 } from '@vakao/shared';
-import { getApiBaseUrl, http, publicHttp } from '@/utils/http';
+import { http, publicHttp } from '@/utils/http';
+import { buildSharePageUrl, buildShareFileUrl } from '@/utils/file-url';
+
+export { buildSharePageUrl, buildShareFileUrl };
 
 /** 分享 token 为 32 位小写 hex（后端 randomBytes(16).toString('hex')） */
 export const SHARE_TOKEN_RE = /^[0-9a-f]{32}$/;
@@ -55,32 +60,14 @@ export function unlockShare(token: string, password?: string) {
   );
 }
 
-export interface ShareCollection {
-  shareType: 'collection';
-  category: string;
-  files: string[];
-}
+export type { ShareCollectionFile, ShareCollectionResult };
 
 export function fetchShareCollection(token: string, accessToken: string) {
-  return publicHttp.get<ShareCollection>(
+  return publicHttp.get<ShareCollectionResult>(
     `/share/${encodeURIComponent(token)}`,
     { accessToken },
   );
 }
 
-/** 分享访问页地址（前端路由，不是后端接口） */
-export function getSharePageUrl(token: string) {
-  return `${window.location.origin}/share/${token}`;
-}
-
-/** 分享内文件访问地址：打开后凭 accessToken 访问，不再消耗打开次数 */
-export function buildShareFileUrl(
-  token: string,
-  accessToken: string,
-  opts: { index?: number; download?: boolean } = {},
-) {
-  const query: string[] = [`accessToken=${encodeURIComponent(accessToken)}`];
-  if (opts.index !== undefined) query.push(`index=${opts.index}`);
-  if (opts.download) query.push('download=1');
-  return `${getApiBaseUrl()}/share/${encodeURIComponent(token)}?${query.join('&')}`;
-}
+/** 分享访问页地址（前端路由，统一由 utils/file-url.ts 构造） */
+export const getSharePageUrl = buildSharePageUrl;

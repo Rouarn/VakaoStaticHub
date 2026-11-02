@@ -11,37 +11,16 @@ import type {
   UsageStatsResult,
 } from '@vakao/shared';
 import type { RequestOptions } from '@vakao-ui/axios';
-import { http, getApiBaseUrl } from '@/utils/http';
+import { http } from '@/utils/http';
 
 /** 路径分段编码：分类与文件名可能含中文/空格，逐段编码后拼回 */
 function encodedPath(value: string): string {
   return value.split('/').map(encodeURIComponent).join('/');
 }
 
-/** 临时文件区前缀（后端 baseURL = /static） */
+/** 文件 API 路径前缀（相对 baseURL，仅用于接口调用，静态直链走 utils/file-url.ts） */
 function fileBase(rootId: string, category: string, filePath: string): string {
   return `/files/${encodeURIComponent(rootId)}/${encodedPath(category)}/${encodedPath(filePath)}`;
-}
-
-/** 文件访问地址（预览 / 下载共用，download=true 强制下载） */
-export function getFileUrl(
-  rootId: string,
-  category: string,
-  filePath: string,
-  opts: { download?: boolean } = {},
-): string {
-  const base = `${getApiBaseUrl()}${fileBase(rootId, category, filePath)}`;
-  return `${base}${opts.download ? '?download=1' : ''}`;
-}
-
-/** 图片缩略图地址（后端 sharp 压缩，卡片网格使用） */
-export function getThumbUrl(
-  rootId: string,
-  category: string,
-  filePath: string,
-  size = 320,
-): string {
-  return `${getApiBaseUrl()}${fileBase(rootId, category, filePath)}?w=${size}&h=${size}&format=webp&q=75`;
 }
 
 export function getFileConfig() {

@@ -184,12 +184,44 @@ export class ShareController {
         accessToken,
       );
 
-      // collection 类型且未指定 index 时，返回文件列表 JSON
+      // collection 类型且未指定 index 时，返回文件列表 JSON。
+      // 注意：本方法用了 @Res()，全局 ResponseInterceptor 不会生效，
+      // 必须手工输出与其它接口一致的 { code, message, data } 信封，
+      // 否则前端 publicHttp 会把它当成业务失败（多文件分享只显示一个文件的根因之一）。
       if (linkInfo.shareType === 'collection' && index === undefined) {
+        const paths = linkInfo.filePaths ?? [];
+        const files = await Promise.all(
+          paths.map(async (filePath) => {
+            const name = basename(filePath);
+            try {
+              const fileStat = await stat(
+                this.filesService.safeJoinCategory(
+                  linkInfo.rootId,
+                  linkInfo.category,
+                  [filePath],
+                ),
+              );
+              return {
+                path: filePath,
+                name,
+                size: fileStat.size,
+                exists: true,
+              };
+            } catch {
+              // 单个文件被删除/无权限不影响其它文件展示
+              return { path: filePath, name, size: null, exists: false };
+            }
+          }),
+        );
         res.json({
-          shareType: linkInfo.shareType,
-          category: linkInfo.category,
-          files: linkInfo.filePaths ?? [],
+          code: 200,
+          message: '成功',
+          data: {
+            shareType: linkInfo.shareType,
+            rootId: linkInfo.rootId,
+            category: linkInfo.category,
+            files,
+          },
         });
         return;
       }
@@ -255,6 +287,10 @@ export class ShareController {
         res.status(410).json({ message: error.message });
       } else if (error instanceof UnauthorizedException) {
         res.status(401).json({ message: error.message });
+      } else if (
+        (error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT'
+      ) {
+        res.status(404).json({ message: '文件已被删除或不存在' });
       } else {
         res.status(500).json({ message: '访问文件失败' });
       }

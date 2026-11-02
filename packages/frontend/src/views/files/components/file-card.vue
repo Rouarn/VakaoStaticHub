@@ -16,7 +16,7 @@ import {
   VideocamOutline,
 } from '@vicons/ionicons5';
 import type { FileItem } from '@vakao/shared';
-import { getFileUrl, getThumbUrl } from '@/api/files';
+import { buildFileUrl, buildThumbUrl } from '@/utils/file-url';
 import {
   formatBytes,
   formatDuration,
@@ -48,17 +48,19 @@ const emit = defineEmits<{
   open: [file: FileItem];
   rename: [file: FileItem];
   move: [file: FileItem];
+  share: [file: FileItem];
   'copy-link': [file: FileItem];
   remove: [file: FileItem];
 }>();
 
 const kind = computed(() => getFileKind(props.file.name));
-const previewUrl = computed(() =>
-  getFileUrl(props.rootId, props.category, props.file.path),
-);
-const thumbUrl = computed(() =>
-  getThumbUrl(props.rootId, props.category, props.file.path, 480),
-);
+const urlParams = computed(() => ({
+  rootId: props.rootId,
+  category: props.category,
+  relPath: props.file.path,
+}));
+const previewUrl = computed(() => buildFileUrl(urlParams.value));
+const thumbUrl = computed(() => buildThumbUrl(urlParams.value, 480));
 
 const ICON_BY_KIND: Record<string, Component> = {
   image: ImageOutline,
@@ -94,6 +96,7 @@ if (kind.value === 'video') {
 
 const menuOptions = [
   { label: '预览', key: 'preview' },
+  { label: '新建分享', key: 'share' },
   { label: '重命名', key: 'rename' },
   { label: '移动到分类', key: 'move' },
   { label: '复制直链', key: 'copy-link' },
@@ -102,6 +105,7 @@ const menuOptions = [
 
 function onAction(key: string) {
   if (key === 'preview') emit('open', props.file);
+  else if (key === 'share') emit('share', props.file);
   else if (key === 'rename') emit('rename', props.file);
   else if (key === 'move') emit('move', props.file);
   else if (key === 'copy-link') emit('copy-link', props.file);

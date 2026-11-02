@@ -1,16 +1,13 @@
 import { createClient, RequestError } from '@vakao-ui/axios';
 import { useAuthStore } from '@/stores/modules/auth';
 import router from '@/router';
+import { getApiBaseUrl } from '@/utils/file-url';
 
 /**
- * 获取 API 基础地址
- * VITE_API_BASE_URL 为 'origin' 或未配置时回退到当前页面 origin，统一加 /static 前缀
+ * API 基础地址统一由 utils/file-url.ts 构造（保证 /static 只出现一次）。
+ * 这里保留导出，兼容既有 import { getApiBaseUrl } from '@/utils/http' 的调用方。
  */
-export const getApiBaseUrl = () => {
-  const envBaseURL = import.meta.env.VITE_API_BASE_URL;
-  const base = envBaseURL === 'origin' ? window.location.origin : envBaseURL;
-  return `${base ?? ''}/static`;
-};
+export { getApiBaseUrl };
 
 /**
  * 全局请求客户端（基于 @vakao-ui/axios）
@@ -31,7 +28,11 @@ export const http = createClient({
     },
   },
   onError: (error) => {
-    if (error.type === 'http' && error.code === 401) {
+    // 修改密码时「原密码错误」后端返回 401，属于表单校验失败，
+    // 不能按登录态失效处理（否则会把用户踢回登录页）。
+    const requestUrl = error.response?.config?.url ?? '';
+    const isPasswordChange = requestUrl.includes('/auth/password');
+    if (error.type === 'http' && error.code === 401 && !isPasswordChange) {
       const authStore = useAuthStore();
       authStore.clearAuth();
       if (router.currentRoute.value.name !== 'login') {

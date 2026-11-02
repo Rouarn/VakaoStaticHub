@@ -20,6 +20,9 @@
  *     语义：后台备注（不外显）与启停开关（停用后公开访问返回“已停用”）
  *   - 2026-11-02: users 表新增 role 列
  *     语义：admin / user；老库升级后若没有任何 admin，会把最早创建的账号提升为 admin
+ *   - 2026-11-03: share_links 表新增 shareType / filePaths 列
+ *     语义：shareType 区分单文件(file)与多文件集合(collection)；
+ *           filePaths 存多文件相对路径的 JSON 字符串（单文件为 NULL）
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
@@ -79,6 +82,19 @@ const MIGRATIONS: Migration[] = [
     alterSql:
       "ALTER TABLE users ADD COLUMN role varchar(16) NOT NULL DEFAULT 'user'",
     description: '用户角色（admin / user）',
+  },
+  {
+    table: 'share_links',
+    column: 'shareType',
+    alterSql:
+      "ALTER TABLE share_links ADD COLUMN shareType varchar(32) NOT NULL DEFAULT 'file'",
+    description: '分享类型（file 单文件 / collection 多文件）',
+  },
+  {
+    table: 'share_links',
+    column: 'filePaths',
+    alterSql: 'ALTER TABLE share_links ADD COLUMN filePaths text',
+    description: '多文件分享的相对路径 JSON 数组',
   },
 ];
 
