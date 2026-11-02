@@ -11,9 +11,22 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ArchivePreview: typeof import('./../components/preview/archive-preview.vue')['default']
+    AudioPreview: typeof import('./../components/preview/audio-preview.vue')['default']
+    ConfirmModal: typeof import('./../components/common/confirm-modal.vue')['default']
+    DefaultPreview: typeof import('./../components/preview/default-preview.vue')['default']
+    ExcelPreview: typeof import('./../components/preview/excel-preview.vue')['default']
+    HtmlPreview: typeof import('./../components/preview/html-preview.vue')['default']
+    ImagePreview: typeof import('./../components/preview/image-preview.vue')['default']
+    MarkdownPreview: typeof import('./../components/preview/markdown-preview.vue')['default']
+    PdfPreview: typeof import('./../components/preview/pdf-preview.vue')['default']
     PlaceholderView: typeof import('./../components/common/placeholder-view.vue')['default']
+    PreviewDialog: typeof import('./../components/preview/preview-dialog.vue')['default']
     PublicPage: typeof import('./../components/common/public-page.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    TextPreview: typeof import('./../components/preview/text-preview.vue')['default']
+    VideoPreview: typeof import('./../components/preview/video-preview.vue')['default']
+    WordPreview: typeof import('./../components/preview/word-preview.vue')['default']
   }
 }

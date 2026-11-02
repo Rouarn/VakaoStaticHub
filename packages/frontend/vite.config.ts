@@ -33,6 +33,27 @@ export default defineConfig({
       '@vakao/shared': fileURLToPath(new URL('../shared/src', import.meta.url)),
     },
   },
+  optimizeDeps: {
+    // highlight.js 语言包只在懒加载的文本预览里出现，dev 首访才发现会触发
+    // Vite 重新预构建（504 Outdated Optimize Dep）导致页面重载；
+    // 提前声明让 dev 启动即完成预构建。生产构建不受影响。
+    include: [
+      'highlight.js/lib/core',
+      'highlight.js/lib/languages/javascript',
+      'highlight.js/lib/languages/typescript',
+      'highlight.js/lib/languages/xml',
+      'highlight.js/lib/languages/css',
+      'highlight.js/lib/languages/json',
+      'highlight.js/lib/languages/markdown',
+      'highlight.js/lib/languages/bash',
+      'highlight.js/lib/languages/yaml',
+      'highlight.js/lib/languages/python',
+      'highlight.js/lib/languages/sql',
+      'highlight.js/lib/languages/java',
+      'highlight.js/lib/languages/go',
+      'highlight.js/lib/languages/ini',
+    ],
+  },
   server: {
     host: '0.0.0.0',
     port: 9867,

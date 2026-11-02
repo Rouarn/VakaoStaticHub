@@ -76,6 +76,12 @@ export default defineConfig({
     'text-ink-sub': 'text-ink-sub dark:text-ink-dark-sub',
     // —— 页面 ——
     'page-bg': 'bg-surface dark:bg-surface-dark',
+    // —— 媒体卡片 ——
+    // 图片在深色下默认降透明度、hover 恢复；dark:hover 叠加以保证优先级高于 dark 单变体
+    'media-image':
+      'w-full h-full object-cover transition-opacity duration-300 dark:opacity-85 hover:opacity-100 dark:hover:opacity-100',
+    'media-frame':
+      'relative overflow-hidden bg-gradient-to-br from-brand-100 to-brand-200/50 dark:from-brand-900/40 dark:to-brand-800/25',
     // —— 图标按钮（系统侧边栏） ——
     'rail-icon':
       'w-11 h-11 flex items-center justify-center rounded-xl text-ink-sub dark:text-ink-dark-sub transition-all duration-200 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-white/60 dark:hover:bg-white/8',
