@@ -8,7 +8,6 @@
  */
 
 import { Module } from '@nestjs/common';
-import { ScheduleModule } from '@nestjs/schedule';
 import { ResourceRootsModule } from '#/infra/resource-roots/resource-roots.module.js';
 import { FilesModule } from '../files/files.module.js';
 import { PhotoController } from './photo.controller.js';
@@ -16,11 +15,10 @@ import { PhotoService } from './photo.service.js';
 
 /**
  * 图片模块类
- * 导入定时任务模块、资源根目录模块和文件模块
- * 注册图片控制器和服务
+ * 导入资源根目录模块和文件模块，注册图片控制器和服务
  */
 @Module({
-  imports: [ScheduleModule.forRoot(), ResourceRootsModule, FilesModule],
+  imports: [ResourceRootsModule, FilesModule],
   controllers: [PhotoController],
   providers: [PhotoService],
 })
