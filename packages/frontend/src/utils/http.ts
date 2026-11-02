@@ -44,6 +44,17 @@ export const http = createClient({
   },
 });
 
+/**
+ * 公开接口客户端（分享访问 / 一言 / OpenAPI 文档）
+ *
+ * 不能复用 http：后者对任意 401 都会清空登录态并跳转登录页，
+ * 而分享页的「密码错误」正是 401，公开页会被误跳走。
+ */
+export const publicHttp = createClient({
+  baseURL: getApiBaseUrl(),
+  timeout: 15000,
+});
+
 /** 后端错误信封（见 HttpExceptionFilter）：message 可能是 class-validator 返回的字符串数组 */
 interface ErrorEnvelope {
   message?: string | string[];

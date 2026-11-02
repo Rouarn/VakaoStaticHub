@@ -3,6 +3,7 @@ import type {
   BatchMoveResult,
   ChunkUploadCompleteResult,
   ChunkUploadInitResult,
+  DuplicateScanResult,
   FileConfig,
   FileItem,
   PagedResult,
@@ -81,9 +82,32 @@ export function listFiles(
   );
 }
 
-/** 存储用量统计（分类计数来源） */
+/**
+ * 存储用量统计（分类计数来源）
+ *
+ * 侧边栏分类面板与存储统计页会同时请求同一路径，客户端对同 key 请求的
+ * 后发先至取消策略会让其中一方收到 cancel 并渲染成「请求已取消」错误。
+ * 这里共享同一个 in-flight Promise：并发调用者拿到同一份结果，只发一次请求。
+ */
+let usageInflight: Promise<UsageStatsResult> | null = null;
+
 export function getUsageStats() {
-  return http.get<UsageStatsResult>('/files/stats/usage');
+  if (usageInflight) return usageInflight;
+  const task = http.get<UsageStatsResult>('/files/stats/usage');
+  usageInflight = task;
+  const clear = () => {
+    if (usageInflight === task) usageInflight = null;
+  };
+  task.then(clear, clear);
+  return task;
+}
+
+/** 重复文件检测（按内容 SHA-256 分组；可选限定资源根） */
+export function getDuplicateFiles(rootId?: string) {
+  return http.get<DuplicateScanResult>(
+    '/files/duplicates',
+    rootId ? { rootId } : undefined,
+  );
 }
 
 /** 普通上传（多文件一次请求，受后端上传数量与大小限制约束） */
