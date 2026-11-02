@@ -1,29 +1,30 @@
+/**
+ * 分享管理服务
+ * 负责创建 / 列表 / 编辑 / 撤销 / 访问日志，不感知 HTTP 上下文
+ */
+
 import {
   BadRequestException,
-  GoneException,
   Injectable,
   Logger,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import type { ShareLinkStatus, ShareListResult } from '@vakao/shared';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
 import { ShareAccessLogEntity } from '#/infra/database/entities/share-access-log.entity.js';
+import { hashPassword } from '../auth/utils/password.util.js';
+import { FilesService } from '../files/files.service.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
 import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
 import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
-import { hashPassword, verifyPassword } from '../auth/utils/password.util.js';
-import { FilesService } from '../files/files.service.js';
+import { toShareLink, toShareAccessLog } from './share.mapper.js';
 
 /** 单个分享最多包含的文件数（防止一次分享吞掉整个目录） */
 const MAX_SHARE_FILES = 200;
-
-/** 分享访问令牌有效期：30 分钟 */
-const SHARE_ACCESS_TOKEN_TTL_MS = 30 * 60 * 1000;
 
 @Injectable()
 export class ShareService {
@@ -92,117 +93,7 @@ export class ShareService {
     });
 
     const saved = await this.repo.save(entity);
-    return this.toShareLink(saved);
-  }
-
-  /**
-   * 解锁分享链接（一次"打开"）：校验过期/次数/密码，通过后计数 +1 并签发访问令牌
-   * 计数语义为"链接打开次数"：解锁成功才计数，解锁后凭令牌下载文件不再计数
-   *
-   * 执行顺序：先做轻量的过期/次数探测（纯数字比较，不涉及哈希计算），
-   * 次数已用尽的请求在这里就直接返回，避免白白消耗昂贵的 scrypt 密码校验
-   */
-  async unlock(token: string, password?: string) {
-    const link = await this.findExistingLink(token);
-    if (link.enabled === 0) {
-      throw new GoneException('分享链接已停用');
-    }
-
-    if (link.expiresAt && Date.now() > link.expiresAt) {
-      throw new BadRequestException('分享链接已过期');
-    }
-
-    // 轻量次数探测：未达上限才继续，已用尽直接返回（不做密码哈希计算）
-    if (
-      link.maxAccesses !== null &&
-      link.maxAccesses !== undefined &&
-      link.accessCount >= link.maxAccesses
-    ) {
-      throw new BadRequestException('分享链接打开次数已达上限');
-    }
-
-    if (link.passwordHash) {
-      if (!password) {
-        throw new UnauthorizedException('该分享链接需要访问密码');
-      }
-      const ok = await verifyPassword(password, link.passwordHash);
-      if (!ok) {
-        throw new UnauthorizedException('访问密码错误');
-      }
-    }
-
-    // 条件原子自增：未设置上限或未达上限时才 +1，避免并发下突破上限
-    const result = await this.repo
-      .createQueryBuilder()
-      .update(ShareLinkEntity)
-      .set({ accessCount: () => 'accessCount + 1' })
-      .where('id = :id', { id: link.id })
-      .andWhere('(maxAccesses IS NULL OR accessCount < maxAccesses)')
-      .execute();
-
-    if (!result.affected) {
-      throw new BadRequestException('分享链接打开次数已达上限');
-    }
-
-    return {
-      success: true as const,
-      accessToken: this.signShareAccessToken(token),
-    };
-  }
-
-  /**
-   * 校验文件下载/预览请求
-   * 打开后凭有效访问令牌访问，不再消耗打开次数
-   * @param token 分享 token
-   * @param accessToken 解锁时签发的访问令牌（必填）
-   */
-  async validateFileAccess(token: string, accessToken?: string) {
-    const link = await this.findExistingLink(token);
-    if (link.enabled === 0) {
-      throw new GoneException('分享链接已停用');
-    }
-
-    if (link.expiresAt && Date.now() > link.expiresAt) {
-      throw new BadRequestException('分享链接已过期');
-    }
-
-    if (!accessToken || !this.validateShareAccessToken(token, accessToken)) {
-      throw new UnauthorizedException(
-        '访问令牌无效或已过期，请重新打开分享链接',
-      );
-    }
-
-    const filePaths = this.parseFilePaths(link.filePaths);
-    return {
-      rootId: link.rootId,
-      category: link.category,
-      shareType: this.shareTypeOf(filePaths),
-      filePaths,
-      expiresAt: link.expiresAt,
-      maxAccesses: link.maxAccesses,
-    };
-  }
-
-  /**
-   * 获取分享链接的公开信息（用于前端判断是否需要密码）
-   * 不返回敏感字段（如 passwordHash）
-   */
-  async getShareInfo(token: string) {
-    const link = await this.findExistingLink(token);
-    if (link.enabled === 0) {
-      throw new GoneException('分享链接已停用');
-    }
-    const filePaths = this.parseFilePaths(link.filePaths);
-    return {
-      token: link.token,
-      rootId: link.rootId,
-      category: link.category,
-      shareType: this.shareTypeOf(filePaths),
-      filePaths,
-      expiresAt: link.expiresAt,
-      maxAccesses: link.maxAccesses,
-      hasPassword: !!link.passwordHash,
-    };
+    return toShareLink(saved);
   }
 
   /**
@@ -229,20 +120,19 @@ export class ShareService {
       .skip((page - 1) * pageSize)
       .take(pageSize);
 
-    const now = Date.now();
     const [items, filteredTotal, all, active, expired, exhausted, disabled] =
       await Promise.all([
         qb.getMany(),
         qb.getCount(),
-        this.countByStatus(undefined, now),
-        this.countByStatus('active', now),
-        this.countByStatus('expired', now),
-        this.countByStatus('exhausted', now),
-        this.countByStatus('disabled', now),
+        this.countByStatus(),
+        this.countByStatus('active'),
+        this.countByStatus('expired'),
+        this.countByStatus('exhausted'),
+        this.countByStatus('disabled'),
       ]);
 
     return {
-      items: items.map((link) => this.toShareLink(link)),
+      items: items.map((link) => toShareLink(link)),
       total: filteredTotal,
       page,
       pageSize,
@@ -276,7 +166,7 @@ export class ShareService {
     }
 
     const saved = await this.repo.save(link);
-    return this.toShareLink(saved);
+    return toShareLink(saved);
   }
 
   async revokeShareLink(token: string) {
@@ -315,27 +205,7 @@ export class ShareService {
       where: { shareToken: token },
       order: { accessedAt: 'DESC' },
     });
-    return logs.map((log) => ({
-      id: log.id,
-      shareToken: log.shareToken,
-      ip: log.ip,
-      userAgent: log.userAgent,
-      accessedAt: log.accessedAt,
-    }));
-  }
-
-  /** 读取 filePaths JSON 数组（唯一存储形态，空数组视为数据损坏） */
-  private parseFilePaths(filePaths: string): string[] {
-    const parsed: unknown = JSON.parse(filePaths);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error('share_links.filePaths 数据损坏：期望非空 JSON 数组');
-    }
-    return parsed as string[];
-  }
-
-  /** 分享类型由路径数量派生，不单独存储 */
-  private shareTypeOf(filePaths: string[]): 'file' | 'collection' {
-    return filePaths.length > 1 ? 'collection' : 'file';
+    return logs.map((log) => toShareAccessLog(log));
   }
 
   /** 查询分享链接，不存在时抛 404（停用语义由调用方按需追加） */
@@ -347,10 +217,7 @@ export class ShareService {
     return link;
   }
 
-  /**
-   * 状态筛选条件（互斥口径，四种状态之和等于全部）：
-   * disabled > expired > exhausted > active
-   */
+  /** 状态筛选条件（互斥口径，四种状态之和等于全部） */
   private applyStatusFilter(
     qb: SelectQueryBuilder<ShareLinkEntity>,
     status: ShareLinkStatus,
@@ -382,89 +249,16 @@ export class ShareService {
   }
 
   /** 按状态统计数量（不传 status 表示全部） */
-  private async countByStatus(
-    status: ShareLinkStatus | undefined,
-    now: number,
-  ): Promise<number> {
+  private async countByStatus(status?: ShareLinkStatus): Promise<number> {
     const qb = this.repo.createQueryBuilder('s');
     if (status) {
       this.applyStatusFilter(qb, status);
     }
-    // 显式使用 now 以保持签名一致；applyStatusFilter 内部使用 Date.now()
-    void now;
     return qb.getCount();
-  }
-
-  /** 实体 → 管理端列表/详情返回结构 */
-  private toShareLink(link: ShareLinkEntity) {
-    const filePaths = this.parseFilePaths(link.filePaths);
-    return {
-      id: link.id,
-      token: link.token,
-      rootId: link.rootId,
-      category: link.category,
-      shareType: this.shareTypeOf(filePaths),
-      filePaths,
-      remark: link.remark,
-      enabled: link.enabled !== 0,
-      expiresAt: link.expiresAt,
-      maxAccesses: link.maxAccesses,
-      hasPassword: !!link.passwordHash,
-      accessCount: link.accessCount,
-      createdAt: link.createdAt,
-    };
   }
 
   private generateToken(): string {
     // CSPRNG：16 字节 = 32 个十六进制字符（前端 SHARE_TOKEN_RE 按此校验）
     return randomBytes(16).toString('hex');
-  }
-
-  /**
-   * 签发分享访问令牌
-   * 格式：<timestamp>.<hmac>，有效期 30 分钟
-   * 使用 JWT_SECRET 作为 HMAC 密钥
-   */
-  private signShareAccessToken(token: string): string {
-    const timestamp = Date.now();
-    const payload = `${token}.${timestamp}`;
-    const hmac = createHmac('sha256', this.getHmacSecret())
-      .update(payload)
-      .digest('hex');
-    return `${timestamp}.${hmac}`;
-  }
-
-  /**
-   * 校验分享访问令牌是否有效且未过期
-   */
-  private validateShareAccessToken(
-    token: string,
-    accessToken: string,
-  ): boolean {
-    const parts = accessToken.split('.');
-    if (parts.length !== 2) return false;
-
-    const timestamp = Number(parts[0]);
-    if (!Number.isFinite(timestamp)) return false;
-
-    // 令牌已过期
-    if (Date.now() - timestamp > SHARE_ACCESS_TOKEN_TTL_MS) return false;
-
-    const payload = `${token}.${timestamp}`;
-    const expected = createHmac('sha256', this.getHmacSecret())
-      .update(payload)
-      .digest('hex');
-
-    return timingSafeEqual(
-      Buffer.from(parts[1], 'hex'),
-      Buffer.from(expected, 'hex'),
-    );
-  }
-
-  /**
-   * 获取 HMAC 密钥，优先使用 JWT_SECRET 环境变量
-   */
-  private getHmacSecret(): string {
-    return process.env.JWT_SECRET ?? 'vakao-share-access-secret';
   }
 }

@@ -1,12 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { access, constants, readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rm } from 'node:fs/promises';
-import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
 import { UPLOAD_ID_REGEX } from '#/common/utils/path.util.js';
 import { ImageProcessorService } from './image-processor.service.js';
 
@@ -20,15 +18,15 @@ export class CleanupService {
   constructor(
     private readonly configService: ConfigService,
     private readonly imageProcessor: ImageProcessorService,
-    @InjectRepository(ShareLinkEntity)
-    private readonly shareRepo: Repository<ShareLinkEntity>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  /** 每日 03:00 单一 Cron：缩略图 → 过期分享（share 模块监听）→ 孤儿分片，顺序不变 */
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async runDailyCleanup() {
     this.logger.log('Starting daily cleanup...');
     await this.cleanupThumbnails();
-    await this.cleanupExpiredShares();
+    await this.eventEmitter.emitAsync('share.cleanup.expired');
     await this.cleanupOrphanUploads();
     this.logger.log('Daily cleanup finished');
   }
@@ -54,20 +52,6 @@ export class CleanupService {
     } else {
       this.logger.log('No orphaned thumbnail cache entries found');
     }
-  }
-
-  /** 清理过期分享链接 */
-  private async cleanupExpiredShares() {
-    const now = Date.now();
-    const result = await this.shareRepo
-      .createQueryBuilder()
-      .delete()
-      .where([{ expiresAt: LessThan(now) }])
-      .orWhere('maxAccesses IS NOT NULL AND accessCount >= maxAccesses')
-      .execute();
-
-    const deleted = result.affected ?? 0;
-    this.logger.log(`Cleaned ${deleted} expired share links`);
   }
 
   /**

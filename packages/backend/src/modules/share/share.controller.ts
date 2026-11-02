@@ -20,20 +20,19 @@ import {
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
-import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { basename } from 'node:path';
 import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { Public } from '#/common/decorators/public.decorator.js';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
-import { AuditLogService } from '../audit-log/audit-log.service.js';
 import { getRequestMeta } from '#/common/utils/request-meta.util.js';
+import { isPreviewable } from '#/common/utils/mime.util.js';
+import { AuditLogService } from '../audit-log/audit-log.service.js';
 import { ShareService } from './share.service.js';
-import { FilesService } from '../files/files.service.js';
+import { ShareAccessService } from './share-access.service.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
 import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
 import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
-import { getMimeType, isPreviewable } from '#/common/utils/mime.util.js';
 
 @ApiTags('分享链接')
 @Controller('share')
@@ -41,7 +40,7 @@ import { getMimeType, isPreviewable } from '#/common/utils/mime.util.js';
 export class ShareController {
   constructor(
     private readonly shareService: ShareService,
-    private readonly filesService: FilesService,
+    private readonly shareAccessService: ShareAccessService,
     private readonly auditLogService: AuditLogService,
   ) {}
 
@@ -143,7 +142,7 @@ export class ShareController {
   @ApiOperation({ summary: '获取分享链接元信息' })
   @ApiParam({ name: 'token', description: '分享 token' })
   async getShareInfo(@Param('token') token: string) {
-    return await this.shareService.getShareInfo(token);
+    return await this.shareAccessService.getShareInfo(token);
   }
 
   @Public()
@@ -157,7 +156,7 @@ export class ShareController {
     @Ip() ip: string | undefined,
     @Headers('user-agent') userAgent: string | undefined,
   ) {
-    const result = await this.shareService.unlock(token, body?.password);
+    const result = await this.shareAccessService.verify(token, body?.password);
     // 一次成功解锁记一条访问日志（打开链接一次，而非每个文件一条）
     this.shareService.recordAccess(token, ip ?? null, userAgent ?? null);
     return result;
@@ -179,7 +178,7 @@ export class ShareController {
     @Res() res: Response,
   ) {
     try {
-      const linkInfo = await this.shareService.validateFileAccess(
+      const linkInfo = await this.shareAccessService.validateFileAccess(
         token,
         accessToken,
       );
@@ -189,30 +188,8 @@ export class ShareController {
       // 必须手工输出与其它接口一致的 { code, message, data } 信封，
       // 否则前端 publicHttp 会把它当成业务失败。
       if (linkInfo.shareType === 'collection' && index === undefined) {
-        const paths = linkInfo.filePaths;
-        const files = await Promise.all(
-          paths.map(async (filePath) => {
-            const name = basename(filePath);
-            try {
-              const fileStat = await stat(
-                this.filesService.safeJoinCategory(
-                  linkInfo.rootId,
-                  linkInfo.category,
-                  [filePath],
-                ),
-              );
-              return {
-                path: filePath,
-                name,
-                size: fileStat.size,
-                exists: true,
-              };
-            } catch {
-              // 单个文件被删除/无权限不影响其它文件展示
-              return { path: filePath, name, size: null, exists: false };
-            }
-          }),
-        );
+        const files =
+          await this.shareAccessService.listCollectionFiles(linkInfo);
         res.json({
           code: 200,
           message: '成功',
@@ -226,46 +203,37 @@ export class ShareController {
         return;
       }
 
-      // 单文件分享固定取第 0 项；collection 按 index 取对应项
-      const position = index === undefined ? 0 : Number(index);
-      const filePath = linkInfo.filePaths[position];
-
-      if (!filePath) {
+      const file = await this.shareAccessService.resolveSingleFile(
+        linkInfo,
+        index,
+      );
+      if (!file) {
         res.status(400).json({ message: '无效的文件索引' });
         return;
       }
 
-      const fullPath = this.filesService.safeJoinCategory(
-        linkInfo.rootId,
-        linkInfo.category,
-        [filePath],
-      );
-
-      const s = await stat(fullPath);
-      const mimeType = getMimeType(filePath);
-
       const needsProcessing =
-        mimeType.startsWith('image/') && (w || h || q || format);
+        file.mimeType.startsWith('image/') && (w || h || q || format);
 
       if (needsProcessing) {
-        res.setHeader('Content-Type', mimeType);
-        res.setHeader('Content-Length', s.size.toString());
+        res.setHeader('Content-Type', file.mimeType);
+        res.setHeader('Content-Length', file.size.toString());
         res.setHeader('Cache-Control', 'public, max-age=86400');
-        createReadStream(fullPath).pipe(res);
+        createReadStream(file.fullPath).pipe(res);
         return;
       }
 
       const disposition =
-        isPreviewable(mimeType) && isDownload === undefined
+        isPreviewable(file.mimeType) && isDownload === undefined
           ? 'inline'
           : 'attachment';
 
-      res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Length', s.size.toString());
+      res.setHeader('Content-Type', file.mimeType);
+      res.setHeader('Content-Length', file.size.toString());
       res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
 
       if (disposition === 'attachment') {
-        const encodedFilename = encodeURIComponent(basename(filePath));
+        const encodedFilename = encodeURIComponent(basename(file.name));
         res.setHeader(
           'Content-Disposition',
           `attachment; filename*=UTF-8''${encodedFilename}`,
@@ -274,7 +242,7 @@ export class ShareController {
         res.setHeader('Content-Disposition', disposition);
       }
 
-      createReadStream(fullPath).pipe(res);
+      createReadStream(file.fullPath).pipe(res);
     } catch (error) {
       if (error instanceof NotFoundException) {
         res.status(404).json({ message: '分享链接不存在' });
