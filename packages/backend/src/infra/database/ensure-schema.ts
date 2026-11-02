@@ -34,6 +34,7 @@ export interface SyncSchemaResult {
  */
 export async function syncSchema(
   dataSource: DataSource,
+  seedAdmin: { username: string; password: string },
 ): Promise<SyncSchemaResult> {
   const legacyFixes = await normalizeLegacySharePaths(dataSource);
   const before = await snapshot(dataSource);
@@ -66,8 +67,8 @@ export async function syncSchema(
   const userRepo = dataSource.getRepository(UserEntity);
   const userCount = await userRepo.count();
   if (userCount === 0) {
-    const username = process.env.AUTH_USER ?? 'admin';
-    const password = process.env.AUTH_PASS ?? 'admin';
+    const username = seedAdmin.username;
+    const password = seedAdmin.password;
     const now = Date.now();
     await userRepo.save(
       userRepo.create({

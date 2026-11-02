@@ -20,7 +20,8 @@ export class DatabaseBootstrapService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction =
+      this.configService.get<boolean>('db.isProduction') ?? false;
     const syncRequested =
       this.configService.get<boolean>('db.synchronize') ?? false;
 
@@ -39,7 +40,10 @@ export class DatabaseBootstrapService implements OnModuleInit {
     }
 
     if (syncRequested) {
-      const result = await syncSchema(this.dataSource);
+      const result = await syncSchema(this.dataSource, {
+        username: this.configService.get<string>('auth.user') ?? 'admin',
+        password: this.configService.get<string>('auth.pass') ?? 'admin',
+      });
       this.logger.log(
         `开发模式（DB_SYNCHRONIZE=true）：新建 ${result.createdTables.length} 张表，` +
           `变更 ${result.changedObjects.length} 个对象，删除 ${result.droppedObjects.length} 个对象，` +

@@ -270,7 +270,7 @@ export class AppUpdateService implements OnModuleInit {
     const prefix =
       this.configService.get<string>('server.staticPrefix') ?? 'static';
     const path = `${prefix}/app-updates/download/${id}`;
-    const base = process.env[ENV_PUBLIC_BASE_URL];
+    const base = this.configService.get<string>(ENV_PUBLIC_BASE_URL);
     if (base) {
       return `${base.replace(/\/+$/, '')}/${path}`;
     }

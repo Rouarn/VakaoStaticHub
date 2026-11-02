@@ -13,11 +13,12 @@ import { DatabaseBootstrapService } from './database-bootstrap.service.js';
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
         const database = configService.get<string>('db.path');
+        const isProduction = configService.get<boolean>('db.isProduction');
         if (database) {
           await mkdir(dirname(database), { recursive: true });
         }
         // 生产环境不自动建表：schema 只来自 `pnpm db:sync`
-        if (process.env.NODE_ENV === 'production' && database) {
+        if (isProduction && database) {
           try {
             await access(database, constants.F_OK);
           } catch {

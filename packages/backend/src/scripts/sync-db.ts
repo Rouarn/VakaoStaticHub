@@ -46,7 +46,10 @@ async function main(): Promise<void> {
   await dataSource.initialize();
 
   try {
-    const result = await syncSchema(dataSource);
+    const result = await syncSchema(dataSource, {
+      username: process.env.AUTH_USER ?? 'admin',
+      password: process.env.AUTH_PASS ?? 'admin',
+    });
 
     if (result.alreadyCurrent) {
       log(`无需变更：结构与实体定义一致（共 ${result.tables.length} 张表）`);

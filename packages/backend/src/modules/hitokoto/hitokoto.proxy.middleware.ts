@@ -26,7 +26,6 @@ export class HitokotoProxyMiddleware implements NestMiddleware, OnModuleInit {
   async onModuleInit() {
     const target =
       this.configService.get<string>('HITOKOTO_API_URL') ||
-      process.env.HITOKOTO_API_URL ||
       DEFAULT_HITOKOTO_API_URL;
 
     // 配置值可能带路径（如 .../static/hitokoto）。http-proxy-middleware 的
