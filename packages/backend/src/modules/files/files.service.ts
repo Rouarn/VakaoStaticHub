@@ -184,6 +184,109 @@ export class FilesService {
   }
 
   /**
+   * 新建空分类（根目录下的一级子目录）
+   * software-update 根下的分类即应用，必须走 APP 版本管理的应用创建接口
+   */
+  async createCategory(rootId: string, name: string) {
+    if (rootId === SOFTWARE_UPDATE_ROOT_ID) {
+      throw new BadRequestException(
+        'software-update 根下的分类即应用，请在 APP 版本管理中创建应用',
+      );
+    }
+    const root = this.resourceRoots.getRoot(rootId);
+    if (!root) {
+      throw new NotFoundException('资源根目录不存在');
+    }
+
+    const category = this.validateBasename(name);
+    if (category.startsWith('.')) {
+      throw new BadRequestException('分类名不能以 . 开头');
+    }
+    if (category === this.getDefaultCategory()) {
+      throw new BadRequestException('默认分类名为系统保留，不可使用');
+    }
+
+    const rootPath = this.resourceRoots.resolveRootPath(rootId);
+    await mkdir(rootPath, { recursive: true });
+    const fullPath = safeJoin(rootPath, [category]);
+
+    try {
+      await access(fullPath, constants.F_OK);
+      throw new ConflictException('同名分类已存在');
+    } catch (e) {
+      if (e instanceof ConflictException) throw e;
+    }
+
+    try {
+      await mkdir(fullPath);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+        throw new ConflictException('同名分类已存在');
+      }
+      throw e;
+    }
+
+    return { category };
+  }
+
+  /**
+   * 删除分类（根目录下的一级子目录）
+   * - 默认只允许删除空分类；recursive=true 时连同文件索引/分享链接/磁盘文件一起删除
+   * - 拒绝默认分类与受保护根目录（software-update）
+   */
+  async deleteCategory(rootId: string, category: string, recursive = false) {
+    if (rootId === SOFTWARE_UPDATE_ROOT_ID) {
+      throw new BadRequestException(
+        'software-update 为受保护根目录，请通过 APP 版本管理删除应用',
+      );
+    }
+    const root = this.resourceRoots.getRoot(rootId);
+    if (!root) {
+      throw new NotFoundException('资源根目录不存在');
+    }
+
+    const { dbCategory, relPathSuffix } = normalizeCategoryPath(category);
+    if (!dbCategory) {
+      throw new BadRequestException('分类名不合法');
+    }
+    if (relPathSuffix) {
+      throw new BadRequestException('仅支持删除一级分类目录');
+    }
+    if (dbCategory === this.getDefaultCategory()) {
+      throw new BadRequestException('默认分类不可删除');
+    }
+
+    const fullPath = safeJoin(this.resourceRoots.resolveRootPath(rootId), [
+      dbCategory,
+    ]);
+
+    let sourceStat;
+    try {
+      sourceStat = await stat(fullPath);
+    } catch {
+      throw new NotFoundException('分类不存在');
+    }
+    if (!sourceStat.isDirectory()) {
+      throw new BadRequestException('目标不是分类目录');
+    }
+
+    const entries = await readdir(fullPath);
+    if (entries.length > 0 && !recursive) {
+      throw new ConflictException(
+        `分类非空（${entries.length} 项）；如需连同文件一并删除，请显式传 recursive=true`,
+      );
+    }
+
+    await this.repo.manager.transaction(async (manager) => {
+      await manager.delete(FileEntryEntity, { rootId, category: dbCategory });
+      await manager.delete(ShareLinkEntity, { rootId, category: dbCategory });
+    });
+    await rm(fullPath, { recursive: true, force: true });
+
+    return { success: true, removedEntries: entries.length };
+  }
+
+  /**
    * 存储用量统计：按资源根/分类聚合 file_entries 索引表
    * 数据与文件索引实时一致（索引本身由文件操作事件驱动同步）
    */
@@ -268,7 +371,11 @@ export class FilesService {
    * 存量索引记录可能没有 contentHash——先按文件大小分组（大小相同才可能重复），
    * 仅对大小重复且尚未计算哈希的记录惰性补算并回写索引，避免全量扫盘
    */
-  async getDuplicateFiles(rootId?: string): Promise<DuplicateScanResult> {
+  async getDuplicateFiles(
+    rootId?: string,
+    page = 1,
+    pageSize = 20,
+  ): Promise<DuplicateScanResult> {
     // 1. 找出存在重复的文件大小（忽略 0 字节文件，空文件无去重意义）
     const sizeQb = this.repo
       .createQueryBuilder('f')
@@ -351,11 +458,16 @@ export class FilesService {
     }
     groups.sort((a, b) => b.size * b.count - a.size * a.count);
 
+    const groupCount = groups.length;
+    const start = (page - 1) * pageSize;
+
     return {
-      groups,
-      groupCount: groups.length,
+      groups: groups.slice(start, start + pageSize),
+      groupCount,
       duplicateFileCount: groups.reduce((sum, g) => sum + g.count, 0),
       hashedCount,
+      page,
+      pageSize,
     };
   }
 
@@ -612,11 +724,17 @@ export class FilesService {
           { category: targetDbCategory },
         );
 
-        await manager.update(
-          ShareLinkEntity,
-          { rootId, category: dbCategory, filePath: filename },
-          { category: targetDbCategory },
-        );
+        // 分享链接以 filePaths（分类内相对路径数组）表达，命中该路径的链接随分类一起迁移
+        const affectedShares = await manager.find(ShareLinkEntity, {
+          where: { rootId, category: dbCategory },
+        });
+        for (const link of affectedShares) {
+          const linkPaths = JSON.parse(link.filePaths) as string[];
+          if (!linkPaths.includes(relPath)) continue;
+          await manager.update(ShareLinkEntity, link.id, {
+            category: targetDbCategory,
+          });
+        }
 
         results.push({ path: filename, success: true });
 
@@ -706,6 +824,9 @@ export class FilesService {
     return id;
   }
 
+  /** 已取消的 uploadId 集合：阻止取消瞬间仍在途的分片写入重建临时目录 */
+  private readonly cancelledUploads = new Set<string>();
+
   private getChunkUploadPath(uploadId: string): string {
     return resolve(this.chunkUploadDir, this.sanitizeUploadId(uploadId));
   }
@@ -731,6 +852,10 @@ export class FilesService {
       .update(`${userId}:${rootId}:${category}:${filename}:${size}`)
       .digest('hex');
 
+    // 新的上传尝试开始：清除上一次「已取消」标记，
+    // 否则相同文件取消后重新上传会被 saveChunk 误判为已取消。
+    this.cancelledUploads.delete(uploadId);
+
     const uploadDir = this.getChunkUploadPath(uploadId);
     await mkdir(uploadDir, { recursive: true });
 
@@ -753,9 +878,19 @@ export class FilesService {
    * 保存单个分片
    */
   async saveChunk(uploadId: string, index: number, buffer: Buffer) {
+    if (this.cancelledUploads.has(uploadId)) {
+      throw new BadRequestException('上传已取消');
+    }
     const uploadDir = this.getChunkUploadPath(uploadId);
     await mkdir(uploadDir, { recursive: true });
     await writeFile(resolve(uploadDir, String(index)), buffer);
+    // 取消与在途分片写入存在竞态：cancel 的 rm 可能先执行，
+    // 分片随后又重建了临时目录。写完后再检查一次并主动清理，
+    // 保证「取消后临时目录一定不存在」。
+    if (this.cancelledUploads.has(uploadId)) {
+      await rm(uploadDir, { recursive: true, force: true });
+      throw new BadRequestException('上传已取消');
+    }
     return { index, size: buffer.length };
   }
 
@@ -763,6 +898,14 @@ export class FilesService {
    * 取消分片上传，清理临时目录
    */
   async cancelChunkUpload(uploadId: string) {
+    const safeId = this.sanitizeUploadId(uploadId);
+    this.cancelledUploads.add(safeId);
+    // 标记只需覆盖「取消瞬间仍在途的分片请求」，5 分钟后自动释放，避免集合无限增长
+    const timer = setTimeout(
+      () => this.cancelledUploads.delete(safeId),
+      5 * 60 * 1000,
+    );
+    timer.unref?.();
     const uploadDir = this.getChunkUploadPath(uploadId);
     await rm(uploadDir, { recursive: true, force: true });
     return { success: true };
@@ -779,6 +922,11 @@ export class FilesService {
     expectedSize: number,
   ) {
     const uploadDir = this.getChunkUploadPath(uploadId);
+
+    if (this.cancelledUploads.has(uploadId)) {
+      await rm(uploadDir, { recursive: true, force: true });
+      throw new BadRequestException('上传已取消');
+    }
 
     // 读取所有分片索引
     const files = await readdir(uploadDir);
@@ -941,15 +1089,24 @@ export class FilesService {
       },
     );
 
-    // 同步更新指向该文件的分享链接（filePath 相对分类目录）
+    // 同步更新分享链接中指向该文件的路径（filePaths 为分类内相对路径数组）
     const fileDir = dirname(filename);
     const newFilePath =
       fileDir === '.' ? targetName : `${fileDir}/${targetName}`;
     if (filename !== newFilePath) {
-      await this.shareRepo.update(
-        { rootId, category, filePath: filename },
-        { filePath: newFilePath },
-      );
+      const affectedShares = await this.shareRepo.find({
+        where: { rootId, category },
+      });
+      for (const link of affectedShares) {
+        const replaced = this.rewriteSharePaths(
+          link.filePaths,
+          filename,
+          newFilePath,
+        );
+        if (replaced) {
+          await this.shareRepo.update(link.id, { filePaths: replaced });
+        }
+      }
     }
 
     return {
@@ -958,5 +1115,19 @@ export class FilesService {
       size: s.size,
       mtime: s.mtimeMs,
     };
+  }
+
+  /** 在分享链接的 filePaths JSON 数组里替换命中路径；未命中返回 null */
+  private rewriteSharePaths(
+    raw: string,
+    match: string,
+    replacement: string,
+  ): string | null {
+    const paths = JSON.parse(raw) as string[];
+    if (!paths.includes(match)) return null;
+    const next = [
+      ...new Set(paths.map((p) => (p === match ? replacement : p))),
+    ];
+    return JSON.stringify(next);
   }
 }

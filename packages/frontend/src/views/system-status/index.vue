@@ -1,351 +1,468 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { NButton, NIcon, NSelect, NSpin, NTag } from 'naive-ui';
 import {
-  NCard,
-  NGrid,
-  NGridItem,
-  NStatistic,
-  NTag,
-  NIcon,
-  NSpin,
-  NSwitch,
-  NButton,
-  NEmpty,
-  useMessage,
-} from 'naive-ui';
-import {
+  AlertCircleOutline,
+  CheckmarkCircleOutline,
+  HardwareChipOutline,
+  PauseOutline,
+  PeopleOutline,
+  PlayOutline,
+  PulseOutline,
   RefreshOutline,
+  RocketOutline,
+  SaveOutline,
+  ServerOutline,
+  ShareSocialOutline,
   SpeedometerOutline,
   TimeOutline,
-  PeopleOutline,
-  ServerOutline,
-  CloudUploadOutline,
-  LinkOutline,
-  PhonePortraitOutline,
-  PulseOutline,
 } from '@vicons/ionicons5';
-import { getSystemMetrics, type SystemMetrics } from '@/api/system';
-import { getErrorMessage } from '@/utils/request';
-import { formatSize } from '@/utils/format';
+import type { SystemMetrics } from '@vakao/shared';
+import { getSystemMetrics } from '@/api/metrics';
+import { getErrorMessage } from '@/utils/http';
+import { formatBytes } from '@/utils/file-types';
+import { formatUptime, percentOf } from '@/utils/format';
+import PageHeader from '@/components/common/page-header.vue';
+import EmptyState from '@/components/common/empty-state.vue';
+import ErrorState from '@/components/common/error-state.vue';
+import StatCard from '@/components/common/stat-card.vue';
+import BarList from '@/components/charts/bar-list.vue';
 
-defineOptions({
-  name: 'system-status',
-});
-
-const message = useMessage();
+/**
+ * 系统状态
+ *
+ * 数据来自 GET /metrics：
+ * - health 段独立返回数据库可达性与数据库文件大小（未落盘/不可读时为 null）
+ * - storage / roots 的 totalSize 在无索引数据时为 null，界面显示「—」而不是 0 B
+ */
+const data = ref<SystemMetrics | null>(null);
 const loading = ref(false);
-const metrics = ref<SystemMetrics | null>(null);
-const autoRefresh = ref(false);
-let refreshTimer: ReturnType<typeof setInterval> | null = null;
+const error = ref('');
+const lastUpdated = ref<number | null>(null);
 
-/** 自动刷新间隔（毫秒） */
-const REFRESH_INTERVAL_MS = 30_000;
-
-/** 秒数格式化为「x天 x小时 x分 x秒」 */
-function formatUptime(seconds: number): string {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days} 天`);
-  if (hours > 0) parts.push(`${hours} 小时`);
-  if (minutes > 0) parts.push(`${minutes} 分`);
-  parts.push(`${secs} 秒`);
-  return parts.join(' ');
-}
-
-/** 堆内存使用率 */
-const heapUsagePercent = computed(() => {
-  if (!metrics.value || metrics.value.memory.heapTotal <= 0) return 0;
-  return (
-    Math.round(
-      (metrics.value.memory.heapUsed / metrics.value.memory.heapTotal) * 1000,
-    ) / 10
-  );
-});
-
-/** 升级事件固定展示顺序与中文标签 */
-const upgradeEventLabels: { key: string; label: string }[] = [
-  { key: 'check', label: '检查更新' },
-  { key: 'download', label: '下载' },
-  { key: 'install_success', label: '安装成功' },
-  { key: 'install_fail', label: '安装失败' },
+const refreshMs = ref(30_000);
+const paused = ref(false);
+const intervalOptions = [
+  { label: '15 秒', value: 15_000 },
+  { label: '30 秒', value: 30_000 },
+  { label: '60 秒', value: 60_000 },
 ];
 
-const upgradeEventList = computed(() =>
-  upgradeEventLabels.map((item) => ({
-    ...item,
-    count: metrics.value?.upgradeEvents24h[item.key] ?? 0,
-  })),
+let timer: ReturnType<typeof setInterval> | null = null;
+
+async function load(silent = false) {
+  if (!silent) loading.value = true;
+  error.value = '';
+  try {
+    data.value = await getSystemMetrics();
+    lastUpdated.value = Date.now();
+  } catch (e) {
+    error.value = getErrorMessage(e, '系统指标获取失败');
+  } finally {
+    if (!silent) loading.value = false;
+  }
+}
+
+function restartTimer() {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  if (paused.value) return;
+  timer = setInterval(() => void load(true), refreshMs.value);
+}
+
+watch([refreshMs, paused], restartTimer);
+
+onMounted(() => {
+  void load();
+  restartTimer();
+});
+
+onBeforeUnmount(() => {
+  if (timer) clearInterval(timer);
+});
+
+const healthy = computed(
+  () => data.value?.health.status === 'ok' && !error.value,
 );
 
-async function loadMetrics() {
-  loading.value = true;
-  try {
-    metrics.value = await getSystemMetrics();
-  } catch (error) {
-    message.error(getErrorMessage(error, '加载系统指标失败'));
-  } finally {
-    loading.value = false;
-  }
+/** 无数据（null）时展示「—」，避免把“未采集”误读成 0 字节 */
+function formatBytesOrDash(bytes: number | null | undefined): string {
+  return bytes === null || bytes === undefined ? '—' : formatBytes(bytes);
 }
 
-function handleAutoRefreshChange(value: boolean) {
-  if (value) {
-    refreshTimer = setInterval(loadMetrics, REFRESH_INTERVAL_MS);
-  } else if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
-}
-
-onMounted(loadMetrics);
-onUnmounted(() => {
-  if (refreshTimer) clearInterval(refreshTimer);
+const memoryItems = computed(() => {
+  const memory = data.value?.memory;
+  if (!memory) return [];
+  return [
+    { label: 'RSS 常驻内存', value: memory.rss },
+    { label: '堆总量 Heap Total', value: memory.heapTotal },
+    { label: '堆已用 Heap Used', value: memory.heapUsed },
+    { label: '外部内存 External', value: memory.external },
+  ];
 });
+
+const heapPercent = computed(() => {
+  const memory = data.value?.memory;
+  if (!memory || memory.heapTotal <= 0) return 0;
+  return percentOf(memory.heapUsed, memory.heapTotal);
+});
+
+const EVENT_LABELS: Record<string, string> = {
+  check_no_update: '检查更新（无新版本）',
+  prompt_show: '升级提示展示',
+  download_start: '下载开始',
+  download_success: '下载完成',
+  download_fail: '下载失败',
+  verify_fail: '校验失败',
+  install_success: '安装成功',
+  install_fail: '安装失败',
+  new_version_launch: '新版本启动',
+};
+
+const upgradeEventItems = computed(() =>
+  Object.entries(data.value?.upgradeEvents24h ?? {})
+    .filter(([, value]) => value !== null)
+    .map(([key, value]) => ({
+      label: EVENT_LABELS[key] ?? key,
+      value: value as number,
+    }))
+    .sort((a, b) => b.value - a.value),
+);
+
+/** 最近 24 小时没有任何数据的事件类型数量（后端返回 null） */
+const upgradeEventMissingCount = computed(
+  () =>
+    Object.values(data.value?.upgradeEvents24h ?? {}).filter(
+      (value) => value === null,
+    ).length,
+);
+
+const upgradeEventTotal = computed(() =>
+  upgradeEventItems.value.reduce((sum, item) => sum + item.value, 0),
+);
+
+const rootItems = computed(() => data.value?.roots ?? []);
+
+const largestRoot = computed(() => {
+  const sorted = [...rootItems.value].sort(
+    (a, b) => (b.totalSize ?? -1) - (a.totalSize ?? -1),
+  );
+  return sorted[0];
+});
+
+/** 根目录占总存储的百分比；任一侧无数据时返回 null（界面显示「—」） */
+function rootShare(totalSize: number | null): number | null {
+  const grandTotal = data.value?.storage.totalSize;
+  if (totalSize === null || grandTotal === null || grandTotal === undefined) {
+    return null;
+  }
+  return percentOf(totalSize, grandTotal);
+}
+
+function rootShareLabel(totalSize: number | null): string {
+  const share = rootShare(totalSize);
+  return share === null ? '—' : `${share}%`;
+}
 </script>
 
 <template>
-  <main class="px-4 md:px-6 pb-4">
-    <div
-      class="flex items-center justify-between py-4 mb-4 sticky top-0 z-2 bg-container/95 backdrop-blur border-b border-base shadow-sm -mx-4 md:-mx-6 px-4 md:px-6"
+  <div class="flex flex-col gap-4 animate-fade-up">
+    <PageHeader
+      title="系统状态"
+      description="服务运行指标：健康、运行时长、内存、存储、分享与升级事件（GET /metrics）"
+      :icon="SpeedometerOutline"
     >
-      <div class="flex items-center gap-2">
-        <NIcon size="22" class="text-primary">
-          <SpeedometerOutline />
-        </NIcon>
-        <h2 class="text-xl font-semibold text-base">系统状态</h2>
-      </div>
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-2 text-sm text-gray-500">
-          <span>30 秒自动刷新</span>
-          <NSwitch
-            size="small"
-            :value="autoRefresh"
-            @update:value="handleAutoRefreshChange"
-          />
-        </div>
-        <NButton
-          quaternary
-          circle
-          title="刷新"
-          :loading="loading"
-          @click="loadMetrics"
-        >
+      <template #actions>
+        <NSelect
+          v-model:value="refreshMs"
+          size="small"
+          class="w-28"
+          :options="intervalOptions"
+          :disabled="paused"
+        />
+        <NButton size="small" quaternary @click="paused = !paused">
           <template #icon>
-            <NIcon><RefreshOutline /></NIcon>
+            <NIcon
+              ><component :is="paused ? PlayOutline : PauseOutline"
+            /></NIcon>
           </template>
+          {{ paused ? '恢复刷新' : '暂停刷新' }}
         </NButton>
-      </div>
-    </div>
+        <NButton size="small" quaternary :loading="loading" @click="load()">
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
+          立即刷新
+        </NButton>
+      </template>
+    </PageHeader>
+
+    <!-- 状态条 -->
+    <section class="glass-panel px-4 py-3 flex items-center gap-3 flex-wrap">
+      <div
+        class="w-2.5 h-2.5 rounded-full shrink-0"
+        :class="healthy ? 'bg-emerald-500' : 'bg-red-500'"
+      />
+      <p class="m-0 text-13px font-600 text-ink">
+        {{ healthy ? '服务运行正常' : '服务指标获取失败' }}
+      </p>
+      <p class="m-0 text-11px text-ink-sub">
+        {{ paused ? '自动刷新已暂停' : `每 ${refreshMs / 1000} 秒自动刷新` }}
+        <template v-if="lastUpdated">
+          · 最近更新 {{ new Date(lastUpdated).toLocaleTimeString('zh-CN') }}
+        </template>
+      </p>
+      <NTag
+        v-if="paused"
+        size="tiny"
+        :bordered="false"
+        type="warning"
+        class="ml-auto"
+      >
+        已暂停
+      </NTag>
+    </section>
 
     <NSpin :show="loading">
-      <div v-if="metrics" class="flex flex-col gap-4">
-        <!-- 运行状态概览 -->
-        <NGrid cols="1 s:3" :x-gap="12" :y-gap="12" responsive="screen">
-          <NGridItem>
-            <NCard size="small">
-              <div class="flex items-start gap-3">
-                <NIcon size="28" class="text-primary mt-1">
-                  <TimeOutline />
-                </NIcon>
-                <div class="min-w-0">
-                  <div class="text-sm text-gray-500">运行时长</div>
-                  <div class="text-lg font-semibold truncate">
-                    {{ formatUptime(metrics.uptime) }}
-                  </div>
-                </div>
-              </div>
-            </NCard>
-          </NGridItem>
-          <NGridItem>
-            <NCard size="small">
-              <div class="flex items-start gap-3">
-                <NIcon size="28" class="text-primary mt-1">
-                  <PulseOutline />
-                </NIcon>
-                <div class="min-w-0">
-                  <div class="text-sm text-gray-500">
-                    QPS（最近 {{ metrics.qps.windowSeconds }} 秒）
-                  </div>
-                  <div class="text-lg font-semibold">
-                    {{ metrics.qps.perSecond }}
-                    <span class="text-xs text-gray-500 font-normal">
-                      / 秒 · {{ metrics.qps.requests }} 次请求
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </NCard>
-          </NGridItem>
-          <NGridItem>
-            <NCard size="small">
-              <div class="flex items-start gap-3">
-                <NIcon size="28" class="text-primary mt-1">
-                  <PeopleOutline />
-                </NIcon>
-                <div class="min-w-0">
-                  <div class="text-sm text-gray-500">注册用户</div>
-                  <div class="text-lg font-semibold">
-                    {{ metrics.users }}
-                    <span class="text-xs text-gray-500 font-normal">人</span>
-                  </div>
-                </div>
-              </div>
-            </NCard>
-          </NGridItem>
-        </NGrid>
+      <ErrorState v-if="!data && error" :message="error" @retry="load()" />
 
-        <!-- 内存与存储 -->
-        <NGrid :cols="2" :x-gap="12" :y-gap="12" responsive="screen">
-          <NGridItem>
-            <NCard size="small">
-              <template #header>
-                <div class="flex items-center gap-2">
-                  <NIcon><ServerOutline /></NIcon>
-                  <span>进程内存</span>
-                </div>
-              </template>
-              <div class="flex flex-col gap-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-500">RSS（常驻内存）</span>
-                  <span class="font-medium">{{
-                    formatSize(metrics.memory.rss)
-                  }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-500">堆已用 / 堆总量</span>
-                  <span class="font-medium">
-                    {{ formatSize(metrics.memory.heapUsed) }}
-                    / {{ formatSize(metrics.memory.heapTotal) }}
-                  </span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-500">堆使用率</span>
-                  <NTag
-                    size="small"
-                    :type="heapUsagePercent > 85 ? 'error' : 'success'"
-                    :bordered="false"
-                  >
-                    {{ heapUsagePercent }}%
-                  </NTag>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-500">External（C++ 对象/Buffer）</span>
-                  <span class="font-medium">{{
-                    formatSize(metrics.memory.external)
-                  }}</span>
-                </div>
-              </div>
-            </NCard>
-          </NGridItem>
-          <NGridItem>
-            <NCard size="small">
-              <template #header>
-                <div class="flex items-center gap-2">
-                  <NIcon><CloudUploadOutline /></NIcon>
-                  <span>文件存储</span>
-                </div>
-              </template>
-              <NStatistic label="总占用空间">
-                {{ formatSize(metrics.storage.totalSize) }}
-              </NStatistic>
-              <div class="mt-2 text-sm text-gray-500">
-                索引文件总数：{{ metrics.storage.fileCount }}
-              </div>
-            </NCard>
-          </NGridItem>
-        </NGrid>
+      <EmptyState
+        v-else-if="!loading && !data"
+        :icon="SpeedometerOutline"
+        title="暂无系统指标"
+        description="后端 /metrics 返回空数据，请确认服务已启动并完成登录鉴权。"
+      >
+        <NButton size="small" type="primary" @click="load()">重新获取</NButton>
+      </EmptyState>
 
-        <!-- 各资源根用量 -->
-        <NCard size="small" title="资源根用量">
-          <div v-if="metrics.roots.length > 0" class="flex flex-col gap-2">
-            <div
-              v-for="root in metrics.roots"
-              :key="root.rootId"
-              class="flex items-center justify-between text-sm py-1 border-b border-base last:border-b-0"
-            >
-              <span class="font-medium">{{ root.name }}</span>
-              <span class="text-gray-500">
-                {{ formatSize(root.totalSize) }} · {{ root.fileCount }} 个文件
+      <div v-else-if="data" class="flex flex-col gap-4">
+        <div
+          v-if="error"
+          class="glass-panel border-l-4 border-l-red-500 px-4 py-2 flex items-center gap-2 text-12px"
+        >
+          <NIcon :size="15" class="text-red-500"><AlertCircleOutline /></NIcon>
+          <span class="text-ink-sub"
+            >本次刷新失败：{{ error }}（下方展示的是上次成功的数据）</span
+          >
+        </div>
+
+        <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="健康状态"
+            :value="healthy ? '正常' : '异常'"
+            :hint="
+              data.health.database.ok
+                ? 'health 段：数据库探测正常'
+                : 'health 段：数据库探测失败'
+            "
+            :icon="healthy ? CheckmarkCircleOutline : AlertCircleOutline"
+          />
+          <StatCard
+            label="运行时长"
+            :value="formatUptime(data.uptime)"
+            hint="自进程启动至今"
+            :icon="TimeOutline"
+          />
+          <StatCard
+            label="内存 RSS"
+            :value="formatBytes(data.memory.rss)"
+            :hint="`堆已用 ${heapPercent}%`"
+            :icon="HardwareChipOutline"
+          />
+          <StatCard
+            :label="`QPS（近 ${data.qps.windowSeconds} 秒）`"
+            :value="data.qps.perSecond.toFixed(2)"
+            :hint="`窗口内 ${data.qps.requests} 次请求`"
+            :icon="PulseOutline"
+          />
+          <StatCard
+            label="存储用量"
+            :value="formatBytesOrDash(data.storage.totalSize)"
+            :hint="`${data.storage.fileCount.toLocaleString()} 个文件 · ${rootItems.length} 个根目录`"
+            :icon="SaveOutline"
+          />
+          <StatCard
+            label="数据库"
+            :value="data.health.database.ok ? '已连接' : '不可用'"
+            :hint="`数据库文件 ${formatBytesOrDash(data.health.database.sizeBytes)}`"
+            :icon="ServerOutline"
+          />
+          <StatCard
+            label="活跃分享"
+            :value="data.shares.active.toLocaleString()"
+            :hint="`共 ${data.shares.total} · 已过期 ${data.shares.expired}`"
+            :icon="ShareSocialOutline"
+          />
+          <StatCard
+            label="应用版本"
+            :value="data.apps.published.toLocaleString()"
+            :hint="`灰度 ${data.apps.gray} · 草稿 ${data.apps.draft} · 下架 ${data.apps.offline}`"
+            :icon="RocketOutline"
+          />
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <!-- 内存 -->
+          <section class="glass-panel px-5 py-4 flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+              <h2 class="m-0 text-13px font-600 text-ink">内存占用</h2>
+              <span class="ml-auto text-11px text-ink-sub">
+                heapUsed / heapTotal {{ heapPercent }}%
               </span>
             </div>
-          </div>
-          <NEmpty v-else description="暂无资源根" size="small" class="py-4" />
-        </NCard>
-
-        <!-- 分享与应用版本 -->
-        <NGrid :cols="2" :x-gap="12" :y-gap="12" responsive="screen">
-          <NGridItem>
-            <NCard size="small">
-              <template #header>
-                <div class="flex items-center gap-2">
-                  <NIcon><LinkOutline /></NIcon>
-                  <span>分享链接</span>
-                </div>
-              </template>
-              <div class="flex items-center gap-6">
-                <NStatistic label="总数" :value="metrics.shares.total" />
-                <NStatistic label="活跃中" :value="metrics.shares.active" />
-                <NStatistic label="已失效" :value="metrics.shares.expired" />
-              </div>
-            </NCard>
-          </NGridItem>
-          <NGridItem>
-            <NCard size="small">
-              <template #header>
-                <div class="flex items-center gap-2">
-                  <NIcon><PhonePortraitOutline /></NIcon>
-                  <span>APP 版本分布</span>
-                </div>
-              </template>
-              <div class="flex flex-col gap-1.5 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-500">版本总数</span>
-                  <span class="font-medium">{{ metrics.apps.total }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-500">全量发布</span>
-                  <span class="font-medium">{{ metrics.apps.published }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-500">灰度中</span>
-                  <span class="font-medium">{{ metrics.apps.gray }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-500">草稿</span>
-                  <span class="font-medium">{{ metrics.apps.draft }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-500">已下架</span>
-                  <span class="font-medium">{{ metrics.apps.offline }}</span>
-                </div>
-              </div>
-            </NCard>
-          </NGridItem>
-        </NGrid>
-
-        <!-- 24 小时升级事件 -->
-        <NCard size="small" title="最近 24 小时升级事件">
-          <div class="flex flex-wrap gap-3">
-            <NTag
-              v-for="event in upgradeEventList"
-              :key="event.key"
-              size="large"
-              :type="
-                event.key === 'install_fail' && event.count > 0
-                  ? 'error'
-                  : 'default'
-              "
-              class="!px-3"
+            <BarList
+              :items="memoryItems"
+              :value-formatter="formatBytes"
+              :max="data.memory.rss"
+            />
+            <div
+              class="h-2 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
             >
-              {{ event.label }}：{{ event.count }}
-            </NTag>
+              <div
+                class="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 transition-all duration-500"
+                :style="{ width: `${heapPercent}%` }"
+              />
+            </div>
+            <p class="m-0 text-10px text-ink-sub">
+              数据来自
+              process.memoryUsage()，用于观察进程内存趋势，非系统总内存占用。
+            </p>
+          </section>
+
+          <!-- 24h 升级事件 -->
+          <section class="glass-panel px-5 py-4 flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+              <h2 class="m-0 text-13px font-600 text-ink">
+                最近 24 小时升级事件
+              </h2>
+              <span class="ml-auto text-11px text-ink-sub">
+                共 {{ upgradeEventTotal.toLocaleString() }} 次
+                <template v-if="upgradeEventMissingCount > 0">
+                  · {{ upgradeEventMissingCount }} 类无数据
+                </template>
+              </span>
+            </div>
+            <BarList
+              v-if="upgradeEventItems.length > 0"
+              :items="upgradeEventItems"
+            />
+            <div
+              v-else
+              class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-6 text-center text-12px text-ink-sub"
+            >
+              最近 24 小时没有客户端上报升级事件（无数据的事件类型由后端返回
+              null）
+            </div>
+          </section>
+        </div>
+
+        <!-- 根目录 -->
+        <section class="glass-panel px-5 py-4 flex flex-col gap-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="m-0 text-13px font-600 text-ink">资源根目录用量</h2>
+            <span class="ml-auto text-11px text-ink-sub">
+              最大：{{
+                largestRoot
+                  ? `${largestRoot.name} · ${formatBytesOrDash(largestRoot.totalSize)}`
+                  : '—'
+              }}
+            </span>
           </div>
-        </NCard>
+          <div
+            v-if="rootItems.length === 0"
+            class="py-6 text-center text-12px text-ink-sub"
+          >
+            暂无资源根目录
+          </div>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full min-w-600px border-collapse text-12px">
+              <thead>
+                <tr class="text-left text-11px text-ink-sub">
+                  <th class="py-2 pr-3 font-500">根目录</th>
+                  <th class="py-2 px-2 font-500 w-24">ID</th>
+                  <th class="py-2 px-2 font-500 text-right w-28">文件数</th>
+                  <th class="py-2 px-2 font-500 text-right w-32">占用</th>
+                  <th class="py-2 pl-2 font-500 w-40">占总存储</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="root in rootItems"
+                  :key="root.rootId"
+                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
+                >
+                  <td
+                    class="py-2 pr-3 text-ink truncate max-w-240px"
+                    :title="root.name"
+                  >
+                    {{ root.name }}
+                  </td>
+                  <td class="py-2 px-2 text-ink-sub font-mono text-11px">
+                    {{ root.rootId }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ root.fileCount.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ formatBytesOrDash(root.totalSize) }}
+                  </td>
+                  <td class="py-2 pl-2">
+                    <div class="flex items-center gap-2">
+                      <div
+                        class="flex-1 h-1.5 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
+                      >
+                        <div
+                          class="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
+                          :style="{
+                            width: `${rootShare(root.totalSize) ?? 0}%`,
+                          }"
+                        />
+                      </div>
+                      <span
+                        class="text-11px text-ink-sub tabular-nums w-12 text-right"
+                      >
+                        {{ rootShareLabel(root.totalSize) }}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 其他指标 -->
+        <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="用户数"
+            :value="data.users.toLocaleString()"
+            :icon="PeopleOutline"
+          />
+          <StatCard
+            label="应用总数"
+            :value="data.apps.total.toLocaleString()"
+            :icon="RocketOutline"
+          />
+          <StatCard
+            label="分享总数"
+            :value="data.shares.total.toLocaleString()"
+            :icon="ShareSocialOutline"
+          />
+          <StatCard
+            label="根目录数"
+            :value="rootItems.length.toLocaleString()"
+            :icon="SaveOutline"
+          />
+        </div>
+
+        <p class="m-0 text-10px text-ink-sub">
+          说明：health
+          段由后端独立返回数据库可达性与数据库文件大小（未落盘或不可读时为
+          null）；存储用量只统计文件库索引内的文件，无索引数据时显示「—」。
+        </p>
       </div>
-      <NEmpty v-else-if="!loading" description="暂无指标数据" class="py-16" />
     </NSpin>
-  </main>
+  </div>
 </template>

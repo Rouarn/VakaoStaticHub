@@ -1,17 +1,26 @@
 import {
   BadRequestException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { stat } from 'node:fs/promises';
+import type { ShareLinkStatus, ShareListResult } from '@vakao/shared';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
 import { ShareAccessLogEntity } from '#/infra/database/entities/share-access-log.entity.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
+import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
+import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
 import { hashPassword, verifyPassword } from '../auth/utils/password.util.js';
+import { FilesService } from '../files/files.service.js';
+
+/** 单个分享最多包含的文件数（防止一次分享吞掉整个目录） */
+const MAX_SHARE_FILES = 200;
 
 /** 分享访问令牌有效期：30 分钟 */
 const SHARE_ACCESS_TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -25,25 +34,56 @@ export class ShareService {
     private readonly repo: Repository<ShareLinkEntity>,
     @InjectRepository(ShareAccessLogEntity)
     private readonly accessLogRepo: Repository<ShareAccessLogEntity>,
+    private readonly filesService: FilesService,
   ) {}
 
   async createShareLink(dto: CreateShareLinkDto) {
     const token = this.generateToken();
-    const shareType = dto.shareType ?? 'file';
+    const paths = [
+      ...new Set(dto.filePaths.map((p) => p.trim()).filter(Boolean)),
+    ];
+    if (paths.length === 0) {
+      throw new BadRequestException('请选择至少一个文件');
+    }
+    if (paths.length > MAX_SHARE_FILES) {
+      throw new BadRequestException(`一次最多分享 ${MAX_SHARE_FILES} 个文件`);
+    }
 
-    // collection 类型时，将 filePaths 序列化为 JSON 存储；单文件保持原有行为
-    const filePathsJson =
-      shareType === 'collection' && dto.filePaths?.length
-        ? JSON.stringify(dto.filePaths)
-        : null;
+    // 逐条校验：路径合法（禁止 .. / 绝对路径）且文件真实存在
+    const missing: string[] = [];
+    for (const filePath of paths) {
+      try {
+        const fullPath = this.filesService.safeJoinCategory(
+          dto.rootId,
+          dto.category,
+          [filePath],
+        );
+        await stat(fullPath);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw new BadRequestException(`文件路径不合法：${filePath}`);
+        }
+        const code = (error as NodeJS.ErrnoException | undefined)?.code;
+        if (!code) {
+          // safeJoin 抛出的纯 Error('Invalid path') 属于路径穿越，不是文件缺失
+          throw new BadRequestException(`文件路径不合法：${filePath}`);
+        }
+        missing.push(filePath);
+      }
+    }
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `以下文件不存在或已被删除：${missing.join('、')}`,
+      );
+    }
 
     const entity = this.repo.create({
       token,
       rootId: dto.rootId,
       category: dto.category,
-      filePath: dto.filePath,
-      shareType,
-      filePaths: filePathsJson,
+      filePaths: JSON.stringify(paths),
+      remark: dto.remark?.trim() || null,
+      enabled: 1,
       expiresAt: dto.expiresInMs ? Date.now() + dto.expiresInMs : null,
       maxAccesses: dto.maxAccesses ?? null,
       passwordHash: dto.password ? await hashPassword(dto.password) : null,
@@ -52,20 +92,7 @@ export class ShareService {
     });
 
     const saved = await this.repo.save(entity);
-    return {
-      id: saved.id,
-      token: saved.token,
-      rootId: saved.rootId,
-      category: saved.category,
-      filePath: saved.filePath,
-      shareType: saved.shareType,
-      filePaths: this.parseFilePaths(saved.filePaths),
-      expiresAt: saved.expiresAt,
-      maxAccesses: saved.maxAccesses,
-      hasPassword: !!saved.passwordHash,
-      accessCount: saved.accessCount,
-      createdAt: saved.createdAt,
-    };
+    return this.toShareLink(saved);
   }
 
   /**
@@ -76,9 +103,9 @@ export class ShareService {
    * 次数已用尽的请求在这里就直接返回，避免白白消耗昂贵的 scrypt 密码校验
    */
   async unlock(token: string, password?: string) {
-    const link = await this.repo.findOne({ where: { token } });
-    if (!link) {
-      throw new NotFoundException('分享链接不存在');
+    const link = await this.findExistingLink(token);
+    if (link.enabled === 0) {
+      throw new GoneException('分享链接已停用');
     }
 
     if (link.expiresAt && Date.now() > link.expiresAt) {
@@ -130,9 +157,9 @@ export class ShareService {
    * @param accessToken 解锁时签发的访问令牌（必填）
    */
   async validateFileAccess(token: string, accessToken?: string) {
-    const link = await this.repo.findOne({ where: { token } });
-    if (!link) {
-      throw new NotFoundException('分享链接不存在');
+    const link = await this.findExistingLink(token);
+    if (link.enabled === 0) {
+      throw new GoneException('分享链接已停用');
     }
 
     if (link.expiresAt && Date.now() > link.expiresAt) {
@@ -145,12 +172,12 @@ export class ShareService {
       );
     }
 
+    const filePaths = this.parseFilePaths(link.filePaths);
     return {
       rootId: link.rootId,
       category: link.category,
-      filePath: link.filePath,
-      shareType: link.shareType,
-      filePaths: this.parseFilePaths(link.filePaths),
+      shareType: this.shareTypeOf(filePaths),
+      filePaths,
       expiresAt: link.expiresAt,
       maxAccesses: link.maxAccesses,
     };
@@ -161,41 +188,95 @@ export class ShareService {
    * 不返回敏感字段（如 passwordHash）
    */
   async getShareInfo(token: string) {
-    const link = await this.repo.findOne({ where: { token } });
-    if (!link) {
-      throw new NotFoundException('分享链接不存在');
+    const link = await this.findExistingLink(token);
+    if (link.enabled === 0) {
+      throw new GoneException('分享链接已停用');
     }
+    const filePaths = this.parseFilePaths(link.filePaths);
     return {
       token: link.token,
       rootId: link.rootId,
       category: link.category,
-      filePath: link.filePath,
-      shareType: link.shareType,
-      filePaths: this.parseFilePaths(link.filePaths),
+      shareType: this.shareTypeOf(filePaths),
+      filePaths,
       expiresAt: link.expiresAt,
       maxAccesses: link.maxAccesses,
       hasPassword: !!link.passwordHash,
     };
   }
 
-  async listShareLinks() {
-    const links = await this.repo.find({
-      order: { createdAt: 'DESC' },
-    });
-    return links.map((link) => ({
-      id: link.id,
-      token: link.token,
-      rootId: link.rootId,
-      category: link.category,
-      filePath: link.filePath,
-      shareType: link.shareType,
-      filePaths: this.parseFilePaths(link.filePaths),
-      expiresAt: link.expiresAt,
-      maxAccesses: link.maxAccesses,
-      hasPassword: !!link.passwordHash,
-      accessCount: link.accessCount,
-      createdAt: link.createdAt,
-    }));
+  /**
+   * 管理端分页列表：关键字命中 token / 文件路径 / 分类 / 备注；
+   * counts 恒为全量口径，不受分页与当前筛选影响
+   */
+  async listShareLinks(
+    query: ListShareLinksQueryDto,
+  ): Promise<ShareListResult> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 10;
+
+    const qb = this.repo.createQueryBuilder('s');
+    if (query.q?.trim()) {
+      qb.andWhere(
+        "(LOWER(s.token) LIKE :q OR LOWER(s.filePaths) LIKE :q OR LOWER(s.category) LIKE :q OR LOWER(COALESCE(s.remark, '')) LIKE :q)",
+        { q: `%${query.q.trim().toLowerCase()}%` },
+      );
+    }
+    if (query.status) {
+      this.applyStatusFilter(qb, query.status);
+    }
+    qb.orderBy('s.createdAt', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize);
+
+    const now = Date.now();
+    const [items, filteredTotal, all, active, expired, exhausted, disabled] =
+      await Promise.all([
+        qb.getMany(),
+        qb.getCount(),
+        this.countByStatus(undefined, now),
+        this.countByStatus('active', now),
+        this.countByStatus('expired', now),
+        this.countByStatus('exhausted', now),
+        this.countByStatus('disabled', now),
+      ]);
+
+    return {
+      items: items.map((link) => this.toShareLink(link)),
+      total: filteredTotal,
+      page,
+      pageSize,
+      counts: { all, active, expired, exhausted, disabled },
+    };
+  }
+
+  /** 编辑分享链接：备注 / 有效期 / 密码 / 最大次数 / 启停 */
+  async updateShareLink(token: string, dto: UpdateShareLinkDto) {
+    const link = await this.findExistingLink(token);
+
+    if (dto.remark !== undefined) {
+      link.remark = dto.remark?.trim() || null;
+    }
+    if (dto.expiresAt !== undefined) {
+      if (dto.expiresAt !== null && dto.expiresAt <= Date.now()) {
+        throw new BadRequestException('过期时间必须晚于当前时间');
+      }
+      link.expiresAt = dto.expiresAt;
+    }
+    if (dto.password !== undefined) {
+      link.passwordHash = dto.password
+        ? await hashPassword(dto.password)
+        : null;
+    }
+    if (dto.maxAccesses !== undefined) {
+      link.maxAccesses = dto.maxAccesses;
+    }
+    if (dto.enabled !== undefined) {
+      link.enabled = dto.enabled ? 1 : 0;
+    }
+
+    const saved = await this.repo.save(link);
+    return this.toShareLink(saved);
   }
 
   async revokeShareLink(token: string) {
@@ -243,19 +324,99 @@ export class ShareService {
     }));
   }
 
-  /** 将数据库中的 JSON 字符串解析为 string[]，解析失败返回 null */
-  private parseFilePaths(filePaths: string | null): string[] | null {
-    if (!filePaths) return null;
-    try {
-      const parsed = JSON.parse(filePaths) as unknown;
-      return Array.isArray(parsed) ? (parsed as string[]) : null;
-    } catch {
-      return null;
+  /** 读取 filePaths JSON 数组（唯一存储形态，空数组视为数据损坏） */
+  private parseFilePaths(filePaths: string): string[] {
+    const parsed: unknown = JSON.parse(filePaths);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error('share_links.filePaths 数据损坏：期望非空 JSON 数组');
+    }
+    return parsed as string[];
+  }
+
+  /** 分享类型由路径数量派生，不单独存储 */
+  private shareTypeOf(filePaths: string[]): 'file' | 'collection' {
+    return filePaths.length > 1 ? 'collection' : 'file';
+  }
+
+  /** 查询分享链接，不存在时抛 404（停用语义由调用方按需追加） */
+  private async findExistingLink(token: string) {
+    const link = await this.repo.findOne({ where: { token } });
+    if (!link) {
+      throw new NotFoundException('分享链接不存在');
+    }
+    return link;
+  }
+
+  /**
+   * 状态筛选条件（互斥口径，四种状态之和等于全部）：
+   * disabled > expired > exhausted > active
+   */
+  private applyStatusFilter(
+    qb: SelectQueryBuilder<ShareLinkEntity>,
+    status: ShareLinkStatus,
+  ) {
+    const now = Date.now();
+    switch (status) {
+      case 'disabled':
+        qb.andWhere('s.enabled = 0');
+        break;
+      case 'expired':
+        qb.andWhere('s.enabled = 1')
+          .andWhere('s.expiresAt IS NOT NULL')
+          .andWhere('s.expiresAt <= :now', { now });
+        break;
+      case 'exhausted':
+        qb.andWhere('s.enabled = 1')
+          .andWhere('(s.expiresAt IS NULL OR s.expiresAt > :now)', { now })
+          .andWhere('s.maxAccesses IS NOT NULL')
+          .andWhere('s.accessCount >= s.maxAccesses');
+        break;
+      case 'active':
+        qb.andWhere('s.enabled = 1')
+          .andWhere('(s.expiresAt IS NULL OR s.expiresAt > :now)', { now })
+          .andWhere('(s.maxAccesses IS NULL OR s.accessCount < s.maxAccesses)');
+        break;
+      default:
+        break;
     }
   }
 
+  /** 按状态统计数量（不传 status 表示全部） */
+  private async countByStatus(
+    status: ShareLinkStatus | undefined,
+    now: number,
+  ): Promise<number> {
+    const qb = this.repo.createQueryBuilder('s');
+    if (status) {
+      this.applyStatusFilter(qb, status);
+    }
+    // 显式使用 now 以保持签名一致；applyStatusFilter 内部使用 Date.now()
+    void now;
+    return qb.getCount();
+  }
+
+  /** 实体 → 管理端列表/详情返回结构 */
+  private toShareLink(link: ShareLinkEntity) {
+    const filePaths = this.parseFilePaths(link.filePaths);
+    return {
+      id: link.id,
+      token: link.token,
+      rootId: link.rootId,
+      category: link.category,
+      shareType: this.shareTypeOf(filePaths),
+      filePaths,
+      remark: link.remark,
+      enabled: link.enabled !== 0,
+      expiresAt: link.expiresAt,
+      maxAccesses: link.maxAccesses,
+      hasPassword: !!link.passwordHash,
+      accessCount: link.accessCount,
+      createdAt: link.createdAt,
+    };
+  }
+
   private generateToken(): string {
-    // CSPRNG：16 字节 = 32 个十六进制字符，与前端现有解析约定兼容
+    // CSPRNG：16 字节 = 32 个十六进制字符（前端 SHARE_TOKEN_RE 按此校验）
     return randomBytes(16).toString('hex');
   }
 

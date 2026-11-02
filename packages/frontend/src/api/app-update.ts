@@ -1,98 +1,69 @@
-import { request } from '../utils/request';
-import type { RequestOptions } from '@vakao-ui/axios';
 import type {
-  PagedResult,
   AppVersion,
-  ListVersionsQuery,
-  GrayIncrementStep,
-  RollbackResult,
   FunnelStatsResult,
+  GrayIncrementStep,
+  ListVersionsQuery,
+  PagedResult,
+  RollbackCandidatesResult,
+  RollbackResult,
 } from '@vakao/shared';
+import type { RequestOptions } from '@vakao-ui/axios';
+import { http } from '@/utils/http';
+import { getApiBaseUrl } from '@/utils/file-url';
 
-export type { FunnelStatItem, GrayIncrementStep } from '@vakao/shared';
+/** 后端 AppVersionEntity 与 shared AppVersion 字段一致 */
+export type AppVersionRecord = AppVersion;
 
-export type ListVersionsParams = ListVersionsQuery;
+export const APP_VERSION_STATUS = {
+  DRAFT: 0,
+  GRAY: 1,
+  PUBLISHED: 2,
+  OFFLINE: 3,
+} as const;
 
-/** 获取全部应用标识（software-update 根下的分类目录） */
-export function getApps() {
-  return request.get<string[]>('/app-updates/apps');
+export const STATUS_META: Record<
+  number,
+  { label: string; tag: 'default' | 'warning' | 'success' | 'error' }
+> = {
+  0: { label: '草稿', tag: 'default' },
+  1: { label: '灰度中', tag: 'warning' },
+  2: { label: '全量在线', tag: 'success' },
+  3: { label: '已下架', tag: 'error' },
+};
+
+export function listApps() {
+  return http.get<string[]>('/app-updates/apps');
 }
 
-/** 新建应用（创建应用目录） */
 export function createApp(appKey: string) {
-  return request.post<{ appKey: string }>('/app-updates/apps', { appKey });
+  return http.post<{ appKey: string }>('/app-updates/apps', { appKey });
 }
 
-/** 修改应用标识（重命名目录，迁移全部版本/事件/索引记录） */
 export function renameApp(appKey: string, newAppKey: string) {
-  return request.patch<{ appKey: string }>(
+  return http.patch<{ appKey: string }>(
     `/app-updates/apps/${encodeURIComponent(appKey)}`,
     { newAppKey },
   );
 }
 
-/** 删除应用（删除整个目录及全部关联数据库记录，不可恢复） */
 export function deleteApp(appKey: string) {
-  return request.delete<{
-    success: true;
+  return http.delete<{
     versionCount: number;
     eventCount: number;
     fileCount: number;
   }>(`/app-updates/apps/${encodeURIComponent(appKey)}`);
 }
 
-export function getVersions(params: ListVersionsParams) {
-  return request.get<PagedResult<AppVersion>>('/app-updates/versions', params);
-}
-
-export function getVersion(id: number) {
-  return request.get<AppVersion>(`/app-updates/versions/${id}`);
-}
-
-/**
- * 上传 APK 创建草稿版本
- * 大文件必须单独传 timeout: 0 覆盖全局 10s 超时，并携带上传进度回调
- */
-export function createVersion(
-  payload: {
-    file: File;
-    appKey: string;
-    versionName: string;
-    versionCode: number;
-    updateLog?: string;
-    remark?: string;
-    scheduledPublishAt?: number;
-    scheduledPublishMode?: 'full' | 'gray';
-    scheduledGrayPercent?: number;
-  },
-  onUploadProgress?: RequestOptions['onUploadProgress'],
-) {
-  const fd = new FormData();
-  fd.append('file', payload.file);
-  fd.append('appKey', payload.appKey);
-  fd.append('versionName', payload.versionName);
-  fd.append('versionCode', String(payload.versionCode));
-  if (payload.updateLog) fd.append('updateLog', payload.updateLog);
-  if (payload.remark) fd.append('remark', payload.remark);
-  if (payload.scheduledPublishAt !== undefined) {
-    fd.append('scheduledPublishAt', String(payload.scheduledPublishAt));
-  }
-  if (payload.scheduledPublishMode) {
-    fd.append('scheduledPublishMode', payload.scheduledPublishMode);
-  }
-  if (payload.scheduledGrayPercent !== undefined) {
-    fd.append('scheduledGrayPercent', String(payload.scheduledGrayPercent));
-  }
-  return request.upload<AppVersion>('/app-updates/versions', fd, {
-    timeout: 0,
-    dedupe: false,
-    onUploadProgress,
-  });
+export function listVersions(params: ListVersionsQuery) {
+  return http.get<PagedResult<AppVersionRecord>>(
+    '/app-updates/versions',
+    params,
+  );
 }
 
 export function updateVersion(
   id: number,
-  payload: {
+  body: {
     versionName?: string;
     updateLog?: string;
     remark?: string;
@@ -101,52 +72,79 @@ export function updateVersion(
     scheduledGrayPercent?: number;
   },
 ) {
-  return request.patch<AppVersion>(`/app-updates/versions/${id}`, payload);
+  return http.patch<AppVersionRecord>(`/app-updates/versions/${id}`, body);
 }
 
-export function publishVersion(
-  id: number,
-  payload: {
-    mode: 'full' | 'gray';
-    grayPercent?: number;
-    grayAutoIncrement?: boolean;
-    grayIncrementSchedule?: GrayIncrementStep[];
-  },
-) {
-  return request.post<AppVersion>(
+export interface PublishBody {
+  mode: 'full' | 'gray';
+  grayPercent?: number;
+  grayAutoIncrement?: boolean;
+  grayIncrementSchedule?: GrayIncrementStep[];
+}
+
+export function publishVersion(id: number, body: PublishBody) {
+  return http.post<AppVersionRecord>(
     `/app-updates/versions/${id}/publish`,
-    payload,
+    body,
   );
 }
 
-/** 远程强更开关（逃生口）：PUT 语义 */
 export function setForceUpdate(
   id: number,
-  payload: { forceUpdate: boolean; minVersionCode?: number },
+  body: { forceUpdate: boolean; minVersionCode?: number },
 ) {
-  return request.put<AppVersion>(`/app-updates/versions/${id}/force`, payload);
+  return http.put<AppVersionRecord>(`/app-updates/versions/${id}/force`, body);
 }
 
 export function offlineVersion(id: number) {
-  return request.post<AppVersion>(`/app-updates/versions/${id}/offline`);
+  return http.post<AppVersionRecord>(`/app-updates/versions/${id}/offline`);
 }
 
 export function rollbackVersion(id: number) {
-  return request.post<RollbackResult>(`/app-updates/versions/${id}/rollback`);
+  return http.post<RollbackResult>(`/app-updates/versions/${id}/rollback`);
 }
 
-export function removeVersion(id: number) {
-  return request.delete<{ success: true }>(`/app-updates/versions/${id}`);
-}
-
-/** 升级漏斗统计（按版本聚合各事件转化率） */
-export function getFunnelStats(params: {
-  appKey: string;
-  startTime?: number;
-  endTime?: number;
-}) {
-  return request.get<FunnelStatsResult>(
-    '/app-updates/versions/stats/funnel',
-    params,
+/** 回滚候选：由后端按同应用同平台口径计算（排除手动下架） */
+export function getRollbackCandidates(id: number) {
+  return http.get<RollbackCandidatesResult>(
+    `/app-updates/versions/${id}/rollback-candidates`,
   );
+}
+
+export function deleteVersion(id: number) {
+  return http.delete<{ eventCount: number; fileCount: number }>(
+    `/app-updates/versions/${id}`,
+  );
+}
+
+export function getFunnelStats(
+  appKey: string,
+  startTime?: number,
+  endTime?: number,
+) {
+  return http.get<FunnelStatsResult>('/app-updates/versions/stats/funnel', {
+    appKey,
+    startTime,
+    endTime,
+  });
+}
+
+/** APK 上传（multipart 字段名 file；后端校验 ZIP/APK 魔数并计算 SHA-256） */
+export function createVersion(
+  form: FormData,
+  onProgress?: (percent: number) => void,
+) {
+  const options: RequestOptions = { timeout: 300000 };
+  if (onProgress) {
+    options.onUploadProgress = (event) => {
+      if (event.total) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+  }
+  return http.upload<AppVersionRecord>('/app-updates/versions', form, options);
+}
+
+export function getApkDownloadUrl(id: number) {
+  return `${getApiBaseUrl()}/app-updates/download/${id}`;
 }

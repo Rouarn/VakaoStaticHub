@@ -29,6 +29,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { FilesService } from './files.service.js';
 import { BatchDeleteDto } from './dto/batch-delete.dto.js';
 import { BatchMoveDto } from './dto/batch-move.dto.js';
+import { CreateCategoryDto } from './dto/create-category.dto.js';
+import { DeleteCategoryQueryDto } from './dto/delete-category-query.dto.js';
+import { DuplicateFilesQueryDto } from './dto/duplicate-files-query.dto.js';
 import { ListFilesQueryDto } from './dto/list-files-query.dto.js';
 import { RenameFileDto } from './dto/rename-file.dto.js';
 import { RenameCategoryDto } from './dto/rename-category.dto.js';
@@ -73,10 +76,13 @@ export class FilesController {
 
   // 单段静态路由，按内容哈希分组检测重复文件（可对存量文件惰性补算哈希）
   @Get('duplicates')
-  @ApiOperation({ summary: '重复文件检测（按内容 SHA-256 分组）' })
-  @ApiQuery({ name: 'rootId', required: false, description: '限定资源根目录' })
-  async getDuplicates(@Query('rootId') rootId?: string) {
-    return await this.service.getDuplicateFiles(rootId);
+  @ApiOperation({ summary: '重复文件检测（按内容 SHA-256 分组，服务端分页）' })
+  async getDuplicates(@Query() query: DuplicateFilesQueryDto) {
+    return await this.service.getDuplicateFiles(
+      query.rootId,
+      query.page,
+      query.pageSize,
+    );
   }
 
   @Get(':rootId/categories')
@@ -84,6 +90,65 @@ export class FilesController {
   @ApiParam({ name: 'rootId', description: '根目录 ID' })
   async listCategories(@Param('rootId') rootId: string) {
     return await this.service.listCategories(rootId);
+  }
+
+  @Post(':rootId/categories')
+  @ApiOperation({ summary: '新建空分类（根目录下的一级子目录）' })
+  @ApiParam({ name: 'rootId', description: '根目录 ID' })
+  async createCategory(
+    @Param('rootId') rootId: string,
+    @Body() dto: CreateCategoryDto,
+    @CurrentUser() currentUser: { userId: number; username: string },
+    @Req() req: Request,
+  ) {
+    const result = await this.service.createCategory(rootId, dto.name);
+    // 审计：新建分类
+    this.auditLogService.log({
+      userId: currentUser.userId,
+      username: currentUser.username,
+      action: 'category.create',
+      resourceType: 'category',
+      resourceId: `${rootId}/${result.category}`,
+      details: { rootId, category: result.category },
+      ...getRequestMeta(req),
+    });
+    return result;
+  }
+
+  @Delete(':rootId/categories/:category')
+  @ApiOperation({
+    summary: '删除分类（默认要求为空，recursive=true 时连同文件一起删除）',
+  })
+  @ApiParam({ name: 'rootId', description: '根目录 ID' })
+  @ApiParam({ name: 'category', description: '一级分类目录名' })
+  async deleteCategory(
+    @Param('rootId') rootId: string,
+    @Param('category') category: string,
+    @Query() query: DeleteCategoryQueryDto,
+    @CurrentUser() currentUser: { userId: number; username: string },
+    @Req() req: Request,
+  ) {
+    const result = await this.service.deleteCategory(
+      rootId,
+      category,
+      query.recursive ?? false,
+    );
+    // 审计：删除分类
+    this.auditLogService.log({
+      userId: currentUser.userId,
+      username: currentUser.username,
+      action: 'category.delete',
+      resourceType: 'category',
+      resourceId: `${rootId}/${category}`,
+      details: {
+        rootId,
+        category,
+        recursive: query.recursive ?? false,
+        removedEntries: result.removedEntries,
+      },
+      ...getRequestMeta(req),
+    });
+    return result;
   }
 
   // 注意：该静态段路由必须声明在通配路由 @Patch(':rootId/:category/*path') 之前，

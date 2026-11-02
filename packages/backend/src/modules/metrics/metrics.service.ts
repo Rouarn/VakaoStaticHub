@@ -4,7 +4,9 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { stat } from 'node:fs/promises';
 import { Repository } from 'typeorm';
 import { FileEntryEntity } from '#/infra/database/entities/file-entry.entity.js';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
@@ -15,12 +17,14 @@ import {
 import { AppUpgradeEventEntity } from '#/infra/database/entities/app-upgrade-event.entity.js';
 import { UserEntity } from '#/infra/database/entities/user.entity.js';
 import { ResourceRootsService } from '#/infra/resource-roots/resource-roots.service.js';
+import { UPGRADE_EVENTS } from '../app-update/dto/report-event.dto.js';
 import type {
   SystemMetrics,
   QpsMetrics,
   RootMetric,
   ShareMetrics,
   AppMetrics,
+  HealthMetrics,
 } from '@vakao/shared';
 
 /** QPS 滑动窗口长度（毫秒），统计最近 60 秒内的请求数 */
@@ -65,6 +69,7 @@ export class MetricsService {
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     private readonly resourceRootsService: ResourceRootsService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -103,7 +108,7 @@ export class MetricsService {
 
   /** 汇总全部监控指标 */
   async getMetrics(): Promise<SystemMetrics> {
-    const [storage, roots, shares, apps, upgradeEvents24h, users] =
+    const [storage, roots, shares, apps, upgradeEvents24h, users, health] =
       await Promise.all([
         this.getStorageMetrics(),
         this.getRootMetrics(),
@@ -111,6 +116,7 @@ export class MetricsService {
         this.getAppMetrics(),
         this.getUpgradeEventMetrics(),
         this.userRepo.count(),
+        this.getHealthMetrics(),
       ]);
 
     const { rss, heapTotal, heapUsed, external } = process.memoryUsage();
@@ -122,6 +128,7 @@ export class MetricsService {
       memory: { rss, heapTotal, heapUsed, external },
       /** QPS 内存计数器（最近 60 秒滑动窗口） */
       qps: this.getQps(),
+      health,
       storage,
       roots,
       shares,
@@ -131,9 +138,40 @@ export class MetricsService {
     };
   }
 
-  /** 存储总量：file_entries 的文件数与总大小 */
+  /**
+   * 健康检查段：数据库可达性 + 数据库文件大小
+   * 数据库文件是 sqljs 持久化目标，未配置路径或文件不可读时 sizeBytes 为 null
+   */
+  private async getHealthMetrics(): Promise<HealthMetrics> {
+    const dbPath = this.configService.get<string>('db.path') ?? null;
+
+    let ok = true;
+    try {
+      await this.fileRepo.query('SELECT 1');
+    } catch {
+      ok = false;
+    }
+
+    let sizeBytes: number | null = null;
+    if (dbPath) {
+      try {
+        const info = await stat(dbPath);
+        sizeBytes = info.isFile() ? info.size : null;
+      } catch {
+        // 数据库尚未落盘（首次启动写入前）或路径不可读，明确返回 null
+        sizeBytes = null;
+      }
+    }
+
+    return {
+      status: ok ? 'ok' : 'degraded',
+      database: { ok, path: dbPath, sizeBytes },
+    };
+  }
+
+  /** 存储总量：file_entries 的文件数与总大小（无索引记录时 totalSize 为 null） */
   private async getStorageMetrics(): Promise<{
-    totalSize: number;
+    totalSize: number | null;
     fileCount: number;
   }> {
     const raw = await this.fileRepo
@@ -142,13 +180,15 @@ export class MetricsService {
       .addSelect('COALESCE(SUM(f.size), 0)', 'totalSize')
       .getRawOne<{ fileCount: string | number; totalSize: string | number }>();
 
+    const fileCount = Number(raw?.fileCount) || 0;
     return {
-      totalSize: Number(raw?.totalSize) || 0,
-      fileCount: Number(raw?.fileCount) || 0,
+      // 无索引记录表示“无数据”，不能等同于 0 字节
+      totalSize: fileCount > 0 ? Number(raw?.totalSize) || 0 : null,
+      fileCount,
     };
   }
 
-  /** 各资源根的文件数与大小（包含零文件的资源根） */
+  /** 各资源根的文件数与大小（包含零文件的资源根，无文件时 totalSize 为 null） */
   private async getRootMetrics(): Promise<RootMetric[]> {
     const rows = await this.fileRepo
       .createQueryBuilder('f')
@@ -159,13 +199,16 @@ export class MetricsService {
       .getRawMany<RawRootRow>();
 
     const statMap = new Map(
-      rows.map((r) => [
-        r.rootId,
-        {
-          fileCount: Number(r.fileCount) || 0,
-          totalSize: Number(r.totalSize) || 0,
-        },
-      ]),
+      rows.map((r) => {
+        const fileCount = Number(r.fileCount) || 0;
+        return [
+          r.rootId,
+          {
+            fileCount,
+            totalSize: fileCount > 0 ? Number(r.totalSize) || 0 : null,
+          },
+        ] as const;
+      }),
     );
 
     // 以资源配置为准合并统计，保证无文件的资源根也会出现
@@ -173,7 +216,7 @@ export class MetricsService {
       rootId: root.id,
       name: root.name,
       fileCount: statMap.get(root.id)?.fileCount ?? 0,
-      totalSize: statMap.get(root.id)?.totalSize ?? 0,
+      totalSize: statMap.get(root.id)?.totalSize ?? null,
     }));
   }
 
@@ -217,8 +260,10 @@ export class MetricsService {
     };
   }
 
-  /** 最近 24 小时各升级事件类型的数量 */
-  private async getUpgradeEventMetrics(): Promise<Record<string, number>> {
+  /** 最近 24 小时各升级事件类型的数量；无事件的类型返回 null（键始终存在） */
+  private async getUpgradeEventMetrics(): Promise<
+    Record<string, number | null>
+  > {
     const since = Date.now() - UPGRADE_EVENT_WINDOW_MS;
     const rows = await this.eventRepo
       .createQueryBuilder('e')
@@ -228,7 +273,11 @@ export class MetricsService {
       .groupBy('e.event')
       .getRawMany<RawEventRow>();
 
-    const result: Record<string, number> = {};
+    const result: Record<string, number | null> = {};
+    // 预填全部已知事件为 null，避免前端把“无数据”误读成 0 次
+    for (const event of UPGRADE_EVENTS) {
+      result[event] = null;
+    }
     for (const row of rows) {
       result[row.event] = Number(row.count) || 0;
     }

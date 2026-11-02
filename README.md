@@ -26,7 +26,7 @@
 - **APP 在线更新中心**：多应用（appKey）独立版本管理，APK 上传自动计算 SHA-256，草稿/灰度/全量/下架四态 + `offlineReason` 区分自动下架 vs 手动止血，灰度按设备哈希稳定分桶，灰度自动递增与定时发布，一键回滚只恢复被新全量自动挤掉的历史版本（不会误恢复手动下架的），强更开关与最低兼容版本，APK 下载支持 HTTP Range 断点续传，升级事件上报 + 漏斗统计看板，全量发布事务内前置 OFFLINE 保证并发安全（同一时刻只有 1 个 PUBLISHED）
 - **操作审计日志**：关键操作（登录、上传、删除、发布、分享等）持久化到 `audit_logs` 表，支持按用户 / 操作 / 资源类型筛选查询
 - **监控指标**：`GET /static/metrics` 提供 QPS、内存占用、存储总量、活跃分享数、应用 / 版本数、24h 升级事件量
-- **安全加固**：Helmet 安全响应头、全局速率限制、JWT 登出吊销（内存黑名单）、修改密码、用户管理（列表 / 删除，禁止删除自己）
+- **安全加固**：Helmet 安全响应头、全局速率限制、JWT 登出吊销（内存黑名单）、修改密码、用户管理（列表 / 创建 / 删除 / 角色 / 管理员重置密码，后端校验禁止删除自己且至少保留一个管理员）
 - **统一鉴权**：users 表 + 密码哈希，JWT（Bearer Token），注册需登录（管理员创建账号）；`AUTH_USER/AUTH_PASS` 仅用于首次启动播种默认管理员
 - **定时清理**：每日凌晨自动清理孤儿缩略图缓存与过期 / 超限分享链接记录
 - **API 文档**：Swagger UI `/docs`
@@ -115,7 +115,7 @@ pnpm dev
 | 变量             | 默认值                   | 说明                                                                                                          |
 | ---------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `DB_PATH`        | `<cwd>/storage/vakao.db` | SQLite 文件路径                                                                                               |
-| `DB_SYNCHRONIZE` | `false`                  | 是否按实体自动同步表结构；库文件不存在（首次部署）时强制自动建表，已存在的库建议保持 `false` 防止意外 DROP 表 |
+| `DB_SYNCHRONIZE` | `false`                  | 仅开发环境生效：`true` 时启动自动按实体同步表结构并播种，`false` 时完全不碰结构。生产环境忽略该开关，结构变更走 `pnpm db:sync` |
 
 ### 文件
 
@@ -208,12 +208,13 @@ vakao-static-hub/
 | 方法   | 路径                     | 说明                                 | 认证 |
 | ------ | ------------------------ | ------------------------------------ | ---- |
 | POST   | `/static/auth/login`     | 登录，返回 JWT                       | 否   |
-| POST   | `/static/auth/register`  | 创建新用户（需登录后调用，返回 JWT） | 是   |
-| GET    | `/static/auth/profile`   | 获取当前登录用户信息                 | 是   |
-| POST   | `/static/auth/logout`    | 登出（当前 Token 立即加入黑名单）    | 是   |
-| PATCH  | `/static/auth/password`  | 修改当前用户密码                     | 是   |
-| GET    | `/static/auth/users`     | 用户列表（不含密码哈希）             | 是   |
-| DELETE | `/static/auth/users/:id` | 删除用户（禁止删除自己）             | 是   |
+| POST   | `/static/auth/register`  | 创建新用户（需登录后调用，body 可带 `role: admin \| user`，创建管理员仅管理员可操作） | 是   |
+| GET    | `/static/auth/profile`   | 获取当前登录用户信息（含 `role`）                                  | 是   |
+| POST   | `/static/auth/logout`    | 登出（当前 Token 立即加入黑名单）                                  | 是   |
+| PATCH  | `/static/auth/password`  | 修改当前用户密码                                                  | 是   |
+| GET    | `/static/auth/users`     | 用户列表（不含密码哈希，含 `role`）                                | 是   |
+| DELETE | `/static/auth/users/:id` | 删除用户（后端校验：禁止删除自己、至少保留一个管理员）             | 是   |
+| PATCH  | `/static/auth/users/:id/password` | 管理员重置他人密码（body: `{ newPassword }`）              | 是（仅管理员） |
 
 ### 资源根目录
 
@@ -231,7 +232,7 @@ vakao-static-hub/
 | ------ | --------------------------------------------- | --------------------------------------------------- | ---------- |
 | GET    | `/static/files/config`                        | 获取文件管理配置（defaultCategory 等）              | 是         |
 | GET    | `/static/files/stats/usage`                   | 存储用量统计（按根目录/分类聚合）                   | 是         |
-| GET    | `/static/files/duplicates`                    | 重复文件检测（按 contentHash 分组）                 | 是         |
+| GET    | `/static/files/duplicates?rootId=&page=&pageSize=` | 重复文件检测（按 contentHash 分组，服务端分页，`groupCount` 为分页前总组数） | 是         |
 | POST   | `/static/files/sync`                          | 强制同步文件索引（重新扫描磁盘并刷新数据库）        | 是         |
 | POST   | `/static/files/batch-delete`                  | 批量删除文件（body: `{ rootId, category, paths }`） | 是         |
 | POST   | `/static/files/batch-move`                    | 批量移动文件到另一个分类                            | 是         |
@@ -240,7 +241,9 @@ vakao-static-hub/
 | POST   | `/static/files/upload/complete?uploadId=`     | 合并分片并校验 SHA-256                              | 是         |
 | POST   | `/static/files/upload/cancel?uploadId=`       | 取消分片上传并清理临时文件                          | 是         |
 | GET    | `/static/files/:rootId/categories`            | 获取分类列表                                        | 是         |
+| POST   | `/static/files/:rootId/categories`            | 新建空分类（body: `{ name }`；拒绝 `software-update` 根、默认分类与路径分隔符） | 是         |
 | PATCH  | `/static/files/:rootId/categories/:category`  | 重命名分类（body: `{ newCategory }`）               | 是         |
+| DELETE | `/static/files/:rootId/categories/:category?recursive=` | 删除分类（仅一级路径；非空需 `recursive=true`，否则 409；拒绝默认分类与 `software-update` 根） | 是         |
 | GET    | `/static/files/:rootId/:category`             | 分页查询文件列表                                    | 是         |
 | POST   | `/static/files/:rootId/upload`                | 普通上传文件 (multipart)                            | 是         |
 | GET    | `/static/files/:rootId/:category/*path`       | 下载/预览文件                                       | 否（公开） |
@@ -294,12 +297,15 @@ vakao-static-hub/
 | ---- | ------------------------ | ------------------ | ---- |
 | ALL  | `/static/hitokoto/*path` | 代理转发到一言服务 | 否   |
 
+未配置 `HITOKOTO_API_URL` 时不再透传为 404，而是返回 **503** `{ statusCode: 503, code: "HITOKOTO_PROXY_DISABLED", message: "一言代理未启用：未配置 HITOKOTO_API_URL" }`，前端据此提示「一言代理未启用」。
+
 ### 分享链接
 
 | 方法   | 路径                               | 说明                                                        | 认证       |
 | ------ | ---------------------------------- | ----------------------------------------------------------- | ---------- |
-| POST   | `/static/share`                    | 创建分享链接（单文件/聚合、有效期、次数、密码）             | 是         |
-| GET    | `/static/share/list`               | 获取分享链接列表                                            | 是         |
+| POST   | `/static/share`                    | 创建分享链接（单文件/聚合、有效期、次数、密码、备注）       | 是         |
+| GET    | `/static/share/list?page=&pageSize=&q=&status=` | 分享链接列表：服务端分页 + 关键字（token/路径/分类/备注）+ 状态筛选，返回 `counts` | 是         |
+| PATCH  | `/static/share/:token`             | 编辑备注 / 有效期 / 密码 / 最大访问次数 / 启停              | 是         |
 | DELETE | `/static/share/:token`             | 撤销分享链接                                                | 是         |
 | GET    | `/static/share/:token/info`        | 获取分享元信息（类型、文件名、是否需密码等）                | 否（公开） |
 | POST   | `/static/share/:token/verify`      | 校验访问密码，返回短期访问令牌（HMAC）                      | 否（公开） |
@@ -307,6 +313,9 @@ vakao-static-hub/
 | GET    | `/static/share/:token`             | 访问分享文件（支持 `download/w/h/q/format`、`accessToken`） | 否（公开） |
 
 > 前端公开访问页路由为 `/share/:token`（无 `/static` 前缀），生产环境由 SPA fallback 渲染，页面内再调用上述 API。
+
+- 分享状态：`active` / `expired` / `exhausted` / `disabled`；停用后访问公开接口返回 **410 Gone** `{ "message": "分享链接已停用" }`，与不存在的 404 明确区分。
+- **目录分享不支持**：服务端未提供整目录打包下载能力，前端只支持单文件或文件集合；如需目录分享，需要先新增服务端打包（zip/tar）与目录遍历鉴权能力，当前未实现，前端已明确提示。
 
 ### APP 在线更新
 
@@ -332,8 +341,9 @@ vakao-static-hub/
 | 方法   | 路径                                                           | 说明                                                             | 认证 |
 | ------ | -------------------------------------------------------------- | ---------------------------------------------------------------- | ---- |
 | POST   | `/static/app-updates/versions`                                 | 上传 APK 并创建草稿版本（multipart，自动算大小与 SHA-256）       | 是   |
-| GET    | `/static/app-updates/versions?page=&pageSize=&status=&appKey=` | 分页版本列表                                                     | 是   |
+| GET    | `/static/app-updates/versions?page=&pageSize=&status=&appKey=&platform=` | 分页版本列表（`platform` 可选过滤）                    | 是   |
 | GET    | `/static/app-updates/versions/:id`                             | 版本详情                                                         | 是   |
+| GET    | `/static/app-updates/versions/:id/rollback-candidates`         | 服务端直接返回可回滚候选（前端不再自行筛选 `offlineReason`）     | 是   |
 | PATCH  | `/static/app-updates/versions/:id`                             | 编辑元数据（仅草稿/已下架可改）                                  | 是   |
 | POST   | `/static/app-updates/versions/:id/publish`                     | 发布（`full` 全量 / `gray` 灰度，带门禁校验）                    | 是   |
 | POST   | `/static/app-updates/versions/:id/rollback`                    | 一键回滚到上一个全量版本                                         | 是   |
@@ -364,7 +374,9 @@ vakao-static-hub/
 
 | 方法 | 路径              | 说明                                                         | 认证 |
 | ---- | ----------------- | ------------------------------------------------------------ | ---- |
-| GET  | `/static/metrics` | QPS、内存、存储总量、活跃分享数、应用/版本数、24h 升级事件量 | 是   |
+| GET  | `/static/metrics` | QPS、内存、存储总量、活跃分享数、应用/版本数、24h 升级事件量、`health` 段（数据库连通性 + DB 文件绝对路径与大小） | 是   |
+
+`health` 段结构：`{ status: 'ok' | 'degraded', database: { ok, path, sizeBytes } }`。无数据的指标（如空根目录 `totalSize`、无升级事件的事件类型计数、DB 文件不可读时的 `sizeBytes`）返回 `null` 而不是 `0`，前端展示为 `—`。
 
 ---
 
@@ -488,30 +500,38 @@ cd /opt/vakao-static-hub
 
 生产模式下，NestJS 自动挂载 `deploy/web/` 下的前端静态资源并提供 SPA fallback，前后端同源部署，无需额外配置 CORS 反向代理。
 
-### 数据库升级（老库兼容）
+### 数据库初始化与同步
 
-项目**不使用 TypeORM migration 框架**，生产环境 `DB_SYNCHRONIZE=false`，表结构变更通过内置的 **启动期幂等迁移** 机制自动补齐。
+模板没有 TypeORM migration 框架，也没有版本化迁移文件。**schema 的唯一来源是实体定义**，唯一的数据库脚本是 `pnpm db:sync`。
 
-**迁移机制说明：**
-- 应用 bootstrap 时，`SchemaMigrationService`（位于 `packages/backend/src/infra/database/schema-migration.service.ts`）会对 `MIGRATIONS` 数组中的每一项执行检查
-- 用 `PRAGMA table_info(tbl)` 检测目标列是否存在（大小写无关匹配），不存在则执行 `ALTER TABLE ... ADD COLUMN`
-- 已存在则跳过，**多次重启不会重复 ALTER，不会覆盖任何数据**
-- 迁移失败时直接 `throw Error`，阻止服务带着错 schema 启动（fail-fast）
-- 全新空库首次部署时，TypeORM `synchronize=true` 已经建好表，迁移会自动跳过全部项
+**本地开发：`DB_SYNCHRONIZE` 控制启动时是否同步**
 
-**当前已知迁移项：**
+| 取值 | 行为 |
+|------|------|
+| `true`（推荐） | 启动时按实体自动建表/改表并播种默认管理员；改完实体直接重启即可生效 |
+| `false`（未配置时的默认值） | 启动完全不碰结构，只校验核心表可读；空库或结构不一致会启动失败并提示 `pnpm db:sync` |
 
-| 日期 | 表 | 新增列 | 类型 | 说明 |
-|------|-----|--------|------|------|
-| 2026-11-02 | `app_versions` | `offlineReason` | varchar(8), nullable | 区分下架原因：`auto`（被新全量发布自动挤掉，可 rollback 恢复）/ `manual`（管理员手动止血下架，不可恢复）/ NULL（从未执行过全量发布） |
-| 2026-11-02 | `file_entries` | `contentHash` | varchar(64), nullable | 文件内容 SHA-256 哈希，支撑增量索引与重复文件检测 |
+**生产部署：只用 `pnpm db:sync` 建库与改库**
 
-**回滚候选过滤规则：** 只有 `status=PUBLISHED` 或 `status=OFFLINE AND offlineReason='auto'` 的版本可作为 rollback 恢复目标。**升级前的历史版本 `offlineReason` 为 NULL**（因为那时候还没有全量发布机制），这些版本**不作为回滚候选**——它们被下架后无法通过 rollback 恢复。**升级后首次发布起**的版本会被正确标记 `offlineReason`，rollback 链路完整可用。
+```bash
+# 首次部署：空库建表 + 播种管理员
+pnpm db:sync
 
-**运维提示：**
-- 升级前务必备份数据库文件（`storage/vakao.db`），虽然迁移是 ADD COLUMN（不删数据），但防一手启动即失败需要回滚
-- 升级后首次启动观察日志中 `SchemaMigrationService` 输出，确认「新增 N 项，跳过 M 项」符合预期
-- 新增 schema 变更时，在 `schema-migration.service.ts` 的 `MIGRATIONS` 数组末尾追加新条目即可，无需引入任何迁移框架
+# 后续实体变更：同一脚本对齐结构（加列/改列/建索引）
+pnpm db:sync
+```
+
+- 空库：建出全部表与索引，打印表清单和管理员账号
+- 已有表但结构落后：按实体差异同步结构，打印「新建/变更/删除」摘要
+- 结构已一致：打印「无需变更」，不产生任何 DDL
+- 可重复执行；管理员播种仅在 `users` 表为空时进行
+- 生产启动会忽略 `DB_SYNCHRONIZE`（若显式设为 `true` 会打印警告），只做连接与核心表校验
+- 生产启动时数据库文件缺失或核心表不可用时，直接失败并提示执行 `pnpm db:sync`
+- 数据库文件路径可用 `DB_PATH` 覆盖，默认 `<cwd>/storage/vakao.db`
+
+> 模板不提供「数据库升级/迁移」概念：结构差异始终由同一个脚本按实体同步。使用方对数据库的后续改造自行负责。
+
+**回滚候选过滤规则：** 只有 `status=PUBLISHED` 或 `status=OFFLINE AND offlineReason='auto'` 的版本可作为 rollback 恢复目标。`offlineReason` 为 NULL 的历史版本不作为回滚候选——它们被下架后无法通过 rollback 恢复。
 
 ---
 
@@ -527,6 +547,7 @@ cd /opt/vakao-static-hub
 | `pnpm build:shared`   | 仅构建共享类型包                               |
 | `pnpm build:backend`  | 仅构建后端                                     |
 | `pnpm build:frontend` | 仅构建前端                                     |
+| `pnpm db:sync`        | 按实体同步数据库结构并播种（生产建库/改库唯一入口） |
 | `pnpm typecheck`      | 全仓类型检查（`pnpm -r typecheck`）            |
 | `pnpm lint`           | 全仓 ESLint 校验                               |
 | `pnpm format`         | Prettier 格式化                                |

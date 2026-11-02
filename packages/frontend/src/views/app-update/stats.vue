@@ -1,263 +1,377 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
 import {
-  useMessage,
-  NSelect,
   NButton,
-  NIcon,
-  NDataTable,
-  NEmpty,
-  NCard,
-  NGrid,
-  NGridItem,
-  NStatistic,
   NDatePicker,
+  NIcon,
+  NSelect,
+  NSpin,
+  NTag,
+  useMessage,
 } from 'naive-ui';
 import {
+  DownloadOutline,
+  FunnelOutline,
+  InformationCircleOutline,
   RefreshOutline,
-  BarChartOutline,
-  CloudDownloadOutline,
+  RocketOutline,
+  TimeOutline,
 } from '@vicons/ionicons5';
-import { getApps, getFunnelStats, type FunnelStatItem } from '@/api/app-update';
+import { listApps, getFunnelStats } from '@/api/app-update';
+import type { FunnelStatItem } from '@vakao/shared';
+import { getErrorMessage } from '@/utils/http';
+import { formatDate } from '@/utils/format';
+import PageHeader from '@/components/common/page-header.vue';
+import EmptyState from '@/components/common/empty-state.vue';
+import ErrorState from '@/components/common/error-state.vue';
+import StatCard from '@/components/common/stat-card.vue';
 
-defineOptions({
-  name: 'app-update-stats',
-});
-
+/**
+ * 升级漏斗统计
+ *
+ * 后端不支持按版本筛选（只有 appKey + 时间范围），版本维度在下方明细表内展示。
+ */
 const message = useMessage();
-const route = useRoute();
 
 const apps = ref<string[]>([]);
-const selectedApp = ref<string | null>(null);
-const appsLoading = ref(false);
-const loading = ref(false);
-const items = ref<FunnelStatItem[]>([]);
-const checkNoUpdateTotal = ref(0);
-const timeRange = ref<[number, number] | null>(null);
-
-const appOptions = computed(() =>
-  apps.value.map((appKey) => ({ label: appKey, value: appKey })),
-);
-
-const totalPromptShow = computed(() =>
-  items.value.reduce((sum, item) => sum + item.promptShow, 0),
-);
-const totalInstallSuccess = computed(() =>
-  items.value.reduce((sum, item) => sum + item.installSuccess, 0),
-);
-const overallSuccessRate = computed(() => {
-  const total = totalPromptShow.value;
-  if (!total) return '0%';
-  return ((totalInstallSuccess.value / total) * 100).toFixed(2) + '%';
+const appKey = ref('');
+const range = ref<[number, number] | null>(null);
+const data = ref<{ items: FunnelStatItem[]; checkNoUpdateTotal: number }>({
+  items: [],
+  checkNoUpdateTotal: 0,
 });
+const loading = ref(false);
+const error = ref('');
+
+const presets = [
+  { label: '最近 7 天', days: 7 },
+  { label: '最近 30 天', days: 30 },
+  { label: '最近 90 天', days: 90 },
+];
+
+function applyPreset(days: number) {
+  const end = Date.now();
+  range.value = [end - days * 86_400_000, end];
+  void load();
+}
 
 async function loadApps() {
-  appsLoading.value = true;
   try {
-    apps.value = await getApps();
-    const queryApp = route.query.appKey as string | undefined;
-    if (queryApp && apps.value.includes(queryApp)) {
-      selectedApp.value = queryApp;
-    } else if (apps.value.length > 0 && !selectedApp.value) {
-      selectedApp.value = apps.value[0];
-    }
-    if (selectedApp.value) void loadStats();
-  } catch {
-    message.error('加载应用列表失败');
-  } finally {
-    appsLoading.value = false;
+    apps.value = await listApps();
+    if (!appKey.value && apps.value.length > 0) appKey.value = apps.value[0];
+  } catch (e) {
+    message.error(getErrorMessage(e, '应用列表加载失败'));
   }
 }
 
-async function loadStats() {
-  if (!selectedApp.value) {
-    items.value = [];
+async function load() {
+  if (!appKey.value) {
+    data.value = { items: [], checkNoUpdateTotal: 0 };
     return;
   }
   loading.value = true;
+  error.value = '';
   try {
-    const endTime = timeRange.value?.[1] ?? Date.now();
-    const startTime =
-      timeRange.value?.[0] ?? endTime - 30 * 24 * 60 * 60 * 1000;
-    const data = await getFunnelStats({
-      appKey: selectedApp.value,
-      startTime,
-      endTime,
-    });
-    items.value = data.items;
-    checkNoUpdateTotal.value = data.checkNoUpdateTotal;
-  } catch {
-    message.error('加载漏斗统计失败');
+    const [startTime, endTime] = range.value ?? [];
+    data.value = await getFunnelStats(appKey.value, startTime, endTime);
+  } catch (e) {
+    error.value = getErrorMessage(e, '漏斗统计加载失败');
+    data.value = { items: [], checkNoUpdateTotal: 0 };
   } finally {
     loading.value = false;
   }
 }
 
-function handleAppChange(value: string | null) {
-  selectedApp.value = value;
-  void loadStats();
+const sum = (key: keyof FunnelStatItem) =>
+  data.value.items.reduce((total, item) => {
+    const value = item[key];
+    return total + (typeof value === 'number' ? value : 0);
+  }, 0);
+
+const totals = computed(() => ({
+  promptShow: sum('promptShow'),
+  downloadStart: sum('downloadStart'),
+  downloadSuccess: sum('downloadSuccess'),
+  installSuccess: sum('installSuccess'),
+  downloadFail: sum('downloadFail'),
+  installFail: sum('installFail'),
+  verifyFail: sum('verifyFail'),
+}));
+
+const stages = computed(() => {
+  const t = totals.value;
+  return [
+    { label: '更新提示展示', value: t.promptShow, rate: 100 },
+    {
+      label: '开始下载',
+      value: t.downloadStart,
+      rate: t.promptShow
+        ? Math.round((t.downloadStart / t.promptShow) * 1000) / 10
+        : 0,
+    },
+    {
+      label: '下载成功',
+      value: t.downloadSuccess,
+      rate: t.downloadStart
+        ? Math.round((t.downloadSuccess / t.downloadStart) * 1000) / 10
+        : 0,
+    },
+    {
+      label: '安装成功',
+      value: t.installSuccess,
+      rate: t.promptShow
+        ? Math.round((t.installSuccess / t.promptShow) * 1000) / 10
+        : 0,
+    },
+  ];
+});
+
+const maxStage = computed(() =>
+  Math.max(1, ...stages.value.map((s) => s.value)),
+);
+
+const totalChecks = computed(
+  () => data.value.checkNoUpdateTotal + totals.value.promptShow,
+);
+
+function rateLabel(value: string) {
+  return value || '0%';
 }
 
-function handleTimeChange(value: [number, number] | null) {
-  timeRange.value = value;
-  void loadStats();
-}
-
-const columns = [
-  {
-    title: '目标版本',
-    key: 'version',
-    width: 140,
-    render(row: FunnelStatItem) {
-      return `${row.versionName || '-'} (code: ${row.toVersionCode})`;
-    },
-  },
-  { title: '提示更新', key: 'promptShow', width: 90 },
-  { title: '开始下载', key: 'downloadStart', width: 90 },
-  { title: '下载成功', key: 'downloadSuccess', width: 90 },
-  { title: '下载失败', key: 'downloadFail', width: 90 },
-  { title: '校验失败', key: 'verifyFail', width: 90 },
-  { title: '安装成功', key: 'installSuccess', width: 90 },
-  { title: '安装失败', key: 'installFail', width: 90 },
-  { title: '新版本启动', key: 'newVersionLaunch', width: 100 },
-  {
-    title: '下载率',
-    key: 'downloadRate',
-    width: 90,
-    render(row: FunnelStatItem) {
-      return row.downloadRate;
-    },
-  },
-  {
-    title: '安装率',
-    key: 'installRate',
-    width: 90,
-    render(row: FunnelStatItem) {
-      return row.installRate;
-    },
-  },
-  {
-    title: '整体转化率',
-    key: 'overallRate',
-    width: 100,
-    render(row: FunnelStatItem) {
-      return row.overallRate;
-    },
-  },
-];
-
-onMounted(() => {
-  void loadApps();
+onMounted(async () => {
+  await loadApps();
+  applyPreset(30);
 });
 </script>
 
 <template>
-  <main class="px-4 md:px-6 pb-4">
-    <div
-      class="flex flex-col md:flex-row items-start md:items-center justify-between py-4 mb-4 sticky top-0 z-2 bg-container/95 backdrop-blur supports-[backdrop-filter]:bg-container/80 border-b border-base shadow-sm -mx-4 md:-mx-6 px-4 md:px-6 gap-4 md:gap-0"
+  <div class="flex flex-col gap-4 animate-fade-up">
+    <PageHeader
+      title="升级漏斗"
+      description="按应用与时间范围统计 check → 下载 → 安装的转化情况"
+      :icon="FunnelOutline"
     >
-      <div>
-        <h2
-          class="text-xl font-semibold mb-1 text-base flex items-center gap-2"
-        >
-          <NIcon :component="BarChartOutline" />
-          升级漏斗统计
-        </h2>
-        <span class="text-xs text-gray-500">
-          按版本聚合客户端升级各环节转化率 · 失败告警
-        </span>
-      </div>
+      <template #actions>
+        <NButton size="small" quaternary @click="load">
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
+          刷新
+        </NButton>
+      </template>
+    </PageHeader>
 
-      <div class="flex items-center gap-2 w-full md:w-auto flex-wrap">
+    <section class="glass-panel px-4 py-3 flex flex-wrap items-end gap-3">
+      <label class="flex flex-col gap-1">
+        <span class="text-11px text-ink-sub">应用</span>
         <NSelect
-          :value="selectedApp"
-          :options="appOptions"
-          :loading="appsLoading"
+          v-model:value="appKey"
           size="small"
           class="w-40"
+          :options="apps.map((a) => ({ label: a, value: a }))"
           placeholder="选择应用"
-          @update:value="handleAppChange"
+          @update:value="load"
         />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-11px text-ink-sub">时间范围</span>
         <NDatePicker
-          type="datetimerange"
+          v-model:value="range"
+          type="daterange"
           size="small"
-          class="w-70"
           clearable
-          @update:value="handleTimeChange"
+          class="w-64"
+          @update:value="load"
         />
-        <NButton size="small" :loading="loading" @click="loadStats()">
-          <template #icon>
-            <NIcon :component="RefreshOutline" />
-          </template>
+      </label>
+      <div class="flex items-center gap-1 flex-wrap">
+        <NButton
+          v-for="preset in presets"
+          :key="preset.days"
+          size="tiny"
+          quaternary
+          @click="applyPreset(preset.days)"
+        >
+          {{ preset.label }}
         </NButton>
       </div>
-    </div>
-
-    <template v-if="selectedApp">
-      <NGrid
-        cols="2 s:3 m:4"
-        responsive="screen"
-        :x-gap="12"
-        :y-gap="12"
-        class="mb-4"
+      <span
+        class="ml-auto text-11px text-ink-sub inline-flex items-center gap-1"
       >
-        <NGridItem>
-          <NCard size="small" class="rounded-xl">
-            <NStatistic label="检查无更新" :value="checkNoUpdateTotal" />
-          </NCard>
-        </NGridItem>
-        <NGridItem>
-          <NCard size="small" class="rounded-xl">
-            <NStatistic label="提示更新" :value="totalPromptShow" />
-          </NCard>
-        </NGridItem>
-        <NGridItem>
-          <NCard size="small" class="rounded-xl">
-            <NStatistic label="安装成功" :value="totalInstallSuccess" />
-          </NCard>
-        </NGridItem>
-        <NGridItem>
-          <NCard size="small" class="rounded-xl">
-            <NStatistic label="整体成功率" :value="overallSuccessRate" />
-          </NCard>
-        </NGridItem>
-      </NGrid>
+        <NIcon :size="12"><InformationCircleOutline /></NIcon>
+        后端仅支持 appKey + 时间范围，版本维度见下方明细
+      </span>
+    </section>
 
-      <NCard size="small" class="rounded-xl">
-        <template #header>
-          <span class="text-sm font-medium">漏斗明细</span>
-        </template>
-        <NDataTable
-          :columns="columns"
-          :data="items"
-          :loading="loading"
-          :bordered="false"
-          :single-line="false"
-          :scroll-x="1100"
+    <NSpin :show="loading">
+      <ErrorState v-if="error" :message="error" @retry="load" />
+
+      <EmptyState
+        v-else-if="!loading && (!appKey || data.items.length === 0)"
+        :icon="FunnelOutline"
+        :title="!appKey ? '请选择一个应用' : '所选范围没有升级事件'"
+        :description="
+          !appKey
+            ? '创建应用并发布版本后，客户端上报的升级事件会在这里形成漏斗。'
+            : '换一个时间范围，或确认客户端已上报 check / download / install 事件。'
+        "
+      >
+        <NButton v-if="!appKey" size="small" @click="loadApps"
+          >刷新应用列表</NButton
         >
-          <template #empty>
-            <NEmpty description="暂无升级事件数据" />
-          </template>
-        </NDataTable>
-      </NCard>
-    </template>
+        <NButton v-else size="small" @click="applyPreset(90)"
+          >扩大到 90 天</NButton
+        >
+      </EmptyState>
 
-    <div v-else class="py-20">
-      <NEmpty description="暂无应用，请先前往 APP 版本管理创建应用">
-        <template #extra>
-          <NButton
-            size="small"
-            type="primary"
-            @click="$router.push({ name: 'app-update' })"
-          >
-            <template #icon>
-              <NIcon :component="CloudDownloadOutline" />
-            </template>
-            去创建
-          </NButton>
-        </template>
-      </NEmpty>
-    </div>
-  </main>
+      <div v-else class="flex flex-col gap-4">
+        <!-- 指标卡 -->
+        <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="检查请求"
+            :value="totalChecks.toLocaleString()"
+            :hint="`无更新 ${data.checkNoUpdateTotal.toLocaleString()} 次`"
+            :icon="TimeOutline"
+          />
+          <StatCard
+            label="下载开始"
+            :value="totals.downloadStart.toLocaleString()"
+            :hint="`失败 ${totals.downloadFail} 次`"
+            :icon="DownloadOutline"
+          />
+          <StatCard
+            label="下载成功"
+            :value="totals.downloadSuccess.toLocaleString()"
+            :hint="`校验失败 ${totals.verifyFail} 次`"
+            :icon="DownloadOutline"
+          />
+          <StatCard
+            label="安装成功"
+            :value="totals.installSuccess.toLocaleString()"
+            :hint="`安装失败 ${totals.installFail} 次`"
+            :icon="RocketOutline"
+          />
+        </div>
+
+        <!-- 漏斗图 -->
+        <section class="glass-panel px-5 py-4 flex flex-col gap-3">
+          <div class="flex items-center gap-2">
+            <h2 class="m-0 text-13px font-600 text-ink">转化漏斗</h2>
+            <NTag v-if="range" size="tiny" :bordered="false">
+              {{ formatDate(range[0]) }} ~ {{ formatDate(range[1]) }}
+            </NTag>
+            <span class="ml-auto text-11px text-ink-sub"
+              >整体安装转化 {{ stages[3].rate }}%</span
+            >
+          </div>
+
+          <div class="flex flex-col gap-3">
+            <div
+              v-for="(stage, index) in stages"
+              :key="stage.label"
+              class="flex flex-col gap-1"
+            >
+              <div class="flex items-baseline gap-2 text-12px">
+                <span class="text-ink font-600">{{ stage.label }}</span>
+                <span class="text-ink-sub tabular-nums">{{
+                  stage.value.toLocaleString()
+                }}</span>
+                <span class="ml-auto text-11px text-ink-sub">
+                  <template v-if="index === 0">基准</template>
+                  <template v-else>
+                    较上一阶段 {{ stage.rate }}%
+                    <template v-if="stages[index - 1].value">
+                      · 流失
+                      {{
+                        (stages[index - 1].value - stage.value).toLocaleString()
+                      }}
+                    </template>
+                  </template>
+                </span>
+              </div>
+              <div class="h-6 rounded-lg bg-ink-sub/10 overflow-hidden">
+                <div
+                  class="h-full rounded-lg bg-gradient-to-r from-brand-700 via-brand-500 to-brand-300 transition-all duration-500 flex items-center px-2"
+                  :style="{
+                    width: `${Math.max(4, (stage.value / maxStage) * 100)}%`,
+                  }"
+                >
+                  <span
+                    class="text-10px text-white tabular-nums whitespace-nowrap"
+                  >
+                    {{ stage.value.toLocaleString() }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 按版本明细 -->
+        <section class="glass-panel px-4 py-3 flex flex-col gap-2">
+          <h2 class="m-0 text-13px font-600 text-ink">按版本明细</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-760px border-collapse text-12px">
+              <thead>
+                <tr class="text-left text-11px text-ink-sub">
+                  <th class="py-2 pr-3 font-500">版本</th>
+                  <th class="py-2 px-2 font-500 text-right">提示展示</th>
+                  <th class="py-2 px-2 font-500 text-right">下载开始</th>
+                  <th class="py-2 px-2 font-500 text-right">下载成功</th>
+                  <th class="py-2 px-2 font-500 text-right">安装成功</th>
+                  <th class="py-2 px-2 font-500 text-right">下载率</th>
+                  <th class="py-2 px-2 font-500 text-right">安装率</th>
+                  <th class="py-2 pl-2 font-500 text-right">整体转化</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="item in data.items"
+                  :key="item.toVersionCode"
+                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
+                >
+                  <td class="py-2 pr-3">
+                    <span class="text-ink font-600"
+                      >v{{ item.versionName }}</span
+                    >
+                    <span class="text-10px text-ink-sub ml-1"
+                      >vc {{ item.toVersionCode }}</span
+                    >
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.promptShow.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.downloadStart.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.downloadSuccess.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.installSuccess.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ rateLabel(item.downloadRate) }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ rateLabel(item.installRate) }}
+                  </td>
+                  <td
+                    class="py-2 pl-2 text-right tabular-nums text-brand-600 dark:text-brand-400 font-600"
+                  >
+                    {{ rateLabel(item.overallRate) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="m-0 text-10px text-ink-sub">
+            失败明细：下载失败 {{ totals.downloadFail }} · 校验失败
+            {{ totals.verifyFail }} · 安装失败
+            {{ totals.installFail }}；check_no_update 事件不计入漏斗阶段。
+          </p>
+        </section>
+      </div>
+    </NSpin>
+  </div>
 </template>

@@ -28,17 +28,17 @@ export class ShareLinkEntity {
   @Column({ type: 'varchar', length: 255 })
   category!: string;
 
-  /** 文件相对路径 */
-  @Column({ type: 'varchar', length: 1024 })
-  filePath!: string;
+  /** 分享文件的相对路径 JSON 数组，长度 1..N；长度 1 即单文件分享 */
+  @Column({ type: 'text' })
+  filePaths!: string;
 
-  /** 分享类型：file 单文件 / collection 多文件 */
-  @Column({ type: 'varchar', length: 32, default: 'file' })
-  shareType!: 'file' | 'collection';
+  /** 后台备注（仅管理端可见，不对外公开） */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  remark!: string | null;
 
-  /** 多文件相对路径 JSON 字符串数组，仅 shareType='collection' 时使用 */
-  @Column({ type: 'text', nullable: true })
-  filePaths!: string | null;
+  /** 是否启用：1 启用 / 0 停用（停用后公开访问返回“已停用”） */
+  @Column({ type: 'integer', default: 1 })
+  enabled!: number;
 
   /** 过期时间戳（毫秒），null 表示永不过期 */
   @Column({ type: 'integer', nullable: true })

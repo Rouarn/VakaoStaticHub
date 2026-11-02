@@ -26,6 +26,7 @@ import { TokenBlacklistService } from './token-blacklist.service.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { Public } from './decorators/public.decorator.js';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
@@ -62,6 +63,8 @@ export class AuthController {
     const result = await this.authService.register(
       body.username,
       body.password,
+      body.role ?? 'user',
+      currentUser.userId,
     );
     // 审计：创建用户
     this.auditLogService.log({
@@ -70,7 +73,7 @@ export class AuthController {
       action: 'user.register',
       resourceType: 'user',
       resourceId: String(result.id),
-      details: { username: body.username },
+      details: { username: body.username, role: result.role },
       ...getRequestMeta(req),
     });
     return result;
@@ -201,6 +204,36 @@ export class AuthController {
   @ApiOperation({ summary: '获取全部用户列表（不含密码哈希）' })
   async listUsers() {
     return await this.authService.listUsers();
+  }
+
+  /**
+   * 管理员重置指定用户的密码
+   */
+  @Patch('users/:id/password')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理员重置指定用户密码' })
+  @ApiParam({ name: 'id', description: '用户 ID' })
+  async resetUserPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResetPasswordDto,
+    @CurrentUser() currentUser: { userId: number; username: string },
+    @Req() req: Request,
+  ) {
+    const result = await this.authService.resetPassword(
+      currentUser.userId,
+      id,
+      dto.newPassword,
+    );
+    // 审计：重置密码
+    this.auditLogService.log({
+      userId: currentUser.userId,
+      username: currentUser.username,
+      action: 'user.reset_password',
+      resourceType: 'user',
+      resourceId: String(id),
+      ...getRequestMeta(req),
+    });
+    return result;
   }
 
   /**

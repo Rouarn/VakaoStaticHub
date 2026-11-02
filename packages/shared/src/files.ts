@@ -45,13 +45,23 @@ export interface DuplicateGroup {
   files: DuplicateFileItem[];
 }
 
-/** 重复文件检测返回值（GET /files/duplicates） */
+/** 重复文件扫描查询参数（GET /files/duplicates） */
+export interface DuplicateFilesQuery {
+  rootId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** 重复文件检测返回值（GET /files/duplicates，服务端分页） */
 export interface DuplicateScanResult {
   groups: DuplicateGroup[];
+  /** 重复组总数（分页前） */
   groupCount: number;
   duplicateFileCount: number;
   /** 本次扫描惰性补算哈希的文件数 */
   hashedCount: number;
+  page: number;
+  pageSize: number;
 }
 
 /** 分片上传初始化返回值（POST /files/upload/init） */

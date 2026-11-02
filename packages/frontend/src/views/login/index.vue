@@ -1,54 +1,42 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { NButton, NInput, NIcon, useMessage } from 'naive-ui';
 import {
-  NCard,
-  NForm,
-  NFormItem,
-  NInput,
-  NButton,
-  NAlert,
-  NIcon,
-} from 'naive-ui';
-import { CloudOutline } from '@vicons/ionicons5';
-import { useAuthStore } from '@/stores/modules/auth';
+  CloudOutline,
+  PersonOutline,
+  LockClosedOutline,
+} from '@vicons/ionicons5';
+import PublicPage from '@/components/common/public-page.vue';
 import { login } from '@/api/auth';
-import { getErrorMessage } from '@/utils/request';
+import { getErrorMessage } from '@/utils/http';
+import { useAuthStore } from '@/stores/modules/auth';
+
+const route = useRoute();
+const router = useRouter();
+const message = useMessage();
+const authStore = useAuthStore();
 
 const username = ref('');
 const password = ref('');
-const errorMessage = ref('');
 const loading = ref(false);
 
-const authStore = useAuthStore();
-const router = useRouter();
-const route = useRoute();
-
-function validate(): string {
-  if (!username.value || !password.value) {
-    return '请输入用户名和密码';
-  }
-  return '';
-}
-
-async function handleSubmit() {
-  const validationError = validate();
-  if (validationError) {
-    errorMessage.value = validationError;
+async function submit() {
+  if (!username.value.trim() || !password.value) {
+    message.warning('请输入用户名和密码');
     return;
   }
-
   loading.value = true;
-  errorMessage.value = '';
-
   try {
-    const data = await login(username.value, password.value);
-    authStore.setAuth(data.accessToken, data.user);
-    const redirect = (route.query.redirect as string) || '/file-list';
-    await router.replace(redirect);
+    const resp = await login(username.value.trim(), password.value);
+    authStore.setAuth(resp);
+    message.success(`欢迎回来，${resp.user.username}`);
+    const redirect = route.query.redirect;
+    void router.replace(
+      typeof redirect === 'string' && redirect ? redirect : { name: 'files' },
+    );
   } catch (error) {
-    authStore.clearAuth();
-    errorMessage.value = getErrorMessage(error, '请求失败，请稍后重试');
+    message.error(getErrorMessage(error, '登录失败，请稍后重试'));
   } finally {
     loading.value = false;
   }
@@ -56,58 +44,59 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-container px-4">
-    <NCard class="max-w-md w-full shadow-xl rounded-2xl border-none bg-base">
-      <div class="text-center mb-8">
-        <div
-          class="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-2xl mb-4"
-        >
-          <NIcon size="40" class="text-primary">
-            <CloudOutline />
-          </NIcon>
+  <PublicPage>
+    <div class="min-h-full flex items-center justify-center p-6">
+      <div class="glass-panel animate-fade-up w-full max-w-95 px-8 py-10">
+        <div class="mb-8 text-center">
+          <div
+            class="mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift dark:shadow-lift-dark"
+          >
+            <NIcon :size="28"><CloudOutline /></NIcon>
+          </div>
+          <h1 class="m-0 text-xl font-600 text-ink">静态资源管理</h1>
+          <p class="m-0 mt-1 text-12px text-ink-sub">
+            Vakao Static Hub · 统一静态资源服务
+          </p>
         </div>
-        <h1 class="text-2xl font-bold text-base">StaticHub</h1>
-        <p class="text-sm text-gray-500 mt-1">静态资源管理系统</p>
-      </div>
 
-      <NForm size="large">
-        <NFormItem label="用户名">
+        <div class="flex flex-col gap-4">
           <NInput
             v-model:value="username"
-            placeholder="请输入用户名"
-            :maxlength="32"
-          />
-        </NFormItem>
-        <NFormItem label="密码">
+            size="large"
+            placeholder="用户名"
+            @keyup.enter="submit"
+          >
+            <template #prefix>
+              <NIcon :size="16"><PersonOutline /></NIcon>
+            </template>
+          </NInput>
           <NInput
             v-model:value="password"
+            size="large"
             type="password"
-            placeholder="请输入密码"
-            show-password-on="mousedown"
-            @keyup.enter="handleSubmit"
-          />
-        </NFormItem>
-        <NFormItem>
+            show-password-on="click"
+            placeholder="密码"
+            @keyup.enter="submit"
+          >
+            <template #prefix>
+              <NIcon :size="16"><LockClosedOutline /></NIcon>
+            </template>
+          </NInput>
           <NButton
-            id="submitBtn"
             type="primary"
+            size="large"
             block
             :loading="loading"
-            @click="handleSubmit"
+            @click="submit"
           >
-            {{ loading ? '登录中...' : '登录系统' }}
+            登 录
           </NButton>
-        </NFormItem>
+        </div>
 
-        <NAlert
-          v-if="errorMessage"
-          type="error"
-          closable
-          @close="errorMessage = ''"
-        >
-          {{ errorMessage }}
-        </NAlert>
-      </NForm>
-    </NCard>
-  </div>
+        <p class="m-0 mt-6 text-center text-11px text-ink-sub">
+          账号由管理员在用户管理中创建
+        </p>
+      </div>
+    </div>
+  </PublicPage>
 </template>

@@ -1,279 +1,489 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
-  useMessage,
-  useDialog,
-  NCard,
   NButton,
   NIcon,
+  NPagination,
+  NSelect,
   NSpin,
-  NEmpty,
   NTag,
-  NCheckbox,
+  useMessage,
 } from 'naive-ui';
-import { RefreshOutline, TrashOutline, ScanOutline } from '@vicons/ionicons5';
-import { getDuplicates, deleteFile } from '@/api/files';
-import type { DuplicateScanResult } from '@vakao/shared';
-import { formatSize } from '@/utils/format';
+import {
+  ChevronDownOutline,
+  ChevronForwardOutline,
+  CopyOutline,
+  FolderOpenOutline,
+  InformationCircleOutline,
+  RefreshOutline,
+  TrashOutline,
+} from '@vicons/ionicons5';
+import type { DuplicateGroup, DuplicateScanResult } from '@vakao/shared';
+import { batchDelete, getDuplicateFiles } from '@/api/files';
+import { listRoots } from '@/api/roots';
+import { getErrorMessage } from '@/utils/http';
+import { formatBytes, formatTime } from '@/utils/file-types';
+import { truncateMiddle } from '@/utils/format';
+import PageHeader from '@/components/common/page-header.vue';
+import EmptyState from '@/components/common/empty-state.vue';
+import ErrorState from '@/components/common/error-state.vue';
+import ConfirmModal from '@/components/common/confirm-modal.vue';
 
-defineOptions({
-  name: 'duplicate-files',
-});
-
+/**
+ * 重复文件检测与清理
+ *
+ * 后端 /files/duplicates 支持服务端分页（page/pageSize）。
+ * 清理按组执行：每组必须保留 1 个文件，其余永久删除（二次确认里写明保留项）。
+ */
 const message = useMessage();
-const dialog = useDialog();
+
+const roots = ref<{ id: string; name: string }[]>([]);
+const rootId = ref('');
+const scan = ref<DuplicateScanResult | null>(null);
 const loading = ref(false);
-const result = ref<DuplicateScanResult | null>(null);
+const error = ref('');
 
-const savableSize = computed(() => {
-  if (!result.value) return 0;
-  // 每组保留一份，其余删除，可节省空间 = 每组大小 * (数量 - 1)
-  return result.value.groups.reduce(
-    (sum, g) => sum + g.size * (g.count - 1),
-    0,
-  );
-});
+const page = ref(1);
+const pageSize = ref(5);
+const expanded = ref<Set<string>>(new Set());
+const keepIndex = ref<Record<string, number>>({});
 
-async function load() {
-  loading.value = true;
+const rootOptions = computed(() => [
+  { label: '全部根目录', value: '' },
+  ...roots.value.map((root) => ({ label: root.name, value: root.id })),
+]);
+
+const groups = computed(() => scan.value?.groups ?? []);
+const groupCount = computed(() => scan.value?.groupCount ?? 0);
+
+function rootName(id: string) {
+  return roots.value.find((root) => root.id === id)?.name ?? id;
+}
+
+async function loadRoots() {
   try {
-    result.value = await getDuplicates();
-    if (result.value.hashedCount > 0) {
-      message.success(`本次补算 ${result.value.hashedCount} 个文件的哈希`);
-    }
+    roots.value = await listRoots();
   } catch {
-    message.error('重复文件检测失败');
+    roots.value = [];
+  }
+}
+
+/** 加载当前页；页码超出末页时回退到末页（清理后总组数可能变少） */
+async function load(allowClamp = true) {
+  loading.value = true;
+  error.value = '';
+  try {
+    const result = await getDuplicateFiles({
+      ...(rootId.value ? { rootId: rootId.value } : {}),
+      page: page.value,
+      pageSize: pageSize.value,
+    });
+    scan.value = result;
+    expanded.value = new Set();
+    keepIndex.value = {};
+
+    const maxPage = Math.max(1, Math.ceil(result.groupCount / pageSize.value));
+    if (allowClamp && page.value > maxPage) {
+      page.value = maxPage;
+      await load(false);
+    }
+  } catch (e) {
+    error.value = getErrorMessage(e, '重复文件扫描失败');
+    scan.value = null;
   } finally {
     loading.value = false;
   }
 }
 
-function hashShort(hash: string) {
-  return hash.slice(0, 8);
+/** 切换根目录：回到第一页后重新扫描 */
+function changeFilter() {
+  if (page.value === 1) void load();
+  else page.value = 1;
 }
 
-const selectedKeys = ref<Set<string>>(new Set());
-
-function toggleSelect(hash: string, relPath: string, checked: boolean) {
-  const key = `${hash}::${relPath}`;
-  if (checked) selectedKeys.value.add(key);
-  else selectedKeys.value.delete(key);
+function onPageSizeChange() {
+  // 页码从非 1 变成 1 时由 page 的 watch 触发加载，避免同一参数重复请求
+  if (page.value === 1) void load();
+  else page.value = 1;
 }
 
-function isSelected(hash: string, relPath: string) {
-  return selectedKeys.value.has(`${hash}::${relPath}`);
+watch(page, () => void load());
+
+function toggleExpand(hash: string) {
+  const next = new Set(expanded.value);
+  if (next.has(hash)) next.delete(hash);
+  else next.add(hash);
+  expanded.value = next;
 }
 
-function handleDelete(
-  hash: string,
-  file: {
-    rootId: string;
-    category: string;
-    relPath: string;
-    name: string;
-  },
-) {
-  const d = dialog.warning({
-    title: '确认删除',
-    content: `确定删除重复副本「${file.name}」？此操作不可恢复。`,
-    positiveText: '删除',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      d.loading = true;
+function keepOf(group: DuplicateGroup) {
+  return keepIndex.value[group.contentHash] ?? 0;
+}
+
+function setKeep(group: DuplicateGroup, index: number) {
+  keepIndex.value = { ...keepIndex.value, [group.contentHash]: index };
+}
+
+// ===================== 清理 =====================
+const cleanupShow = ref(false);
+const cleaning = ref(false);
+const cleanupScope = ref<'one' | 'all'>('one');
+const cleanupGroup = ref<DuplicateGroup | null>(null);
+
+function openCleanup(group: DuplicateGroup) {
+  cleanupScope.value = 'one';
+  cleanupGroup.value = group;
+  cleanupShow.value = true;
+}
+
+function openCleanupAll() {
+  // 服务端分页后 groups 仅代表当前页，按钮文案为「批量清理本页」
+  if (groups.value.length === 0) return;
+  cleanupScope.value = 'all';
+  cleanupGroup.value = null;
+  cleanupShow.value = true;
+}
+
+interface CleanupPlan {
+  group: DuplicateGroup;
+  keep: { rootId: string; category: string; relPath: string; name: string };
+  remove: { rootId: string; category: string; relPath: string }[];
+}
+
+const cleanupPlans = computed<CleanupPlan[]>(() => {
+  const selected =
+    cleanupScope.value === 'one' && cleanupGroup.value
+      ? [cleanupGroup.value]
+      : groups.value;
+  return selected.map((group) => {
+    const index = keepOf(group);
+    const keep = group.files[index] ?? group.files[0];
+    return {
+      group,
+      keep: {
+        rootId: keep.rootId,
+        category: keep.category,
+        relPath: keep.relPath,
+        name: keep.name,
+      },
+      remove: group.files
+        .filter((_, i) => i !== index)
+        .map((file) => ({
+          rootId: file.rootId,
+          category: file.category,
+          relPath: file.relPath,
+        })),
+    };
+  });
+});
+
+const totalRemoving = computed(() =>
+  cleanupPlans.value.reduce((total, plan) => total + plan.remove.length, 0),
+);
+
+async function confirmCleanup() {
+  cleaning.value = true;
+  const failures: string[] = [];
+  let deleted = 0;
+  try {
+    // 同一个 rootId + category 的路径聚合成一次批量删除
+    const operations = new Map<
+      string,
+      { rootId: string; category: string; paths: string[] }
+    >();
+    for (const plan of cleanupPlans.value) {
+      for (const item of plan.remove) {
+        const key = `${item.rootId}\u0000${item.category}`;
+        const entry = operations.get(key) ?? {
+          rootId: item.rootId,
+          category: item.category,
+          paths: [],
+        };
+        entry.paths.push(item.relPath);
+        operations.set(key, entry);
+      }
+    }
+
+    for (const operation of operations.values()) {
       try {
-        await deleteFile(file.rootId, file.category, file.relPath);
-        message.success('删除成功');
-        // 从当前结果中移除已删除项，无需重新全量扫描
-        const group = result.value?.groups.find((g) => g.contentHash === hash);
-        if (group) {
-          group.files = group.files.filter((f) => f.relPath !== file.relPath);
-          group.count = group.files.length;
-          if (group.count <= 1) {
-            result.value!.groups = result.value!.groups.filter(
-              (g) => g.contentHash !== hash,
-            );
-            result.value!.groupCount = result.value!.groups.length;
-          }
-          result.value!.duplicateFileCount = result.value!.groups.reduce(
-            (sum, g) => sum + g.count,
-            0,
-          );
-        }
-      } catch {
-        message.error('删除失败');
-      } finally {
-        d.loading = false;
-      }
-    },
-  });
-}
-
-function handleBatchDelete(hash: string) {
-  const group = result.value?.groups.find((g) => g.contentHash === hash);
-  if (!group) return;
-  const toDelete = group.files.filter((f) => isSelected(hash, f.relPath));
-  if (toDelete.length === 0) {
-    message.warning('请先勾选要删除的文件');
-    return;
-  }
-  const d = dialog.warning({
-    title: '确认批量删除',
-    content: `确定删除选中的 ${toDelete.length} 个重复副本？此操作不可恢复。`,
-    positiveText: '删除',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      d.loading = true;
-      let successCount = 0;
-      for (const f of toDelete) {
-        try {
-          await deleteFile(f.rootId, f.category, f.relPath);
-          successCount++;
-        } catch {
-          // 单条失败继续
-        }
-      }
-      group.files = group.files.filter((f) => !isSelected(hash, f.relPath));
-      group.count = group.files.length;
-      if (group.count <= 1) {
-        result.value!.groups = result.value!.groups.filter(
-          (g) => g.contentHash !== hash,
+        const result = await batchDelete(
+          operation.rootId,
+          operation.category,
+          operation.paths,
         );
-        result.value!.groupCount = result.value!.groups.length;
+        deleted += result.deletedCount;
+      } catch (e) {
+        failures.push(
+          `${rootName(operation.rootId)} / ${operation.category}：${getErrorMessage(e, '批量删除失败')}`,
+        );
       }
-      result.value!.duplicateFileCount = result.value!.groups.reduce(
-        (sum, g) => sum + g.count,
-        0,
+    }
+
+    if (failures.length > 0) {
+      message.warning(
+        `已删除 ${deleted} 个，${failures.length} 组失败：${failures[0]}`,
       );
-      selectedKeys.value.clear();
-      message.success(`成功删除 ${successCount} 个文件`);
-      d.loading = false;
-    },
-  });
+    } else {
+      message.success(`已清理 ${deleted} 个重复文件`);
+    }
+    cleanupShow.value = false;
+    await load();
+  } finally {
+    cleaning.value = false;
+  }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await loadRoots();
+  await load();
+});
 </script>
 
 <template>
-  <main class="px-4 md:px-6 pb-4">
-    <div
-      class="flex items-center justify-between py-4 mb-4 sticky top-0 z-2 bg-container/95 backdrop-blur border-b border-base shadow-sm -mx-4 md:-mx-6 px-4 md:px-6"
+  <div class="flex flex-col gap-4 animate-fade-up">
+    <PageHeader
+      title="重复文件"
+      description="按内容 SHA-256 检测重复文件，可逐组对比并保留一个后清理其余"
+      :icon="CopyOutline"
     >
-      <div class="flex items-center gap-2">
-        <NIcon size="22" class="text-primary">
-          <ScanOutline />
-        </NIcon>
-        <h2 class="text-xl font-semibold text-base">重复文件检测</h2>
-      </div>
-      <NButton quaternary circle title="刷新" :loading="loading" @click="load">
-        <template #icon>
-          <NIcon><RefreshOutline /></NIcon>
-        </template>
-      </NButton>
+      <template #actions>
+        <NSelect
+          v-model:value="rootId"
+          size="small"
+          class="w-36"
+          :options="rootOptions"
+          @update:value="changeFilter"
+        />
+        <NButton size="small" quaternary @click="() => load()">
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
+          重新扫描
+        </NButton>
+        <NButton
+          size="small"
+          type="primary"
+          :disabled="groups.length === 0"
+          @click="openCleanupAll"
+        >
+          <template #icon
+            ><NIcon><TrashOutline /></NIcon
+          ></template>
+          批量清理本页
+        </NButton>
+      </template>
+    </PageHeader>
+
+    <div
+      class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub"
+    >
+      <NIcon :size="14"><InformationCircleOutline /></NIcon>
+      后端 /files/duplicates 服务端分页（page /
+      pageSize），按内容哈希分组；扫描会惰性补算缺失的内容哈希
     </div>
 
     <NSpin :show="loading">
-      <div v-if="result" class="flex flex-col gap-4">
-        <!-- 统计概览 -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <NCard size="small" class="text-center">
-            <div class="text-2xl font-bold text-primary">
-              {{ result.groupCount }}
-            </div>
-            <div class="text-xs text-gray-500 mt-1">重复组数</div>
-          </NCard>
-          <NCard size="small" class="text-center">
-            <div class="text-2xl font-bold text-primary">
-              {{ result.duplicateFileCount }}
-            </div>
-            <div class="text-xs text-gray-500 mt-1">重复文件数</div>
-          </NCard>
-          <NCard size="small" class="text-center">
-            <div class="text-2xl font-bold text-error">
-              {{ formatSize(savableSize) }}
-            </div>
-            <div class="text-xs text-gray-500 mt-1">预估可节省</div>
-          </NCard>
-          <NCard size="small" class="text-center">
-            <div class="text-2xl font-bold text-primary">
-              {{ result.hashedCount }}
-            </div>
-            <div class="text-xs text-gray-500 mt-1">本次补算哈希</div>
-          </NCard>
+      <ErrorState v-if="error" :message="error" @retry="() => load()" />
+
+      <EmptyState
+        v-else-if="!loading && groups.length === 0"
+        :icon="CopyOutline"
+        title="没有检测到重复文件"
+        :description="
+          scan
+            ? `已扫描 ${scan.hashedCount} 个文件，未发现内容哈希相同的重复组，存储空间很干净。`
+            : '选择根目录后点击「重新扫描」开始检测。'
+        "
+      >
+        <NButton size="small" @click="() => load()">重新扫描</NButton>
+      </EmptyState>
+
+      <div v-else class="flex flex-col gap-4">
+        <div class="grid gap-3 grid-cols-3">
+          <div class="glass-card px-4 py-3">
+            <p class="m-0 text-11px text-ink-sub">重复组</p>
+            <p class="m-0 mt-1 text-18px font-600 text-ink">
+              {{ scan?.groupCount ?? 0 }}
+            </p>
+          </div>
+          <div class="glass-card px-4 py-3">
+            <p class="m-0 text-11px text-ink-sub">重复文件总数</p>
+            <p class="m-0 mt-1 text-18px font-600 text-ink">
+              {{ scan?.duplicateFileCount ?? 0 }}
+            </p>
+          </div>
+          <div class="glass-card px-4 py-3">
+            <p class="m-0 text-11px text-ink-sub">本次补算哈希</p>
+            <p class="m-0 mt-1 text-18px font-600 text-ink">
+              {{ scan?.hashedCount ?? 0 }}
+            </p>
+          </div>
         </div>
 
-        <!-- 重复组列表 -->
-        <div v-if="result.groups.length" class="flex flex-col gap-3">
-          <NCard
-            v-for="group in result.groups"
-            :key="group.contentHash"
-            size="small"
-            :title="`哈希 ${hashShort(group.contentHash)} · ${formatSize(group.size)} · ${group.count} 个副本`"
-          >
-            <template #header-extra>
-              <NButton
-                v-if="
-                  group.files.some((f) =>
-                    isSelected(group.contentHash, f.relPath),
-                  )
-                "
-                size="small"
-                type="error"
-                ghost
-                @click="handleBatchDelete(group.contentHash)"
-              >
+        <section
+          v-for="group in groups"
+          :key="group.contentHash"
+          class="glass-panel px-4 py-3 flex flex-col gap-3"
+        >
+          <div class="flex items-center gap-3 flex-wrap">
+            <div
+              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
+            >
+              <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
+                ><CopyOutline
+              /></NIcon>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="m-0 text-12px text-ink font-600 font-mono">
+                {{ truncateMiddle(group.contentHash, 14, 10) }}
+              </p>
+              <p class="m-0 mt-0.5 text-11px text-ink-sub">
+                单文件 {{ formatBytes(group.size) }} · {{ group.count }} 个副本
+                · 可释放
+                {{ formatBytes(group.size * (group.count - 1)) }}
+              </p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <NButton size="tiny" @click="toggleExpand(group.contentHash)">
                 <template #icon>
-                  <NIcon><TrashOutline /></NIcon>
+                  <NIcon>
+                    <ChevronDownOutline
+                      v-if="expanded.has(group.contentHash)"
+                    />
+                    <ChevronForwardOutline v-else />
+                  </NIcon>
                 </template>
-                删除选中
+                {{ expanded.has(group.contentHash) ? '收起对比' : '展开对比' }}
               </NButton>
-            </template>
-
-            <div class="flex flex-col gap-2">
-              <div
-                v-for="file in group.files"
-                :key="file.relPath"
-                class="flex items-center gap-3 py-1.5 border-t border-base first:border-t-0"
+              <NButton
+                size="tiny"
+                type="error"
+                quaternary
+                @click="openCleanup(group)"
               >
-                <NCheckbox
-                  :checked="isSelected(group.contentHash, file.relPath)"
-                  @update:checked="
-                    (v) => toggleSelect(group.contentHash, file.relPath, v)
-                  "
-                />
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm text-base truncate" :title="file.name">
-                    {{ file.name }}
-                  </div>
-                  <div
-                    class="text-xs text-gray-500 truncate"
-                    :title="`${file.rootId}/${file.category}/${file.relPath}`"
-                  >
-                    {{ file.rootId }} / {{ file.category }} / {{ file.relPath }}
-                  </div>
-                </div>
-                <NTag size="small" :bordered="false">{{
-                  formatSize(file.size)
-                }}</NTag>
-                <NButton
-                  size="tiny"
-                  type="error"
-                  ghost
-                  @click="handleDelete(group.contentHash, file)"
-                >
-                  <template #icon>
-                    <NIcon><TrashOutline /></NIcon>
-                  </template>
-                </NButton>
-              </div>
+                <template #icon
+                  ><NIcon><TrashOutline /></NIcon
+                ></template>
+                清理本组
+              </NButton>
             </div>
-          </NCard>
-        </div>
+          </div>
 
-        <NEmpty v-else description="未发现重复文件" class="py-16" />
+          <!-- 默认展示摘要，展开后对比 -->
+          <div
+            v-if="!expanded.has(group.contentHash)"
+            class="flex flex-wrap gap-1.5"
+          >
+            <NTag
+              v-for="(file, index) in group.files"
+              :key="file.relPath"
+              size="tiny"
+              :bordered="false"
+            >
+              {{ index === keepOf(group) ? '保留：' : '' }}{{ file.name }}
+            </NTag>
+          </div>
+
+          <div v-else class="overflow-x-auto">
+            <table class="w-full min-w-720px border-collapse text-12px">
+              <thead>
+                <tr class="text-left text-11px text-ink-sub">
+                  <th class="py-2 pr-3 font-500">保留</th>
+                  <th class="py-2 px-2 font-500">文件</th>
+                  <th class="py-2 px-2 font-500">根目录 / 分类</th>
+                  <th class="py-2 px-2 font-500 text-right">大小</th>
+                  <th class="py-2 pl-2 font-500 text-right">修改时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(file, index) in group.files"
+                  :key="`${file.rootId}-${file.category}-${file.relPath}`"
+                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
+                  :class="index === keepOf(group) ? 'bg-brand-500/8' : ''"
+                >
+                  <td class="py-2 pr-3">
+                    <NButton
+                      size="tiny"
+                      :type="index === keepOf(group) ? 'primary' : 'default'"
+                      :quaternary="index !== keepOf(group)"
+                      @click="setKeep(group, index)"
+                    >
+                      {{ index === keepOf(group) ? '保留此件' : '改为保留' }}
+                    </NButton>
+                  </td>
+                  <td class="py-2 px-2 min-w-0">
+                    <p
+                      class="m-0 text-ink truncate max-w-260px"
+                      :title="file.relPath"
+                    >
+                      {{ file.name }}
+                    </p>
+                    <p class="m-0 text-10px text-ink-sub truncate max-w-260px">
+                      {{ file.relPath }}
+                    </p>
+                  </td>
+                  <td class="py-2 px-2 text-ink-sub">
+                    {{ rootName(file.rootId) }} / {{ file.category }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ formatBytes(file.size) }}
+                  </td>
+                  <td class="py-2 pl-2 text-right text-ink-sub">
+                    {{ formatTime(file.mtime) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <footer
+          class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2"
+        >
+          <span class="mr-auto text-11px text-ink-sub">
+            共 {{ groupCount }} 组 · 服务端分页
+          </span>
+          <NPagination
+            v-model:page="page"
+            v-model:page-size="pageSize"
+            :item-count="groupCount"
+            :page-sizes="[5, 10, 20]"
+            show-size-picker
+            @update:page-size="onPageSizeChange"
+          />
+        </footer>
       </div>
-
-      <NEmpty v-else-if="!loading" description="暂无数据" class="py-16" />
     </NSpin>
-  </main>
+
+    <!-- 清理确认 -->
+    <ConfirmModal
+      v-model:show="cleanupShow"
+      title="清理重复文件"
+      :content="`将永久删除 ${cleanupPlans.length} 组中的 ${totalRemoving} 个文件，每组保留 1 个（见下方清单）。删除后不可恢复。`"
+      positive-text="确认永久删除"
+      :loading="cleaning"
+      @confirm="confirmCleanup"
+    >
+      <div class="mt-2 max-h-56 overflow-y-auto flex flex-col gap-1.5">
+        <div
+          v-for="plan in cleanupPlans"
+          :key="plan.group.contentHash"
+          class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 text-11px"
+        >
+          <p class="m-0 text-ink-sub flex items-center gap-1">
+            <NIcon :size="12"><FolderOpenOutline /></NIcon>
+            保留：{{ rootName(plan.keep.rootId) }} / {{ plan.keep.category }}
+          </p>
+          <p class="m-0 text-ink font-600 truncate" :title="plan.keep.relPath">
+            {{ plan.keep.name }}
+          </p>
+          <p class="m-0 text-ink-sub">
+            删除其余 {{ plan.remove.length }} 个副本 · 可释放
+            {{ formatBytes(plan.group.size * plan.remove.length) }}
+          </p>
+        </div>
+      </div>
+    </ConfirmModal>
+  </div>
 </template>

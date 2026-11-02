@@ -109,6 +109,15 @@ export class AppUpdateAdminController {
     return await this.service.getVersion(id);
   }
 
+  @Get(':id/rollback-candidates')
+  @ApiOperation({
+    summary: '回滚候选（服务端按同应用同平台的历史可恢复版本计算）',
+  })
+  @ApiParam({ name: 'id' })
+  async rollbackCandidates(@Param('id', ParseIntPipe) id: number) {
+    return await this.service.listRollbackCandidates(id);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: '编辑元数据（仅草稿/已下架可改）' })
   @ApiParam({ name: 'id' })

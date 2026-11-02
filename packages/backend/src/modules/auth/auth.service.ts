@@ -1,17 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
-  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { LoginResponse, UserInfo } from '@vakao/shared';
+import type { LoginResponse, UserInfo, UserRole } from '@vakao/shared';
 import { UserEntity } from '#/infra/database/entities/user.entity.js';
 import { hashPassword, verifyPassword } from './utils/password.util.js';
 
@@ -20,7 +20,7 @@ import { hashPassword, verifyPassword } from './utils/password.util.js';
  * 基于 users 表完成用户注册、凭证校验和 JWT 签发
  */
 @Injectable()
-export class AuthService implements OnModuleInit {
+export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
@@ -31,35 +31,21 @@ export class AuthService implements OnModuleInit {
   ) {}
 
   /**
-   * 模块初始化时播种默认管理员
-   * 仅在 users 表为空时执行，账号密码取自 AUTH_USER/AUTH_PASS 配置
-   */
-  async onModuleInit() {
-    const count = await this.userRepo.count();
-    if (count > 0) {
-      return;
-    }
-
-    const username = this.configService.get<string>('auth.user') ?? 'admin';
-    const password = this.configService.get<string>('auth.pass') ?? 'admin';
-    const now = Date.now();
-
-    const user = this.userRepo.create({
-      username,
-      passwordHash: await hashPassword(password),
-      createdAt: now,
-      updatedAt: now,
-    });
-    await this.userRepo.save(user);
-    this.logger.log(`users 表为空，已初始化默认管理员账号: ${username}`);
-  }
-
-  /**
    * 注册新用户（由已登录用户创建，不签发令牌，新用户需自行登录）
    * @param username 用户名
    * @param password 明文密码
+   * @param role 目标角色；仅管理员可以创建管理员
+   * @param actorId 当前操作人
    */
-  async register(username: string, password: string): Promise<UserInfo> {
+  async register(
+    username: string,
+    password: string,
+    role: UserRole = 'user',
+    actorId?: number,
+  ): Promise<UserInfo> {
+    if (role === 'admin') {
+      await this.assertAdmin(actorId, '仅管理员可以创建管理员账号');
+    }
     const existing = await this.userRepo.findOne({ where: { username } });
     if (existing) {
       throw new ConflictException('用户名已存在');
@@ -69,6 +55,7 @@ export class AuthService implements OnModuleInit {
     const user = this.userRepo.create({
       username,
       passwordHash: await hashPassword(password),
+      role,
       createdAt: now,
       updatedAt: now,
     });
@@ -110,6 +97,7 @@ export class AuthService implements OnModuleInit {
   async findAuthInfo(id: number): Promise<{
     id: number;
     username: string;
+    role: UserRole;
     passwordChangedAt: number;
   } | null> {
     const user = await this.userRepo.findOne({ where: { id } });
@@ -117,6 +105,7 @@ export class AuthService implements OnModuleInit {
       ? {
           id: user.id,
           username: user.username,
+          role: user.role,
           passwordChangedAt: user.updatedAt,
         }
       : null;
@@ -143,23 +132,72 @@ export class AuthService implements OnModuleInit {
     return { success: true };
   }
 
+  /**
+   * 管理员重置他人密码（后端权威校验调用者角色）
+   * 目标账号存在、不能是操作人自己（自己改密走 PATCH /auth/password 校验旧密码）
+   */
+  async resetPassword(
+    actorId: number | undefined,
+    targetId: number,
+    newPassword: string,
+  ) {
+    await this.assertAdmin(actorId, '仅管理员可以重置他人密码');
+    if (actorId === targetId) {
+      throw new BadRequestException('请使用「修改我的密码」修改自己的密码');
+    }
+    const user = await this.userRepo.findOne({ where: { id: targetId } });
+    if (!user) {
+      throw new NotFoundException('用户不存在');
+    }
+    user.passwordHash = await hashPassword(newPassword);
+    user.updatedAt = Date.now();
+    await this.userRepo.save(user);
+    this.logger.log(
+      `管理员 id=${actorId} 重置用户 ${user.username} (id=${targetId}) 的密码`,
+    );
+    return { success: true };
+  }
+
   /** 获取全部用户列表（不含密码哈希） */
   async listUsers() {
     const users = await this.userRepo.find({ order: { createdAt: 'ASC' } });
     return users.map((u) => this.toUserInfo(u));
   }
 
-  /** 删除用户（禁止删除自己） */
+  /**
+   * 删除用户
+   * 后端权威校验：不能删自己；至少保留一个管理员。
+   */
   async deleteUser(id: number, currentUserId: number) {
     if (id === currentUserId) {
       throw new BadRequestException('不能删除当前登录用户');
     }
-    const result = await this.userRepo.delete({ id });
-    if (result.affected === 0) {
+    const target = await this.userRepo.findOne({ where: { id } });
+    if (!target) {
       throw new NotFoundException('用户不存在');
     }
+    if (target.role === 'admin') {
+      const adminCount = await this.userRepo.count({
+        where: { role: 'admin' },
+      });
+      if (adminCount <= 1) {
+        throw new BadRequestException('至少保留一个管理员账号');
+      }
+    }
+    await this.userRepo.delete({ id });
     this.logger.log(`用户 id=${id} 已被删除`);
     return { success: true };
+  }
+
+  /** 校验指定用户是管理员，否则抛 403 */
+  private async assertAdmin(actorId: number | undefined, message: string) {
+    if (!actorId) {
+      throw new ForbiddenException(message);
+    }
+    const actor = await this.userRepo.findOne({ where: { id: actorId } });
+    if (!actor || actor.role !== 'admin') {
+      throw new ForbiddenException(message);
+    }
   }
 
   /** 签发 JWT 并组装登录响应 */
@@ -184,6 +222,7 @@ export class AuthService implements OnModuleInit {
     return {
       id: user.id,
       username: user.username,
+      role: user.role,
       createdAt: user.createdAt,
     };
   }

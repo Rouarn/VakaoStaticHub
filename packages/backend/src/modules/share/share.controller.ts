@@ -4,10 +4,12 @@ import {
   Controller,
   Delete,
   Get,
+  GoneException,
   Headers,
   Ip,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -29,6 +31,8 @@ import { getRequestMeta } from '#/utils/request-meta.util.js';
 import { ShareService } from './share.service.js';
 import { FilesService } from '../files/files.service.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
+import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
+import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
 import { getMimeType, isPreviewable } from '../files/utils/mime-types.js';
 
 @ApiTags('分享链接')
@@ -60,7 +64,7 @@ export class ShareController {
         rootId: dto.rootId,
         category: dto.category,
         shareType: result.shareType,
-        fileCount: result.filePaths?.length ?? 1,
+        fileCount: result.filePaths.length,
       },
       ...getRequestMeta(req),
     });
@@ -68,9 +72,42 @@ export class ShareController {
   }
 
   @Get('list')
-  @ApiOperation({ summary: '获取分享链接列表' })
-  async listShareLinks() {
-    return await this.shareService.listShareLinks();
+  @ApiOperation({
+    summary: '获取分享链接列表（服务端分页 / 关键字 / 状态筛选）',
+  })
+  async listShareLinks(@Query() query: ListShareLinksQueryDto) {
+    return await this.shareService.listShareLinks(query);
+  }
+
+  @Patch(':token')
+  @ApiOperation({
+    summary: '编辑分享链接（备注 / 有效期 / 密码 / 次数上限 / 启停）',
+  })
+  @ApiParam({ name: 'token', description: '分享 token' })
+  async updateShareLink(
+    @Param('token') token: string,
+    @Body() dto: UpdateShareLinkDto,
+    @CurrentUser() currentUser: { userId: number; username: string },
+    @Req() req: Request,
+  ) {
+    const result = await this.shareService.updateShareLink(token, dto);
+    // 审计：编辑分享链接
+    this.auditLogService.log({
+      userId: currentUser.userId,
+      username: currentUser.username,
+      action: 'share.update',
+      resourceType: 'share',
+      resourceId: token,
+      details: {
+        remark: dto.remark !== undefined,
+        expiresAt: dto.expiresAt !== undefined,
+        passwordChanged: dto.password !== undefined,
+        maxAccesses: dto.maxAccesses !== undefined,
+        enabled: dto.enabled,
+      },
+      ...getRequestMeta(req),
+    });
+    return result;
   }
 
   @Get(':token/access-logs')
@@ -147,21 +184,51 @@ export class ShareController {
         accessToken,
       );
 
-      // collection 类型且未指定 index 时，返回文件列表 JSON
+      // collection 类型且未指定 index 时，返回文件列表 JSON。
+      // 注意：本方法用了 @Res()，全局 ResponseInterceptor 不会生效，
+      // 必须手工输出与其它接口一致的 { code, message, data } 信封，
+      // 否则前端 publicHttp 会把它当成业务失败。
       if (linkInfo.shareType === 'collection' && index === undefined) {
+        const paths = linkInfo.filePaths;
+        const files = await Promise.all(
+          paths.map(async (filePath) => {
+            const name = basename(filePath);
+            try {
+              const fileStat = await stat(
+                this.filesService.safeJoinCategory(
+                  linkInfo.rootId,
+                  linkInfo.category,
+                  [filePath],
+                ),
+              );
+              return {
+                path: filePath,
+                name,
+                size: fileStat.size,
+                exists: true,
+              };
+            } catch {
+              // 单个文件被删除/无权限不影响其它文件展示
+              return { path: filePath, name, size: null, exists: false };
+            }
+          }),
+        );
         res.json({
-          shareType: linkInfo.shareType,
-          category: linkInfo.category,
-          files: linkInfo.filePaths ?? [],
+          code: 200,
+          message: '成功',
+          data: {
+            shareType: linkInfo.shareType,
+            rootId: linkInfo.rootId,
+            category: linkInfo.category,
+            files,
+          },
         });
         return;
       }
 
-      // collection 类型且指定了 index 时，按 index 取文件路径
-      const filePath =
-        linkInfo.shareType === 'collection' && index !== undefined
-          ? (linkInfo.filePaths ?? [])[Number(index)]
-          : linkInfo.filePath;
+      // 单文件分享固定取第 0 项；collection 按 index 取对应项
+      const position = index === undefined ? 0 : Number(index);
+      const filePath = linkInfo.filePaths[position];
 
       if (!filePath) {
         res.status(400).json({ message: '无效的文件索引' });
@@ -213,8 +280,15 @@ export class ShareController {
         res.status(404).json({ message: '分享链接不存在' });
       } else if (error instanceof BadRequestException) {
         res.status(400).json({ message: error.message });
+      } else if (error instanceof GoneException) {
+        // 已停用：与「不存在」区分，明确告知链接已停用
+        res.status(410).json({ message: error.message });
       } else if (error instanceof UnauthorizedException) {
         res.status(401).json({ message: error.message });
+      } else if (
+        (error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT'
+      ) {
+        res.status(404).json({ message: '文件已被删除或不存在' });
       } else {
         res.status(500).json({ message: '访问文件失败' });
       }
