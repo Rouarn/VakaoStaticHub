@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import {
-  NButton,
-  NIcon,
-  NSelect,
-  NSpin,
-  NTag,
-} from 'naive-ui';
+import { NButton, NIcon, NSelect, NSpin, NTag } from 'naive-ui';
 import {
   AlertCircleOutline,
   CheckmarkCircleOutline,
@@ -190,12 +184,16 @@ function rootShareLabel(totalSize: number | null): string {
         />
         <NButton size="small" quaternary @click="paused = !paused">
           <template #icon>
-            <NIcon><component :is="paused ? PlayOutline : PauseOutline" /></NIcon>
+            <NIcon
+              ><component :is="paused ? PlayOutline : PauseOutline"
+            /></NIcon>
           </template>
           {{ paused ? '恢复刷新' : '暂停刷新' }}
         </NButton>
         <NButton size="small" quaternary :loading="loading" @click="load()">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           立即刷新
         </NButton>
       </template>
@@ -216,7 +214,13 @@ function rootShareLabel(totalSize: number | null): string {
           · 最近更新 {{ new Date(lastUpdated).toLocaleTimeString('zh-CN') }}
         </template>
       </p>
-      <NTag v-if="paused" size="tiny" :bordered="false" type="warning" class="ml-auto">
+      <NTag
+        v-if="paused"
+        size="tiny"
+        :bordered="false"
+        type="warning"
+        class="ml-auto"
+      >
         已暂停
       </NTag>
     </section>
@@ -239,7 +243,9 @@ function rootShareLabel(totalSize: number | null): string {
           class="glass-panel border-l-4 border-l-red-500 px-4 py-2 flex items-center gap-2 text-12px"
         >
           <NIcon :size="15" class="text-red-500"><AlertCircleOutline /></NIcon>
-          <span class="text-ink-sub">本次刷新失败：{{ error }}（下方展示的是上次成功的数据）</span>
+          <span class="text-ink-sub"
+            >本次刷新失败：{{ error }}（下方展示的是上次成功的数据）</span
+          >
         </div>
 
         <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -311,21 +317,26 @@ function rootShareLabel(totalSize: number | null): string {
               :value-formatter="formatBytes"
               :max="data.memory.rss"
             />
-            <div class="h-2 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden">
+            <div
+              class="h-2 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
+            >
               <div
                 class="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 transition-all duration-500"
                 :style="{ width: `${heapPercent}%` }"
               />
             </div>
             <p class="m-0 text-10px text-ink-sub">
-              数据来自 process.memoryUsage()，用于观察进程内存趋势，非系统总内存占用。
+              数据来自
+              process.memoryUsage()，用于观察进程内存趋势，非系统总内存占用。
             </p>
           </section>
 
           <!-- 24h 升级事件 -->
           <section class="glass-panel px-5 py-4 flex flex-col gap-3">
             <div class="flex items-center gap-2">
-              <h2 class="m-0 text-13px font-600 text-ink">最近 24 小时升级事件</h2>
+              <h2 class="m-0 text-13px font-600 text-ink">
+                最近 24 小时升级事件
+              </h2>
               <span class="ml-auto text-11px text-ink-sub">
                 共 {{ upgradeEventTotal.toLocaleString() }} 次
                 <template v-if="upgradeEventMissingCount > 0">
@@ -333,12 +344,16 @@ function rootShareLabel(totalSize: number | null): string {
                 </template>
               </span>
             </div>
-            <BarList v-if="upgradeEventItems.length > 0" :items="upgradeEventItems" />
+            <BarList
+              v-if="upgradeEventItems.length > 0"
+              :items="upgradeEventItems"
+            />
             <div
               v-else
               class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-6 text-center text-12px text-ink-sub"
             >
-              最近 24 小时没有客户端上报升级事件（无数据的事件类型由后端返回 null）
+              最近 24 小时没有客户端上报升级事件（无数据的事件类型由后端返回
+              null）
             </div>
           </section>
         </div>
@@ -348,10 +363,17 @@ function rootShareLabel(totalSize: number | null): string {
           <div class="flex items-center gap-2 flex-wrap">
             <h2 class="m-0 text-13px font-600 text-ink">资源根目录用量</h2>
             <span class="ml-auto text-11px text-ink-sub">
-              最大：{{ largestRoot ? `${largestRoot.name} · ${formatBytesOrDash(largestRoot.totalSize)}` : '—' }}
+              最大：{{
+                largestRoot
+                  ? `${largestRoot.name} · ${formatBytesOrDash(largestRoot.totalSize)}`
+                  : '—'
+              }}
             </span>
           </div>
-          <div v-if="rootItems.length === 0" class="py-6 text-center text-12px text-ink-sub">
+          <div
+            v-if="rootItems.length === 0"
+            class="py-6 text-center text-12px text-ink-sub"
+          >
             暂无资源根目录
           </div>
           <div v-else class="overflow-x-auto">
@@ -371,10 +393,15 @@ function rootShareLabel(totalSize: number | null): string {
                   :key="root.rootId"
                   class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
                 >
-                  <td class="py-2 pr-3 text-ink truncate max-w-240px" :title="root.name">
+                  <td
+                    class="py-2 pr-3 text-ink truncate max-w-240px"
+                    :title="root.name"
+                  >
                     {{ root.name }}
                   </td>
-                  <td class="py-2 px-2 text-ink-sub font-mono text-11px">{{ root.rootId }}</td>
+                  <td class="py-2 px-2 text-ink-sub font-mono text-11px">
+                    {{ root.rootId }}
+                  </td>
                   <td class="py-2 px-2 text-right tabular-nums">
                     {{ root.fileCount.toLocaleString() }}
                   </td>
@@ -383,13 +410,19 @@ function rootShareLabel(totalSize: number | null): string {
                   </td>
                   <td class="py-2 pl-2">
                     <div class="flex items-center gap-2">
-                      <div class="flex-1 h-1.5 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden">
+                      <div
+                        class="flex-1 h-1.5 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
+                      >
                         <div
                           class="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
-                          :style="{ width: `${rootShare(root.totalSize) ?? 0}%` }"
+                          :style="{
+                            width: `${rootShare(root.totalSize) ?? 0}%`,
+                          }"
                         />
                       </div>
-                      <span class="text-11px text-ink-sub tabular-nums w-12 text-right">
+                      <span
+                        class="text-11px text-ink-sub tabular-nums w-12 text-right"
+                      >
                         {{ rootShareLabel(root.totalSize) }}
                       </span>
                     </div>
@@ -425,7 +458,8 @@ function rootShareLabel(totalSize: number | null): string {
         </div>
 
         <p class="m-0 text-10px text-ink-sub">
-          说明：health 段由后端独立返回数据库可达性与数据库文件大小（未落盘或不可读时为
+          说明：health
+          段由后端独立返回数据库可达性与数据库文件大小（未落盘或不可读时为
           null）；存储用量只统计文件库索引内的文件，无索引数据时显示「—」。
         </p>
       </div>

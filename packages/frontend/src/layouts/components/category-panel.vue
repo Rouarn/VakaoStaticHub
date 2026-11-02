@@ -47,7 +47,9 @@ const categoryStore = useCategoryStore();
 const rootOptions = computed(() =>
   categoryStore.roots.map((root) => ({ label: root.name, value: root.id })),
 );
-const categories = computed(() => categoryStore.categoriesOf(appStore.activeRootId));
+const categories = computed(() =>
+  categoryStore.categoriesOf(appStore.activeRootId),
+);
 
 onMounted(async () => {
   if (categoryStore.roots.length === 0) await categoryStore.loadRoots();
@@ -291,9 +293,15 @@ async function confirmDeleteRoot() {
                 quaternary
                 circle
                 :loading="categoryStore.refreshing"
-                @click="categoryStore.loadCategories(appStore.activeRootId, { silent: true })"
+                @click="
+                  categoryStore.loadCategories(appStore.activeRootId, {
+                    silent: true,
+                  })
+                "
               >
-                <template #icon><NIcon :size="15"><RefreshOutline /></NIcon></template>
+                <template #icon
+                  ><NIcon :size="15"><RefreshOutline /></NIcon
+                ></template>
               </NButton>
             </template>
             刷新分类
@@ -301,7 +309,9 @@ async function confirmDeleteRoot() {
           <NTooltip placement="bottom" :delay="300">
             <template #trigger>
               <NButton size="tiny" quaternary circle @click="openCreate">
-                <template #icon><NIcon :size="16"><AddOutline /></NIcon></template>
+                <template #icon
+                  ><NIcon :size="16"><AddOutline /></NIcon
+                ></template>
               </NButton>
             </template>
             新建分类
@@ -317,7 +327,9 @@ async function confirmDeleteRoot() {
       />
       <div class="mt-2 flex items-center justify-end">
         <NButton size="tiny" quaternary @click="openRootMgr">
-          <template #icon><NIcon :size="14"><SettingsOutline /></NIcon></template>
+          <template #icon
+            ><NIcon :size="14"><SettingsOutline /></NIcon
+          ></template>
           管理根目录
         </NButton>
       </div>
@@ -342,13 +354,21 @@ async function confirmDeleteRoot() {
           v-else-if="!categoryStore.loading && categories.length === 0"
           class="px-3 py-8 text-center"
         >
-          <NIcon :size="26" class="text-ink-sub opacity-60"><FolderOutline /></NIcon>
+          <NIcon :size="26" class="text-ink-sub opacity-60"
+            ><FolderOutline
+          /></NIcon>
           <p class="m-0 mt-2 text-12px text-ink-sub">该根目录下还没有分类</p>
-          <p class="m-0 mt-1 text-11px text-ink-sub">点击上方「+」即可新建空分类</p>
+          <p class="m-0 mt-1 text-11px text-ink-sub">
+            点击上方「+」即可新建空分类
+          </p>
         </div>
 
         <ul v-else class="m-0 p-0 list-none flex flex-col gap-1">
-          <li v-for="item in categories" :key="item.name" class="group relative">
+          <li
+            v-for="item in categories"
+            :key="item.name"
+            class="group relative"
+          >
             <button
               class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border-none bg-transparent cursor-pointer transition-all duration-200 text-ink-sub hover:bg-white/60 dark:hover:bg-white/8"
               :class="{
@@ -358,13 +378,17 @@ async function confirmDeleteRoot() {
               @click="selectCategory(item.name)"
             >
               <NIcon :size="17" class="shrink-0 text-brand-500">
-                <FolderOpenOutline v-if="categoryStore.activeCategory === item.name" />
+                <FolderOpenOutline
+                  v-if="categoryStore.activeCategory === item.name"
+                />
                 <FolderOutline v-else />
               </NIcon>
               <span class="flex-1 min-w-0 truncate text-left text-13px">
                 {{ item.name }}
               </span>
-              <span class="glass-chip px-2 py-0.5 text-11px leading-4 text-ink-sub">
+              <span
+                class="glass-chip px-2 py-0.5 text-11px leading-4 text-ink-sub"
+              >
                 {{ item.fileCount }}
               </span>
             </button>
@@ -391,7 +415,9 @@ async function confirmDeleteRoot() {
       </NSpin>
     </nav>
 
-    <footer class="px-4 py-3 border-t border-glass-border dark:border-glass-border-dark">
+    <footer
+      class="px-4 py-3 border-t border-glass-border dark:border-glass-border-dark"
+    >
       <p class="m-0 text-11px text-ink-sub">
         {{ categories.length }} 个分类 ·
         {{ formatBytes(categories.reduce((s, c) => s + c.totalSize, 0)) }}
@@ -466,7 +492,12 @@ async function confirmDeleteRoot() {
     </NModal>
 
     <!-- 根目录管理 -->
-    <NModal v-model:show="rootMgrShow" preset="card" title="管理根目录" style="width: 560px">
+    <NModal
+      v-model:show="rootMgrShow"
+      preset="card"
+      title="管理根目录"
+      style="width: 560px"
+    >
       <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-2">
           <div
@@ -477,11 +508,15 @@ async function confirmDeleteRoot() {
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-13px font-600 text-ink">{{ root.name }}</span>
-                <span class="glass-chip px-1.5 py-0.5 text-10px text-ink-sub font-mono">
+                <span
+                  class="glass-chip px-1.5 py-0.5 text-10px text-ink-sub font-mono"
+                >
                   {{ root.id }}
                 </span>
               </div>
-              <p class="m-0 text-11px text-ink-sub truncate font-mono">{{ root.path }}</p>
+              <p class="m-0 text-11px text-ink-sub truncate font-mono">
+                {{ root.path }}
+              </p>
             </div>
             <NButton
               size="tiny"
@@ -490,15 +525,26 @@ async function confirmDeleteRoot() {
               :disabled="root.id === appStore.activeRootId ? false : false"
               @click="openEditRoot(root.id)"
             >
-              <template #icon><NIcon :size="14"><CreateOutline /></NIcon></template>
+              <template #icon
+                ><NIcon :size="14"><CreateOutline /></NIcon
+              ></template>
             </NButton>
-            <NButton size="tiny" quaternary circle @click="askDeleteRoot(root.id)">
-              <template #icon><NIcon :size="14"><TrashOutline /></NIcon></template>
+            <NButton
+              size="tiny"
+              quaternary
+              circle
+              @click="askDeleteRoot(root.id)"
+            >
+              <template #icon
+                ><NIcon :size="14"><TrashOutline /></NIcon
+              ></template>
             </NButton>
           </div>
         </div>
 
-        <div class="border-t border-glass-border dark:border-glass-border-dark pt-3 flex flex-col gap-2">
+        <div
+          class="border-t border-glass-border dark:border-glass-border-dark pt-3 flex flex-col gap-2"
+        >
           <h3 class="m-0 text-12px font-600 text-ink">
             {{ rootFormMode === 'create' ? '新增根目录' : '编辑根目录' }}
           </h3>
@@ -519,7 +565,11 @@ async function confirmDeleteRoot() {
           </div>
           <div class="flex items-center gap-2">
             <label class="text-11px text-ink-sub w-14 shrink-0">名称</label>
-            <NInput v-model:value="rootForm.name" size="small" placeholder="显示名称" />
+            <NInput
+              v-model:value="rootForm.name"
+              size="small"
+              placeholder="显示名称"
+            />
           </div>
           <div class="flex items-center gap-2">
             <label class="text-11px text-ink-sub w-14 shrink-0">路径</label>
@@ -533,7 +583,9 @@ async function confirmDeleteRoot() {
             {{ rootFormError }}
           </p>
           <div class="flex justify-end gap-2 pt-1">
-            <NButton size="small" quaternary @click="rootMgrShow = false">关闭</NButton>
+            <NButton size="small" quaternary @click="rootMgrShow = false"
+              >关闭</NButton
+            >
             <NButton
               size="small"
               type="primary"

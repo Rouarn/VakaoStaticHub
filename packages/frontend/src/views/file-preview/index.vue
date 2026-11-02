@@ -41,7 +41,8 @@ function openPreview() {
   try {
     absolute = new URL(raw, window.location.href).toString();
   } catch {
-    invalid.value = 'URL 格式不正确，请填写完整地址（如 https://example.com/a.pdf）';
+    invalid.value =
+      'URL 格式不正确，请填写完整地址（如 https://example.com/a.pdf）';
     return;
   }
   invalid.value = '';
@@ -130,17 +131,14 @@ onMounted(() => {
         <div class="glass-card px-4 py-3 flex flex-col gap-1.5">
           <p class="m-0 text-12px font-600 text-ink">支持的格式</p>
           <p class="m-0 text-11px text-ink-sub leading-5">
-            图片、视频、音频、文本 / 代码、Markdown、HTML（沙箱隔离）、PDF、Word（.docx）、
+            图片、视频、音频、文本 /
+            代码、Markdown、HTML（沙箱隔离）、PDF、Word（.docx）、
             Excel、压缩包（zip 条目列表）；其余格式展示元信息与下载入口。
           </p>
         </div>
       </div>
     </div>
 
-    <PreviewDialog
-      v-model:show="show"
-      v-model:index="index"
-      :files="targets"
-    />
+    <PreviewDialog v-model:show="show" v-model:index="index" :files="targets" />
   </PublicPage>
 </template>

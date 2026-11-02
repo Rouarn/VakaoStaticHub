@@ -32,13 +32,21 @@ onMounted(async () => {
 <template>
   <div class="w-full h-full flex flex-col">
     <div class="mb-2 flex items-center gap-2 text-12px text-ink-sub">
-      <span class="glass-chip px-2 py-0.5">{{ languageOf(props.filename) }}</span>
+      <span class="glass-chip px-2 py-0.5">{{
+        languageOf(props.filename)
+      }}</span>
       <span v-if="truncated">内容超出上限，已截断显示</span>
     </div>
-    <div v-if="error" class="flex-1 flex items-center justify-center text-13px text-ink-sub">
+    <div
+      v-if="error"
+      class="flex-1 flex items-center justify-center text-13px text-ink-sub"
+    >
       {{ error }}
     </div>
-    <div v-else-if="loading" class="flex-1 flex items-center justify-center text-13px text-ink-sub">
+    <div
+      v-else-if="loading"
+      class="flex-1 flex items-center justify-center text-13px text-ink-sub"
+    >
       加载中…
     </div>
     <pre

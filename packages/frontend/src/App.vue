@@ -10,10 +10,7 @@ import {
   dateZhCN,
 } from 'naive-ui';
 import { useAppStore } from '@/stores/modules/app';
-import {
-  lightThemeOverrides,
-  darkThemeOverrides,
-} from '@/config/naive-theme';
+import { lightThemeOverrides, darkThemeOverrides } from '@/config/naive-theme';
 
 const appStore = useAppStore();
 

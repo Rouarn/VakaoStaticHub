@@ -26,7 +26,11 @@ defineProps<{
       <p class="m-0 mt-1 text-18px font-600 text-ink truncate" :title="value">
         {{ value }}
       </p>
-      <p v-if="hint" class="m-0 mt-0.5 text-11px text-ink-sub truncate" :title="hint">
+      <p
+        v-if="hint"
+        class="m-0 mt-0.5 text-11px text-ink-sub truncate"
+        :title="hint"
+      >
         {{ hint }}
       </p>
     </div>

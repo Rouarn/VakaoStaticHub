@@ -52,7 +52,10 @@ const adminCount = computed(
   () => users.value.filter((user) => user.role === 'admin').length,
 );
 
-const ROLE_META: Record<UserRole, { label: string; type: 'success' | 'default' }> = {
+const ROLE_META: Record<
+  UserRole,
+  { label: string; type: 'success' | 'default' }
+> = {
   admin: { label: '管理员', type: 'success' },
   user: { label: '普通用户', type: 'default' },
 };
@@ -199,7 +202,11 @@ const passwordTarget = ref<UserInfo | null>(null);
 const passwordShow = ref(false);
 const passwordBusy = ref(false);
 const passwordError = ref('');
-const passwordForm = reactive({ oldPassword: '', newPassword: '', confirm: '' });
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirm: '',
+});
 
 const passwordTitle = computed(() =>
   passwordMode.value === 'self'
@@ -251,7 +258,10 @@ async function submitPassword() {
   passwordError.value = '';
   try {
     if (passwordMode.value === 'self') {
-      await changeMyPassword(passwordForm.oldPassword, passwordForm.newPassword);
+      await changeMyPassword(
+        passwordForm.oldPassword,
+        passwordForm.newPassword,
+      );
       message.success('密码已修改');
     } else {
       const target = passwordTarget.value;
@@ -279,11 +289,15 @@ onMounted(() => void load());
     >
       <template #actions>
         <NButton size="small" quaternary @click="load">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           刷新
         </NButton>
         <NButton size="small" type="primary" @click="openCreate">
-          <template #icon><NIcon><PersonAddOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><PersonAddOutline /></NIcon
+          ></template>
           创建账号
         </NButton>
       </template>
@@ -299,7 +313,9 @@ onMounted(() => void load());
         description="创建一个登录账号后即可进入文件库、分享与 APP 版本管理等模块。"
       >
         <NButton size="small" type="primary" @click="openCreate">
-          <template #icon><NIcon><PersonAddOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><PersonAddOutline /></NIcon
+          ></template>
           创建第一个账号
         </NButton>
       </EmptyState>
@@ -350,12 +366,20 @@ onMounted(() => void load());
                     </div>
                   </td>
                   <td class="py-2.5 px-2">
-                    <NTag size="tiny" :bordered="false" :type="ROLE_META[user.role].type">
+                    <NTag
+                      size="tiny"
+                      :bordered="false"
+                      :type="ROLE_META[user.role].type"
+                    >
                       {{ ROLE_META[user.role].label }}
                     </NTag>
                   </td>
-                  <td class="py-2.5 px-2 text-ink-sub tabular-nums">#{{ user.id }}</td>
-                  <td class="py-2.5 px-2 text-ink-sub tabular-nums whitespace-nowrap">
+                  <td class="py-2.5 px-2 text-ink-sub tabular-nums">
+                    #{{ user.id }}
+                  </td>
+                  <td
+                    class="py-2.5 px-2 text-ink-sub tabular-nums whitespace-nowrap"
+                  >
                     {{ formatDateTime(user.createdAt) }}
                   </td>
                   <td class="py-2.5 pl-2">
@@ -366,7 +390,9 @@ onMounted(() => void load());
                         quaternary
                         @click="openChangeSelf"
                       >
-                        <template #icon><NIcon><KeyOutline /></NIcon></template>
+                        <template #icon
+                          ><NIcon><KeyOutline /></NIcon
+                        ></template>
                         修改我的密码
                       </NButton>
                       <NButton
@@ -375,14 +401,18 @@ onMounted(() => void load());
                         quaternary
                         @click="openResetOther(user)"
                       >
-                        <template #icon><NIcon><KeyOutline /></NIcon></template>
+                        <template #icon
+                          ><NIcon><KeyOutline /></NIcon
+                        ></template>
                         重置密码
                       </NButton>
                       <NTooltip v-else trigger="hover">
                         <template #trigger>
                           <span>
                             <NButton size="tiny" quaternary disabled>
-                              <template #icon><NIcon><LockClosedOutline /></NIcon></template>
+                              <template #icon
+                                ><NIcon><LockClosedOutline /></NIcon
+                              ></template>
                               重置密码
                             </NButton>
                           </span>
@@ -394,7 +424,9 @@ onMounted(() => void load());
                         <template #trigger>
                           <span>
                             <NButton size="tiny" quaternary disabled>
-                              <template #icon><NIcon><TrashOutline /></NIcon></template>
+                              <template #icon
+                                ><NIcon><TrashOutline /></NIcon
+                              ></template>
                               删除
                             </NButton>
                           </span>
@@ -408,7 +440,9 @@ onMounted(() => void load());
                         type="error"
                         @click="askDelete(user)"
                       >
-                        <template #icon><NIcon><TrashOutline /></NIcon></template>
+                        <template #icon
+                          ><NIcon><TrashOutline /></NIcon
+                        ></template>
                         删除
                       </NButton>
                     </div>
@@ -494,7 +528,9 @@ onMounted(() => void load());
             仅管理员可以创建管理员账号，后端会拒绝提权请求
           </p>
         </div>
-        <p v-if="createError" class="m-0 text-12px text-red-500">{{ createError }}</p>
+        <p v-if="createError" class="m-0 text-12px text-red-500">
+          {{ createError }}
+        </p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
@@ -555,10 +591,18 @@ onMounted(() => void load());
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <NButton quaternary :disabled="passwordBusy" @click="passwordShow = false">
+          <NButton
+            quaternary
+            :disabled="passwordBusy"
+            @click="passwordShow = false"
+          >
             取消
           </NButton>
-          <NButton type="primary" :loading="passwordBusy" @click="submitPassword">
+          <NButton
+            type="primary"
+            :loading="passwordBusy"
+            @click="submitPassword"
+          >
             保存
           </NButton>
         </div>
@@ -571,7 +615,11 @@ onMounted(() => void load());
       :content="`确认删除账号「${deleteTarget?.username ?? ''}」？\n该操作不可恢复，删除后该账号将无法登录。`"
       positive-text="确认删除"
       :loading="deleting"
-      @update:show="(value) => { if (!value) deleteTarget = null; }"
+      @update:show="
+        (value) => {
+          if (!value) deleteTarget = null;
+        }
+      "
       @confirm="confirmDelete"
     />
   </div>

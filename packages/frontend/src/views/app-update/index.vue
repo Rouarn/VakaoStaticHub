@@ -35,7 +35,11 @@ import {
   TimeOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type { GrayIncrementStep, ListVersionsQuery, RollbackCandidate } from '@vakao/shared';
+import type {
+  GrayIncrementStep,
+  ListVersionsQuery,
+  RollbackCandidate,
+} from '@vakao/shared';
 import {
   APP_VERSION_STATUS,
   STATUS_META,
@@ -415,7 +419,8 @@ function openPublish(version: AppVersionRecord) {
   publishTarget.value = version;
   publishForm.value = {
     mode: 'full',
-    grayPercent: version.grayPercent > 0 ? Math.min(99, version.grayPercent) : 20,
+    grayPercent:
+      version.grayPercent > 0 ? Math.min(99, version.grayPercent) : 20,
     autoIncrement: false,
     schedule: [
       { hours: 24, percent: 50 },
@@ -460,7 +465,9 @@ async function submitPublish() {
     body.grayPercent = f.grayPercent;
     body.grayAutoIncrement = f.autoIncrement;
     if (f.autoIncrement) {
-      body.grayIncrementSchedule = [...f.schedule].sort((a, b) => a.hours - b.hours);
+      body.grayIncrementSchedule = [...f.schedule].sort(
+        (a, b) => a.hours - b.hours,
+      );
     }
   }
   publishing.value = true;
@@ -565,7 +572,9 @@ async function submitEdit() {
       versionName: editForm.value.versionName.trim(),
       updateLog: editForm.value.updateLog,
       remark: editForm.value.remark,
-      scheduledPublishAt: editForm.value.scheduled ? editForm.value.scheduledAt : null,
+      scheduledPublishAt: editForm.value.scheduled
+        ? editForm.value.scheduledAt
+        : null,
       scheduledPublishMode: editForm.value.scheduledMode,
       scheduledGrayPercent: editForm.value.scheduledGrayPercent,
     });
@@ -661,7 +670,9 @@ async function confirmDelete() {
   deleting.value = true;
   try {
     const result = await deleteVersion(target.id);
-    message.success(`v${target.versionName} 已删除（清理事件 ${result.eventCount} 条）`);
+    message.success(
+      `v${target.versionName} 已删除（清理事件 ${result.eventCount} 条）`,
+    );
     deleteShow.value = false;
     await loadVersions();
   } catch (e) {
@@ -725,11 +736,15 @@ onMounted(async () => {
     >
       <template #actions>
         <NButton size="small" @click="openCreateApp">
-          <template #icon><NIcon><AddOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><AddOutline /></NIcon
+          ></template>
           新建应用
         </NButton>
         <NButton type="primary" size="small" @click="openUpload">
-          <template #icon><NIcon><CloudUploadOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><CloudUploadOutline /></NIcon
+          ></template>
           上传 APK
         </NButton>
       </template>
@@ -748,7 +763,10 @@ onMounted(async () => {
               ? 'bg-brand-600 text-white'
               : 'bg-white/50 dark:bg-white/8 text-ink-sub hover:text-brand-600 dark:hover:text-brand-400'
           "
-          @click="activeApp = key; changeFilter()"
+          @click="
+            activeApp = key;
+            changeFilter();
+          "
         >
           {{ key }}
         </button>
@@ -759,8 +777,15 @@ onMounted(async () => {
         <div class="ml-auto flex items-center gap-1">
           <NTooltip :delay="300">
             <template #trigger>
-              <NButton size="tiny" quaternary :disabled="!activeApp" @click="openRenameApp">
-                <template #icon><NIcon><CreateOutline /></NIcon></template>
+              <NButton
+                size="tiny"
+                quaternary
+                :disabled="!activeApp"
+                @click="openRenameApp"
+              >
+                <template #icon
+                  ><NIcon><CreateOutline /></NIcon
+                ></template>
                 重命名
               </NButton>
             </template>
@@ -768,8 +793,16 @@ onMounted(async () => {
           </NTooltip>
           <NTooltip :delay="300">
             <template #trigger>
-              <NButton size="tiny" quaternary type="error" :disabled="!activeApp" @click="openDeleteApp">
-                <template #icon><NIcon><TrashOutline /></NIcon></template>
+              <NButton
+                size="tiny"
+                quaternary
+                type="error"
+                :disabled="!activeApp"
+                @click="openDeleteApp"
+              >
+                <template #icon
+                  ><NIcon><TrashOutline /></NIcon
+                ></template>
                 删除应用
               </NButton>
             </template>
@@ -801,7 +834,9 @@ onMounted(async () => {
           @update:value="changeFilter"
         />
         <NButton size="small" quaternary @click="loadVersions">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           刷新
         </NButton>
         <span class="ml-auto text-11px text-ink-sub">
@@ -823,8 +858,12 @@ onMounted(async () => {
             : '上传 APK 后会生成草稿版本，确认无误再发布全量或灰度。'
         "
       >
-        <NButton v-if="apps.length === 0" size="small" @click="openCreateApp">新建应用</NButton>
-        <NButton v-else size="small" type="primary" @click="openUpload">上传 APK</NButton>
+        <NButton v-if="apps.length === 0" size="small" @click="openCreateApp"
+          >新建应用</NButton
+        >
+        <NButton v-else size="small" type="primary" @click="openUpload"
+          >上传 APK</NButton
+        >
       </EmptyState>
 
       <div v-else class="flex flex-col gap-3">
@@ -834,7 +873,9 @@ onMounted(async () => {
           class="glass-panel px-4 py-3 flex flex-col gap-2.5"
         >
           <div class="flex items-start gap-3 flex-wrap">
-            <div class="glass-chip w-9 h-9 flex items-center justify-center shrink-0">
+            <div
+              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
+            >
               <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
                 <RocketOutline />
               </NIcon>
@@ -843,16 +884,23 @@ onMounted(async () => {
             <div class="min-w-0 flex-1">
               <p class="m-0 text-13px font-600 text-ink truncate">
                 {{ version.appKey }} · v{{ version.versionName }}
-                <span class="text-11px text-ink-sub font-normal">vc {{ version.versionCode }}</span>
+                <span class="text-11px text-ink-sub font-normal"
+                  >vc {{ version.versionCode }}</span
+                >
               </p>
               <p class="m-0 mt-0.5 text-11px text-ink-sub">
-                {{ formatBytes(version.packageSize) }} · {{ version.platform }}
-                · 发布 {{ formatDateTime(version.publishTime) }}
+                {{ formatBytes(version.packageSize) }} ·
+                {{ version.platform }} · 发布
+                {{ formatDateTime(version.publishTime) }}
               </p>
             </div>
 
             <div class="flex items-center gap-1.5 flex-wrap">
-              <NTag size="small" :type="statusMetaOf(version).tag" :bordered="false">
+              <NTag
+                size="small"
+                :type="statusMetaOf(version).tag"
+                :bordered="false"
+              >
                 {{ statusMetaOf(version).label }}
               </NTag>
               <NTag
@@ -863,28 +911,55 @@ onMounted(async () => {
               >
                 {{ offlineReasonLabel(version) }}
               </NTag>
-              <NTag v-if="version.forceUpdate === 1" size="small" :bordered="false" type="error">
+              <NTag
+                v-if="version.forceUpdate === 1"
+                size="small"
+                :bordered="false"
+                type="error"
+              >
                 强制更新
               </NTag>
-              <NTag v-if="version.status === APP_VERSION_STATUS.GRAY" size="small" :bordered="false" type="warning">
+              <NTag
+                v-if="version.status === APP_VERSION_STATUS.GRAY"
+                size="small"
+                :bordered="false"
+                type="warning"
+              >
                 灰度 {{ version.grayPercent }}%
-                <template v-if="version.grayAutoIncrement === 1"> · 自动递增</template>
+                <template v-if="version.grayAutoIncrement === 1">
+                  · 自动递增</template
+                >
               </NTag>
-              <NTag v-if="version.scheduledPublishAt" size="small" :bordered="false">
+              <NTag
+                v-if="version.scheduledPublishAt"
+                size="small"
+                :bordered="false"
+              >
                 定时 {{ formatDateTime(version.scheduledPublishAt) }}
               </NTag>
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub">
+          <div
+            class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
+          >
             <span class="inline-flex items-center gap-1 font-mono">
               SHA-256 {{ truncateMiddle(version.checksum, 12, 10) }}
-              <button class="border-none bg-transparent cursor-pointer text-brand-600 dark:text-brand-400" @click="copyChecksum(version.checksum)">
+              <button
+                class="border-none bg-transparent cursor-pointer text-brand-600 dark:text-brand-400"
+                @click="copyChecksum(version.checksum)"
+              >
                 <NIcon :size="12"><CopyOutline /></NIcon>
               </button>
             </span>
-            <span v-if="version.minVersionCode > 0">minVersionCode {{ version.minVersionCode }}</span>
-            <span v-if="version.updateLog" class="min-w-0 truncate" :title="version.updateLog">
+            <span v-if="version.minVersionCode > 0"
+              >minVersionCode {{ version.minVersionCode }}</span
+            >
+            <span
+              v-if="version.updateLog"
+              class="min-w-0 truncate"
+              :title="version.updateLog"
+            >
               更新说明：{{ version.updateLog }}
             </span>
             <a
@@ -905,19 +980,39 @@ onMounted(async () => {
               type="primary"
               @click="openPublish(version)"
             >
-              <template #icon><NIcon><PlayOutline /></NIcon></template>
-              {{ version.status === APP_VERSION_STATUS.OFFLINE ? '重新发布' : '发布' }}
+              <template #icon
+                ><NIcon><PlayOutline /></NIcon
+              ></template>
+              {{
+                version.status === APP_VERSION_STATUS.OFFLINE
+                  ? '重新发布'
+                  : '发布'
+              }}
             </NButton>
-            <NButton v-if="canEdit(version)" size="tiny" @click="openEdit(version)">
-              <template #icon><NIcon><CreateOutline /></NIcon></template>
+            <NButton
+              v-if="canEdit(version)"
+              size="tiny"
+              @click="openEdit(version)"
+            >
+              <template #icon
+                ><NIcon><CreateOutline /></NIcon
+              ></template>
               编辑
             </NButton>
             <NButton size="tiny" @click="openForce(version)">
-              <template #icon><NIcon><KeyOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><KeyOutline /></NIcon
+              ></template>
               强更配置
             </NButton>
-            <NButton v-if="canRollback(version)" size="tiny" @click="openRollback(version)">
-              <template #icon><NIcon><ArrowUndoOutline /></NIcon></template>
+            <NButton
+              v-if="canRollback(version)"
+              size="tiny"
+              @click="openRollback(version)"
+            >
+              <template #icon
+                ><NIcon><ArrowUndoOutline /></NIcon
+              ></template>
               回滚
             </NButton>
             <NButton
@@ -927,7 +1022,9 @@ onMounted(async () => {
               type="error"
               @click="openOffline(version)"
             >
-              <template #icon><NIcon><BanOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><BanOutline /></NIcon
+              ></template>
               下架
             </NButton>
             <NButton
@@ -938,7 +1035,9 @@ onMounted(async () => {
               class="ml-auto"
               @click="openDelete(version)"
             >
-              <template #icon><NIcon><TrashOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><TrashOutline /></NIcon
+              ></template>
               删除
             </NButton>
           </div>
@@ -965,7 +1064,11 @@ onMounted(async () => {
       :title="appModal === 'create' ? '新建应用' : '重命名应用'"
       class="w-460px! max-w-[94vw]"
       :bordered="false"
-      @update:show="(value) => { if (!value) appModal = null; }"
+      @update:show="
+        (value) => {
+          if (!value) appModal = null;
+        }
+      "
     >
       <div class="flex flex-col gap-2">
         <label class="flex flex-col gap-1">
@@ -977,13 +1080,20 @@ onMounted(async () => {
           />
         </label>
         <p class="m-0 text-11px text-ink-sub">
-          应用标识同时是 software-update 根下的目录名；重命名会迁移全部版本与事件记录。
+          应用标识同时是 software-update
+          根下的目录名；重命名会迁移全部版本与事件记录。
         </p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
           <NButton size="small" @click="appModal = null">取消</NButton>
-          <NButton size="small" type="primary" :loading="appSaving" @click="submitApp">保存</NButton>
+          <NButton
+            size="small"
+            type="primary"
+            :loading="appSaving"
+            @click="submitApp"
+            >保存</NButton
+          >
         </div>
       </template>
     </NModal>
@@ -1009,16 +1119,27 @@ onMounted(async () => {
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-12px text-ink-sub">版本名</span>
-            <NInput v-model:value="uploadForm.versionName" size="small" placeholder="如 1.0.2" />
+            <NInput
+              v-model:value="uploadForm.versionName"
+              size="small"
+              placeholder="如 1.0.2"
+            />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-12px text-ink-sub">versionCode</span>
-            <NInputNumber v-model:value="uploadForm.versionCode" size="small" :min="1" :max="2147483647" />
+            <NInputNumber
+              v-model:value="uploadForm.versionCode"
+              size="small"
+              :min="1"
+              :max="2147483647"
+            />
           </label>
         </div>
 
         <!-- 文件选择 -->
-        <div class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-4 flex flex-col gap-2">
+        <div
+          class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-4 flex flex-col gap-2"
+        >
           <input
             ref="fileInput"
             type="file"
@@ -1028,35 +1149,66 @@ onMounted(async () => {
           />
           <div v-if="!pickedFile" class="flex items-center gap-3 flex-wrap">
             <NButton size="small" @click="fileInput?.click()">
-              <template #icon><NIcon><CloudUploadOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><CloudUploadOutline /></NIcon
+              ></template>
               选择 APK 文件
             </NButton>
-            <span class="text-11px text-ink-sub">仅 .apk，最大 500MB；本地校验 ZIP 魔数</span>
+            <span class="text-11px text-ink-sub"
+              >仅 .apk，最大 500MB；本地校验 ZIP 魔数</span
+            >
           </div>
           <div v-else class="flex items-center gap-3 flex-wrap">
-            <NIcon :size="18" class="text-brand-600 dark:text-brand-400"><DocumentTextOutline /></NIcon>
+            <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
+              ><DocumentTextOutline
+            /></NIcon>
             <span class="min-w-0 flex-1">
-              <span class="block text-12px text-ink truncate">{{ pickedFile.name }}</span>
-              <span class="block text-11px text-ink-sub">{{ formatBytes(pickedFile.size) }}</span>
+              <span class="block text-12px text-ink truncate">{{
+                pickedFile.name
+              }}</span>
+              <span class="block text-11px text-ink-sub">{{
+                formatBytes(pickedFile.size)
+              }}</span>
             </span>
-            <NButton size="tiny" quaternary :disabled="uploading" @click="clearPicked">重新选择</NButton>
+            <NButton
+              size="tiny"
+              quaternary
+              :disabled="uploading"
+              @click="clearPicked"
+              >重新选择</NButton
+            >
           </div>
-          <p v-if="pickedError" class="m-0 text-12px text-red-500">{{ pickedError }}</p>
-          <div v-if="uploading" class="h-2 rounded-full bg-ink-sub/10 overflow-hidden">
+          <p v-if="pickedError" class="m-0 text-12px text-red-500">
+            {{ pickedError }}
+          </p>
+          <div
+            v-if="uploading"
+            class="h-2 rounded-full bg-ink-sub/10 overflow-hidden"
+          >
             <div
               class="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400 transition-all"
               :style="{ width: `${uploadPercent}%` }"
             />
           </div>
-          <p v-if="uploading" class="m-0 text-11px text-ink-sub">上传中 {{ uploadPercent }}%</p>
-          <p v-if="uploadError" class="m-0 text-12px text-red-500 leading-5">{{ uploadError }}</p>
+          <p v-if="uploading" class="m-0 text-11px text-ink-sub">
+            上传中 {{ uploadPercent }}%
+          </p>
+          <p v-if="uploadError" class="m-0 text-12px text-red-500 leading-5">
+            {{ uploadError }}
+          </p>
           <div
             v-if="uploadResult"
             class="rounded-lg bg-brand-500/8 px-3 py-2 flex flex-col gap-1"
           >
-            <span class="text-12px text-ink font-600">上传成功 · 草稿已创建</span>
-            <span class="text-10px text-ink-sub font-mono break-all">SHA-256 {{ uploadResult.checksum }}</span>
-            <span class="text-10px text-ink-sub">大小 {{ formatBytes(uploadResult.packageSize) }}</span>
+            <span class="text-12px text-ink font-600"
+              >上传成功 · 草稿已创建</span
+            >
+            <span class="text-10px text-ink-sub font-mono break-all"
+              >SHA-256 {{ uploadResult.checksum }}</span
+            >
+            <span class="text-10px text-ink-sub"
+              >大小 {{ formatBytes(uploadResult.packageSize) }}</span
+            >
           </div>
         </div>
 
@@ -1089,12 +1241,17 @@ onMounted(async () => {
             <span class="text-12px text-ink">创建后定时发布</span>
             <NTooltip :delay="300">
               <template #trigger>
-                <NIcon :size="14" class="text-ink-sub"><InformationCircleOutline /></NIcon>
+                <NIcon :size="14" class="text-ink-sub"
+                  ><InformationCircleOutline
+                /></NIcon>
               </template>
               后端每 10 分钟扫描一次到点的草稿；发布失败会清除定时设置
             </NTooltip>
           </div>
-          <div v-if="uploadForm.scheduled" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div
+            v-if="uploadForm.scheduled"
+            class="grid grid-cols-1 sm:grid-cols-3 gap-3"
+          >
             <label class="flex flex-col gap-1 sm:col-span-2">
               <span class="text-11px text-ink-sub">发布时间</span>
               <NDatePicker
@@ -1107,14 +1264,25 @@ onMounted(async () => {
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-11px text-ink-sub">发布模式</span>
-              <NRadioGroup v-model:value="uploadForm.scheduledMode" size="small">
+              <NRadioGroup
+                v-model:value="uploadForm.scheduledMode"
+                size="small"
+              >
                 <NRadioButton value="full">全量</NRadioButton>
                 <NRadioButton value="gray">灰度</NRadioButton>
               </NRadioGroup>
             </label>
-            <label v-if="uploadForm.scheduledMode === 'gray'" class="flex flex-col gap-1">
+            <label
+              v-if="uploadForm.scheduledMode === 'gray'"
+              class="flex flex-col gap-1"
+            >
               <span class="text-11px text-ink-sub">灰度百分比</span>
-              <NInputNumber v-model:value="uploadForm.scheduledGrayPercent" size="small" :min="1" :max="99" />
+              <NInputNumber
+                v-model:value="uploadForm.scheduledGrayPercent"
+                size="small"
+                :min="1"
+                :max="99"
+              />
             </label>
           </div>
         </div>
@@ -1122,9 +1290,16 @@ onMounted(async () => {
 
       <template #footer>
         <div class="flex items-center justify-between gap-2">
-          <span class="text-11px text-ink-sub">仅创建草稿，发布需前往版本操作</span>
+          <span class="text-11px text-ink-sub"
+            >仅创建草稿，发布需前往版本操作</span
+          >
           <div class="flex gap-2">
-            <NButton size="small" :disabled="uploading" @click="uploadShow = false">关闭</NButton>
+            <NButton
+              size="small"
+              :disabled="uploading"
+              @click="uploadShow = false"
+              >关闭</NButton
+            >
             <NButton
               size="small"
               type="primary"
@@ -1156,7 +1331,12 @@ onMounted(async () => {
         <template v-if="publishForm.mode === 'gray'">
           <label class="flex flex-col gap-1">
             <span class="text-12px text-ink-sub">灰度百分比（1~99）</span>
-            <NInputNumber v-model:value="publishForm.grayPercent" size="small" :min="1" :max="99" />
+            <NInputNumber
+              v-model:value="publishForm.grayPercent"
+              size="small"
+              :min="1"
+              :max="99"
+            />
           </label>
 
           <div class="flex items-center gap-2">
@@ -1164,7 +1344,9 @@ onMounted(async () => {
             <span class="text-12px text-ink">灰度自动递增</span>
             <NTooltip :delay="300">
               <template #trigger>
-                <NIcon :size="14" class="text-ink-sub"><InformationCircleOutline /></NIcon>
+                <NIcon :size="14" class="text-ink-sub"
+                  ><InformationCircleOutline
+                /></NIcon>
               </template>
               后端每小时按发布时间匹配递增表；percent 达 100 时自动转全量
             </NTooltip>
@@ -1177,9 +1359,21 @@ onMounted(async () => {
               class="flex items-center gap-2"
             >
               <span class="text-11px text-ink-sub shrink-0">发布后</span>
-              <NInputNumber v-model:value="step.hours" size="tiny" :min="1" :max="8760" class="w-24" />
+              <NInputNumber
+                v-model:value="step.hours"
+                size="tiny"
+                :min="1"
+                :max="8760"
+                class="w-24"
+              />
               <span class="text-11px text-ink-sub shrink-0">小时 →</span>
-              <NInputNumber v-model:value="step.percent" size="tiny" :min="1" :max="100" class="w-24" />
+              <NInputNumber
+                v-model:value="step.percent"
+                size="tiny"
+                :min="1"
+                :max="100"
+                class="w-24"
+              />
               <span class="text-11px text-ink-sub shrink-0">%</span>
               <NButton
                 size="tiny"
@@ -1188,25 +1382,40 @@ onMounted(async () => {
                 :disabled="publishForm.schedule.length <= 1"
                 @click="removeScheduleStep(index)"
               >
-                <template #icon><NIcon><CloseCircleOutline /></NIcon></template>
+                <template #icon
+                  ><NIcon><CloseCircleOutline /></NIcon
+                ></template>
               </NButton>
             </div>
-            <NButton size="tiny" quaternary class="self-start" @click="addScheduleStep">
-              <template #icon><NIcon><AddOutline /></NIcon></template>
+            <NButton
+              size="tiny"
+              quaternary
+              class="self-start"
+              @click="addScheduleStep"
+            >
+              <template #icon
+                ><NIcon><AddOutline /></NIcon
+              ></template>
               增加递增步骤
             </NButton>
           </div>
         </template>
 
         <p class="m-0 text-11px text-ink-sub leading-5">
-          发布门禁：versionCode 必须大于该应用当前全量最大版本；全量发布会把同应用旧的在线版本
+          发布门禁：versionCode
+          必须大于该应用当前全量最大版本；全量发布会把同应用旧的在线版本
           自动下架（offlineReason=auto，可被回滚恢复）。手动下架（manual）不会被回滚恢复。
         </p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
           <NButton size="small" @click="publishShow = false">取消</NButton>
-          <NButton size="small" type="primary" :loading="publishing" @click="submitPublish">
+          <NButton
+            size="small"
+            type="primary"
+            :loading="publishing"
+            @click="submitPublish"
+          >
             确认发布
           </NButton>
         </div>
@@ -1227,17 +1436,31 @@ onMounted(async () => {
           <span class="text-12px text-ink">强制更新（forceUpdate）</span>
         </div>
         <label class="flex flex-col gap-1">
-          <span class="text-12px text-ink-sub">最低版本号（minVersionCode）</span>
-          <NInputNumber v-model:value="forceForm.minVersionCode" size="small" :min="0" :max="2147483647" />
+          <span class="text-12px text-ink-sub"
+            >最低版本号（minVersionCode）</span
+          >
+          <NInputNumber
+            v-model:value="forceForm.minVersionCode"
+            size="small"
+            :min="0"
+            :max="2147483647"
+          />
         </label>
         <p class="m-0 text-11px text-ink-sub leading-5">
-          客户端版本号低于 minVersionCode 时也视为强制更新；该开关可随时远程修改，无需重新发版。
+          客户端版本号低于 minVersionCode
+          时也视为强制更新；该开关可随时远程修改，无需重新发版。
         </p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
           <NButton size="small" @click="forceShow = false">取消</NButton>
-          <NButton size="small" type="primary" :loading="savingForce" @click="submitForce">保存</NButton>
+          <NButton
+            size="small"
+            type="primary"
+            :loading="savingForce"
+            @click="submitForce"
+            >保存</NButton
+          >
         </div>
       </template>
     </NModal>
@@ -1252,26 +1475,46 @@ onMounted(async () => {
     >
       <div class="flex flex-col gap-3">
         <label class="flex flex-col gap-1">
-          <span class="text-12px text-ink-sub">版本名（versionCode 与安装包不可修改）</span>
+          <span class="text-12px text-ink-sub"
+            >版本名（versionCode 与安装包不可修改）</span
+          >
           <NInput v-model:value="editForm.versionName" size="small" />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-12px text-ink-sub">更新说明</span>
-          <NInput v-model:value="editForm.updateLog" type="textarea" size="small" :rows="3" />
+          <NInput
+            v-model:value="editForm.updateLog"
+            type="textarea"
+            size="small"
+            :rows="3"
+          />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-12px text-ink-sub">内部备注</span>
-          <NInput v-model:value="editForm.remark" type="textarea" size="small" :rows="2" />
+          <NInput
+            v-model:value="editForm.remark"
+            type="textarea"
+            size="small"
+            :rows="2"
+          />
         </label>
 
         <div class="flex items-center gap-2">
           <NSwitch v-model:value="editForm.scheduled" size="small" />
           <span class="text-12px text-ink">定时发布</span>
         </div>
-        <div v-if="editForm.scheduled" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div
+          v-if="editForm.scheduled"
+          class="grid grid-cols-1 sm:grid-cols-3 gap-3"
+        >
           <label class="flex flex-col gap-1 sm:col-span-2">
             <span class="text-11px text-ink-sub">发布时间</span>
-            <NDatePicker v-model:value="editForm.scheduledAt" type="datetime" size="small" clearable />
+            <NDatePicker
+              v-model:value="editForm.scheduledAt"
+              type="datetime"
+              size="small"
+              clearable
+            />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-11px text-ink-sub">模式</span>
@@ -1280,17 +1523,33 @@ onMounted(async () => {
               <NRadioButton value="gray">灰度</NRadioButton>
             </NRadioGroup>
           </label>
-          <label v-if="editForm.scheduledMode === 'gray'" class="flex flex-col gap-1">
+          <label
+            v-if="editForm.scheduledMode === 'gray'"
+            class="flex flex-col gap-1"
+          >
             <span class="text-11px text-ink-sub">灰度百分比</span>
-            <NInputNumber v-model:value="editForm.scheduledGrayPercent" size="small" :min="1" :max="99" />
+            <NInputNumber
+              v-model:value="editForm.scheduledGrayPercent"
+              size="small"
+              :min="1"
+              :max="99"
+            />
           </label>
         </div>
-        <p class="m-0 text-11px text-ink-sub">仅草稿/已下架版本可编辑，发布中的版本需先下架。</p>
+        <p class="m-0 text-11px text-ink-sub">
+          仅草稿/已下架版本可编辑，发布中的版本需先下架。
+        </p>
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
           <NButton size="small" @click="editShow = false">取消</NButton>
-          <NButton size="small" type="primary" :loading="savingEdit" @click="submitEdit">保存</NButton>
+          <NButton
+            size="small"
+            type="primary"
+            :loading="savingEdit"
+            @click="submitEdit"
+            >保存</NButton
+          >
         </div>
       </template>
     </NModal>
@@ -1320,12 +1579,16 @@ onMounted(async () => {
             候选仅包含「全量在线」与「自动下架（被新全量顶替）」的版本；手动下架的版本不会恢复。
           </p>
 
-          <div v-if="rollbackError" class="text-12px text-red-500">{{ rollbackError }}</div>
+          <div v-if="rollbackError" class="text-12px text-red-500">
+            {{ rollbackError }}
+          </div>
           <div
             v-else-if="!rollbackLoading && rollbackCandidates.length === 0"
             class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-5 text-center"
           >
-            <NIcon :size="22" class="text-ink-sub"><InformationCircleOutline /></NIcon>
+            <NIcon :size="22" class="text-ink-sub"
+              ><InformationCircleOutline
+            /></NIcon>
             <p class="m-0 mt-2 text-12px text-ink-sub">
               当前应用不存在可回滚的历史全量版本（后端会拒绝本次回滚）。
             </p>
@@ -1335,20 +1598,41 @@ onMounted(async () => {
               v-for="(candidate, index) in rollbackCandidates"
               :key="candidate.id"
               class="flex items-center gap-2 rounded-lg px-3 py-2"
-              :class="index === 0 ? 'bg-brand-500/10' : 'bg-white/40 dark:bg-white/4'"
+              :class="
+                index === 0 ? 'bg-brand-500/10' : 'bg-white/40 dark:bg-white/4'
+              "
             >
-              <NIcon :size="15" :class="index === 0 ? 'text-brand-600 dark:text-brand-400' : 'text-ink-sub'">
+              <NIcon
+                :size="15"
+                :class="
+                  index === 0
+                    ? 'text-brand-600 dark:text-brand-400'
+                    : 'text-ink-sub'
+                "
+              >
                 <CheckmarkCircleOutline v-if="index === 0" />
                 <TimeOutline v-else />
               </NIcon>
               <span class="text-12px text-ink flex-1">
                 v{{ candidate.versionName }}
-                <span class="text-11px text-ink-sub">vc {{ candidate.versionCode }}</span>
+                <span class="text-11px text-ink-sub"
+                  >vc {{ candidate.versionCode }}</span
+                >
               </span>
               <span class="text-11px text-ink-sub">
-                {{ candidate.status === APP_VERSION_STATUS.PUBLISHED ? '全量在线' : '自动下架' }}
+                {{
+                  candidate.status === APP_VERSION_STATUS.PUBLISHED
+                    ? '全量在线'
+                    : '自动下架'
+                }}
               </span>
-              <NTag v-if="index === 0" size="tiny" type="success" :bordered="false">将恢复</NTag>
+              <NTag
+                v-if="index === 0"
+                size="tiny"
+                type="success"
+                :bordered="false"
+                >将恢复</NTag
+              >
             </div>
           </div>
 
@@ -1364,7 +1648,11 @@ onMounted(async () => {
             size="small"
             type="error"
             :loading="rollingBack"
-            :disabled="rollbackLoading || rollbackCandidates.length === 0 || Boolean(rollbackError)"
+            :disabled="
+              rollbackLoading ||
+              rollbackCandidates.length === 0 ||
+              Boolean(rollbackError)
+            "
             @click="confirmRollback"
           >
             确认回滚

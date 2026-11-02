@@ -54,10 +54,15 @@ const largestRoot = computed(() => {
   return sorted[0];
 });
 
-function categorySegments(categories: { category: string; totalSize: number }[]) {
+function categorySegments(
+  categories: { category: string; totalSize: number }[],
+) {
   return categories
     .filter((category) => category.totalSize > 0)
-    .map((category) => ({ label: category.category, value: category.totalSize }));
+    .map((category) => ({
+      label: category.category,
+      value: category.totalSize,
+    }));
 }
 
 onMounted(() => void load());
@@ -72,7 +77,9 @@ onMounted(() => void load());
     >
       <template #actions>
         <NButton size="small" quaternary @click="load">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           刷新
         </NButton>
       </template>
@@ -92,9 +99,22 @@ onMounted(() => void load());
 
       <div v-else-if="data" class="flex flex-col gap-4">
         <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <StatCard label="总占用" :value="formatBytes(data.totalSize)" :icon="PieChartOutline" />
-          <StatCard label="文件总数" :value="data.fileCount.toLocaleString()" :icon="AlbumsOutline" />
-          <StatCard label="资源根目录" :value="String(roots.length)" :hint="`${totalCategories} 个分类`" :icon="FolderOpenOutline" />
+          <StatCard
+            label="总占用"
+            :value="formatBytes(data.totalSize)"
+            :icon="PieChartOutline"
+          />
+          <StatCard
+            label="文件总数"
+            :value="data.fileCount.toLocaleString()"
+            :icon="AlbumsOutline"
+          />
+          <StatCard
+            label="资源根目录"
+            :value="String(roots.length)"
+            :hint="`${totalCategories} 个分类`"
+            :icon="FolderOpenOutline"
+          />
           <StatCard
             label="最大根目录"
             :value="largestRoot?.rootName ?? '—'"
@@ -107,7 +127,9 @@ onMounted(() => void load());
         <section class="glass-panel px-5 py-4 flex flex-col gap-3">
           <div class="flex items-center gap-2">
             <h2 class="m-0 text-13px font-600 text-ink">根目录占用占比</h2>
-            <span class="ml-auto text-11px text-ink-sub">总计 {{ formatBytes(data.totalSize) }}</span>
+            <span class="ml-auto text-11px text-ink-sub"
+              >总计 {{ formatBytes(data.totalSize) }}</span
+            >
           </div>
           <DonutChart
             :segments="rootSegments"
@@ -123,16 +145,26 @@ onMounted(() => void load());
           class="glass-panel px-5 py-4 flex flex-col gap-4"
         >
           <div class="flex items-center gap-3 flex-wrap">
-            <div class="glass-chip w-9 h-9 flex items-center justify-center shrink-0">
-              <NIcon :size="18" class="text-brand-600 dark:text-brand-400"><FolderOpenOutline /></NIcon>
+            <div
+              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
+            >
+              <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
+                ><FolderOpenOutline
+              /></NIcon>
             </div>
             <div class="min-w-0">
               <p class="m-0 text-13px font-600 text-ink">{{ root.rootName }}</p>
-              <p class="m-0 text-11px text-ink-sub font-mono">{{ root.rootId }}</p>
+              <p class="m-0 text-11px text-ink-sub font-mono">
+                {{ root.rootId }}
+              </p>
             </div>
             <div class="ml-auto flex items-center gap-2">
-              <NTag size="small" :bordered="false">{{ root.fileCount.toLocaleString() }} 个文件</NTag>
-              <NTag size="small" :bordered="false" type="info">{{ formatBytes(root.totalSize) }}</NTag>
+              <NTag size="small" :bordered="false"
+                >{{ root.fileCount.toLocaleString() }} 个文件</NTag
+              >
+              <NTag size="small" :bordered="false" type="info">{{
+                formatBytes(root.totalSize)
+              }}</NTag>
             </div>
           </div>
 
@@ -178,11 +210,18 @@ onMounted(() => void load());
                   :key="category.category"
                   class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
                 >
-                  <td class="py-2 pr-3 text-ink truncate max-w-240px" :title="category.category">
+                  <td
+                    class="py-2 pr-3 text-ink truncate max-w-240px"
+                    :title="category.category"
+                  >
                     {{ category.category }}
                   </td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ category.fileCount.toLocaleString() }}</td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ formatBytes(category.totalSize) }}</td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ category.fileCount.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ formatBytes(category.totalSize) }}
+                  </td>
                   <td class="py-2 pl-2 text-right tabular-nums">
                     {{ percentOf(category.totalSize, root.totalSize) }}%
                   </td>
@@ -194,7 +233,8 @@ onMounted(() => void load());
 
         <p class="m-0 text-10px text-ink-sub flex items-center gap-1">
           <NIcon :size="12"><PieChartOutline /></NIcon>
-          统计口径：仅统计文件库索引内的文件；空文件（0 B）不参与占比图但计入文件数。
+          统计口径：仅统计文件库索引内的文件；空文件（0
+          B）不参与占比图但计入文件数。
         </p>
       </div>
     </NSpin>

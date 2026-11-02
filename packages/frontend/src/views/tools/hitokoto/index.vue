@@ -196,7 +196,9 @@ const jsonPreview = computed(() => {
     >
       <template #actions>
         <NButton size="small" type="primary" :loading="loading" @click="send">
-          <template #icon><NIcon><SendOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><SendOutline /></NIcon
+          ></template>
           请求一言
         </NButton>
       </template>
@@ -208,7 +210,9 @@ const jsonPreview = computed(() => {
         <section class="glass-panel px-4 py-4 flex flex-col gap-3">
           <h2 class="m-0 text-13px font-600 text-ink">参数调试</h2>
           <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">分类（不选表示全部分类，参数 c=a|b|c）</label>
+            <label class="text-11px text-ink-sub"
+              >分类（不选表示全部分类，参数 c=a|b|c）</label
+            >
             <NSelect
               v-model:value="categories"
               multiple
@@ -229,17 +233,36 @@ const jsonPreview = computed(() => {
           <div class="flex flex-col gap-1">
             <label class="text-11px text-ink-sub">请求地址</label>
             <div class="flex items-center gap-2 min-w-0">
-              <NIcon :size="14" class="text-ink-sub shrink-0"><LinkOutline /></NIcon>
-              <NInput :value="requestUrl" size="small" readonly class="font-mono" />
-              <NButton size="small" quaternary @click="copyText(requestUrl, '请求地址已复制')">
-                <template #icon><NIcon><CopyOutline /></NIcon></template>
+              <NIcon :size="14" class="text-ink-sub shrink-0"
+                ><LinkOutline
+              /></NIcon>
+              <NInput
+                :value="requestUrl"
+                size="small"
+                readonly
+                class="font-mono"
+              />
+              <NButton
+                size="small"
+                quaternary
+                @click="copyText(requestUrl, '请求地址已复制')"
+              >
+                <template #icon
+                  ><NIcon><CopyOutline /></NIcon
+                ></template>
               </NButton>
             </div>
           </div>
 
           <div class="flex items-center gap-2 flex-wrap">
-            <NButton size="small" :loading="loading" @click="send">请求一言</NButton>
-            <NButton size="small" quaternary @click="copyText(requestUrl, '请求地址已复制')">
+            <NButton size="small" :loading="loading" @click="send"
+              >请求一言</NButton
+            >
+            <NButton
+              size="small"
+              quaternary
+              @click="copyText(requestUrl, '请求地址已复制')"
+            >
               复制地址
             </NButton>
           </div>
@@ -249,10 +272,17 @@ const jsonPreview = computed(() => {
         <section class="glass-panel px-4 py-4 flex flex-col gap-3">
           <div class="flex items-center gap-2">
             <h2 class="m-0 text-13px font-600 text-ink">响应结果</h2>
-            <NTag v-if="encode === 'json' && result" size="tiny" :bordered="false" type="info">
+            <NTag
+              v-if="encode === 'json' && result"
+              size="tiny"
+              :bordered="false"
+              type="info"
+            >
               {{ result.type ?? '未标注类型' }}
             </NTag>
-            <span class="ml-auto text-11px text-ink-sub">原样透传，不走后端信封</span>
+            <span class="ml-auto text-11px text-ink-sub"
+              >原样透传，不走后端信封</span
+            >
           </div>
 
           <NSpin :show="loading">
@@ -263,7 +293,9 @@ const jsonPreview = computed(() => {
               <p class="m-0 text-13px font-600 text-ink">
                 {{ errorKind ? ERROR_LABEL[errorKind] : '请求失败' }}
               </p>
-              <p class="m-0 text-12px text-ink-sub whitespace-pre-line">{{ error }}</p>
+              <p class="m-0 text-12px text-ink-sub whitespace-pre-line">
+                {{ error }}
+              </p>
               <div class="flex items-center gap-2">
                 <NButton size="tiny" @click="send">重试</NButton>
                 <span class="text-10px text-ink-sub">
@@ -286,14 +318,18 @@ const jsonPreview = computed(() => {
                 {{ displaySentence }}
               </p>
               <div class="flex items-center gap-2 flex-wrap">
-                <span v-if="displayFrom" class="text-12px text-ink-sub">—— {{ displayFrom }}</span>
+                <span v-if="displayFrom" class="text-12px text-ink-sub"
+                  >—— {{ displayFrom }}</span
+                >
                 <NButton
                   size="tiny"
                   quaternary
                   class="ml-auto"
                   @click="copyText(displaySentence, '一言已复制')"
                 >
-                  <template #icon><NIcon><CopyOutline /></NIcon></template>
+                  <template #icon
+                    ><NIcon><CopyOutline /></NIcon
+                  ></template>
                   复制
                 </NButton>
               </div>
@@ -305,7 +341,9 @@ const jsonPreview = computed(() => {
               title="还没有请求结果"
               description="选择分类与编码后点击「请求一言」，响应会展示在这里并写入本地历史。"
             >
-              <NButton size="small" type="primary" @click="send">立即请求</NButton>
+              <NButton size="small" type="primary" @click="send"
+                >立即请求</NButton
+              >
             </EmptyState>
           </NSpin>
 
@@ -323,7 +361,7 @@ const jsonPreview = computed(() => {
             </div>
             <pre
               class="m-0 max-h-64 overflow-auto rounded-xl bg-black/4 dark:bg-black/30 border border-glass-border dark:border-glass-border-dark p-3 text-11px leading-5 text-ink-sub font-mono whitespace-pre-wrap break-all"
-            >{{ jsonPreview }}</pre>
+              >{{ jsonPreview }}</pre>
           </div>
         </section>
       </div>
@@ -340,7 +378,9 @@ const jsonPreview = computed(() => {
             class="ml-auto"
             @click="clearHistory"
           >
-            <template #icon><NIcon><TrashOutline /></NIcon></template>
+            <template #icon
+              ><NIcon><TrashOutline /></NIcon
+            ></template>
             清空
           </NButton>
         </div>
@@ -350,17 +390,24 @@ const jsonPreview = computed(() => {
           class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-8 flex flex-col items-center gap-2 text-center"
         >
           <NIcon :size="22" class="text-ink-sub"><TimeOutline /></NIcon>
-          <p class="m-0 text-12px text-ink-sub">请求过的一言会保存在本地，最多保留 30 条</p>
+          <p class="m-0 text-12px text-ink-sub">
+            请求过的一言会保存在本地，最多保留 30 条
+          </p>
         </div>
 
-        <ul v-else class="m-0 p-0 list-none flex flex-col gap-2 max-h-640px overflow-y-auto pr-1">
+        <ul
+          v-else
+          class="m-0 p-0 list-none flex flex-col gap-2 max-h-640px overflow-y-auto pr-1"
+        >
           <li
             v-for="(item, index) in history"
             :key="`${item.at}-${index}`"
             class="glass-card px-3 py-2.5 flex flex-col gap-1 group"
           >
             <p class="m-0 text-12px text-ink leading-5">{{ item.text }}</p>
-            <div class="flex items-center gap-2 text-10px text-ink-sub flex-wrap">
+            <div
+              class="flex items-center gap-2 text-10px text-ink-sub flex-wrap"
+            >
               <span v-if="item.from || item.fromWho" class="truncate">
                 —— {{ item.fromWho ? `${item.fromWho} · ` : '' }}{{ item.from }}
               </span>
@@ -371,7 +418,9 @@ const jsonPreview = computed(() => {
                 class="ml-auto"
                 @click="copyText(item.text, '历史一言已复制')"
               >
-                <template #icon><NIcon><CopyOutline /></NIcon></template>
+                <template #icon
+                  ><NIcon><CopyOutline /></NIcon
+                ></template>
               </NButton>
             </div>
           </li>

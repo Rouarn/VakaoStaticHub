@@ -187,7 +187,10 @@ async function confirmCleanup() {
   let deleted = 0;
   try {
     // 同一个 rootId + category 的路径聚合成一次批量删除
-    const operations = new Map<string, { rootId: string; category: string; paths: string[] }>();
+    const operations = new Map<
+      string,
+      { rootId: string; category: string; paths: string[] }
+    >();
     for (const plan of cleanupPlans.value) {
       for (const item of plan.remove) {
         const key = `${item.rootId}\u0000${item.category}`;
@@ -203,7 +206,11 @@ async function confirmCleanup() {
 
     for (const operation of operations.values()) {
       try {
-        const result = await batchDelete(operation.rootId, operation.category, operation.paths);
+        const result = await batchDelete(
+          operation.rootId,
+          operation.category,
+          operation.paths,
+        );
         deleted += result.deletedCount;
       } catch (e) {
         failures.push(
@@ -213,7 +220,9 @@ async function confirmCleanup() {
     }
 
     if (failures.length > 0) {
-      message.warning(`已删除 ${deleted} 个，${failures.length} 组失败：${failures[0]}`);
+      message.warning(
+        `已删除 ${deleted} 个，${failures.length} 组失败：${failures[0]}`,
+      );
     } else {
       message.success(`已清理 ${deleted} 个重复文件`);
     }
@@ -246,7 +255,9 @@ onMounted(async () => {
           @update:value="changeFilter"
         />
         <NButton size="small" quaternary @click="() => load()">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           重新扫描
         </NButton>
         <NButton
@@ -255,15 +266,20 @@ onMounted(async () => {
           :disabled="groups.length === 0"
           @click="openCleanupAll"
         >
-          <template #icon><NIcon><TrashOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><TrashOutline /></NIcon
+          ></template>
           批量清理本页
         </NButton>
       </template>
     </PageHeader>
 
-    <div class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub">
+    <div
+      class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub"
+    >
       <NIcon :size="14"><InformationCircleOutline /></NIcon>
-      后端 /files/duplicates 服务端分页（page / pageSize），按内容哈希分组；扫描会惰性补算缺失的内容哈希
+      后端 /files/duplicates 服务端分页（page /
+      pageSize），按内容哈希分组；扫描会惰性补算缺失的内容哈希
     </div>
 
     <NSpin :show="loading">
@@ -286,7 +302,9 @@ onMounted(async () => {
         <div class="grid gap-3 grid-cols-3">
           <div class="glass-card px-4 py-3">
             <p class="m-0 text-11px text-ink-sub">重复组</p>
-            <p class="m-0 mt-1 text-18px font-600 text-ink">{{ scan?.groupCount ?? 0 }}</p>
+            <p class="m-0 mt-1 text-18px font-600 text-ink">
+              {{ scan?.groupCount ?? 0 }}
+            </p>
           </div>
           <div class="glass-card px-4 py-3">
             <p class="m-0 text-11px text-ink-sub">重复文件总数</p>
@@ -296,7 +314,9 @@ onMounted(async () => {
           </div>
           <div class="glass-card px-4 py-3">
             <p class="m-0 text-11px text-ink-sub">本次补算哈希</p>
-            <p class="m-0 mt-1 text-18px font-600 text-ink">{{ scan?.hashedCount ?? 0 }}</p>
+            <p class="m-0 mt-1 text-18px font-600 text-ink">
+              {{ scan?.hashedCount ?? 0 }}
+            </p>
           </div>
         </div>
 
@@ -306,15 +326,20 @@ onMounted(async () => {
           class="glass-panel px-4 py-3 flex flex-col gap-3"
         >
           <div class="flex items-center gap-3 flex-wrap">
-            <div class="glass-chip w-9 h-9 flex items-center justify-center shrink-0">
-              <NIcon :size="18" class="text-brand-600 dark:text-brand-400"><CopyOutline /></NIcon>
+            <div
+              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
+            >
+              <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
+                ><CopyOutline
+              /></NIcon>
             </div>
             <div class="min-w-0 flex-1">
               <p class="m-0 text-12px text-ink font-600 font-mono">
                 {{ truncateMiddle(group.contentHash, 14, 10) }}
               </p>
               <p class="m-0 mt-0.5 text-11px text-ink-sub">
-                单文件 {{ formatBytes(group.size) }} · {{ group.count }} 个副本 · 可释放
+                单文件 {{ formatBytes(group.size) }} · {{ group.count }} 个副本
+                · 可释放
                 {{ formatBytes(group.size * (group.count - 1)) }}
               </p>
             </div>
@@ -322,22 +347,39 @@ onMounted(async () => {
               <NButton size="tiny" @click="toggleExpand(group.contentHash)">
                 <template #icon>
                   <NIcon>
-                    <ChevronDownOutline v-if="expanded.has(group.contentHash)" />
+                    <ChevronDownOutline
+                      v-if="expanded.has(group.contentHash)"
+                    />
                     <ChevronForwardOutline v-else />
                   </NIcon>
                 </template>
                 {{ expanded.has(group.contentHash) ? '收起对比' : '展开对比' }}
               </NButton>
-              <NButton size="tiny" type="error" quaternary @click="openCleanup(group)">
-                <template #icon><NIcon><TrashOutline /></NIcon></template>
+              <NButton
+                size="tiny"
+                type="error"
+                quaternary
+                @click="openCleanup(group)"
+              >
+                <template #icon
+                  ><NIcon><TrashOutline /></NIcon
+                ></template>
                 清理本组
               </NButton>
             </div>
           </div>
 
           <!-- 默认展示摘要，展开后对比 -->
-          <div v-if="!expanded.has(group.contentHash)" class="flex flex-wrap gap-1.5">
-            <NTag v-for="(file, index) in group.files" :key="file.relPath" size="tiny" :bordered="false">
+          <div
+            v-if="!expanded.has(group.contentHash)"
+            class="flex flex-wrap gap-1.5"
+          >
+            <NTag
+              v-for="(file, index) in group.files"
+              :key="file.relPath"
+              size="tiny"
+              :bordered="false"
+            >
               {{ index === keepOf(group) ? '保留：' : '' }}{{ file.name }}
             </NTag>
           </div>
@@ -371,21 +413,34 @@ onMounted(async () => {
                     </NButton>
                   </td>
                   <td class="py-2 px-2 min-w-0">
-                    <p class="m-0 text-ink truncate max-w-260px" :title="file.relPath">{{ file.name }}</p>
-                    <p class="m-0 text-10px text-ink-sub truncate max-w-260px">{{ file.relPath }}</p>
+                    <p
+                      class="m-0 text-ink truncate max-w-260px"
+                      :title="file.relPath"
+                    >
+                      {{ file.name }}
+                    </p>
+                    <p class="m-0 text-10px text-ink-sub truncate max-w-260px">
+                      {{ file.relPath }}
+                    </p>
                   </td>
                   <td class="py-2 px-2 text-ink-sub">
                     {{ rootName(file.rootId) }} / {{ file.category }}
                   </td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ formatBytes(file.size) }}</td>
-                  <td class="py-2 pl-2 text-right text-ink-sub">{{ formatTime(file.mtime) }}</td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ formatBytes(file.size) }}
+                  </td>
+                  <td class="py-2 pl-2 text-right text-ink-sub">
+                    {{ formatTime(file.mtime) }}
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
 
-        <footer class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2">
+        <footer
+          class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2"
+        >
           <span class="mr-auto text-11px text-ink-sub">
             共 {{ groupCount }} 组 · 服务端分页
           </span>

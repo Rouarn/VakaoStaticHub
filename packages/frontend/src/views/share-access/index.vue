@@ -1,13 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import {
-  NButton,
-  NIcon,
-  NInput,
-  NSpin,
-  useMessage,
-} from 'naive-ui';
+import { NButton, NIcon, NInput, NSpin, useMessage } from 'naive-ui';
 import {
   ArrowBackOutline,
   DocumentTextOutline,
@@ -58,7 +52,8 @@ const message = useMessage();
 const token = computed(() => String(route.params.token ?? ''));
 const tokenValid = computed(() => SHARE_TOKEN_RE.test(token.value));
 
-type Phase = 'loading' | 'error' | 'notfound' | 'gate' | 'expired' | 'exhausted' | 'ready';
+type Phase =
+  'loading' | 'error' | 'notfound' | 'gate' | 'expired' | 'exhausted' | 'ready';
 const phase = ref<Phase>('loading');
 const errorText = ref('');
 const info = ref<ShareInfo | null>(null);
@@ -80,7 +75,10 @@ const collectionMissingCount = computed(
 );
 
 const isExpiredByTime = computed(
-  () => info.value?.expiresAt !== null && info.value?.expiresAt !== undefined && info.value.expiresAt <= Date.now(),
+  () =>
+    info.value?.expiresAt !== null &&
+    info.value?.expiresAt !== undefined &&
+    info.value.expiresAt <= Date.now(),
 );
 
 const expiresLabel = computed(() => {
@@ -95,7 +93,8 @@ function errorOf(e: unknown) {
     return {
       code: e.code,
       message:
-        (e.response?.data as { message?: string | string[] } | undefined)?.message ?? '',
+        (e.response?.data as { message?: string | string[] } | undefined)
+          ?.message ?? '',
     };
   }
   return { code: undefined, message: e instanceof Error ? e.message : '' };
@@ -148,7 +147,10 @@ async function unlock() {
   passwordError.value = '';
   rateLimited.value = false;
   try {
-    const result = await unlockShare(token.value, password.value.trim() || undefined);
+    const result = await unlockShare(
+      token.value,
+      password.value.trim() || undefined,
+    );
     accessToken.value = result.accessToken;
     password.value = '';
     phase.value = 'ready';
@@ -204,7 +206,8 @@ async function loadCollection() {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
     if (code === 401) {
-      collectionError.value = '访问令牌已过期（有效期 30 分钟），请刷新页面重新打开分享';
+      collectionError.value =
+        '访问令牌已过期（有效期 30 分钟），请刷新页面重新打开分享';
     } else {
       collectionError.value = text || '文件列表加载失败';
     }
@@ -303,13 +306,17 @@ onBeforeUnmount(() => {
       <div class="w-full max-w-2xl flex flex-col gap-4">
         <!-- 页头 -->
         <header class="glass-panel px-5 py-4 flex items-center gap-3">
-          <div class="glass-chip w-10 h-10 flex items-center justify-center shrink-0">
+          <div
+            class="glass-chip w-10 h-10 flex items-center justify-center shrink-0"
+          >
             <NIcon :size="21" class="text-brand-600 dark:text-brand-400">
               <ShareSocialOutline />
             </NIcon>
           </div>
           <div class="min-w-0">
-            <h1 class="m-0 text-15px font-600 text-ink leading-tight">文件分享</h1>
+            <h1 class="m-0 text-15px font-600 text-ink leading-tight">
+              文件分享
+            </h1>
             <p class="m-0 mt-1 text-11px text-ink-sub truncate">
               token {{ token.slice(0, 8) }}…{{ token.slice(-6) }}
             </p>
@@ -320,7 +327,10 @@ onBeforeUnmount(() => {
         </header>
 
         <!-- 加载 -->
-        <div v-if="phase === 'loading'" class="glass-panel px-6 py-16 flex flex-col items-center gap-3">
+        <div
+          v-if="phase === 'loading'"
+          class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
+        >
           <NSpin size="medium" />
           <p class="m-0 text-12px text-ink-sub">正在读取分享信息…</p>
         </div>
@@ -333,7 +343,9 @@ onBeforeUnmount(() => {
           description="请确认链接是否完整（token 为 32 位十六进制字符），或联系分享者重新生成。"
         >
           <NButton size="small" @click="router.push('/files')">
-            <template #icon><NIcon><ArrowBackOutline /></NIcon></template>
+            <template #icon
+              ><NIcon><ArrowBackOutline /></NIcon
+            ></template>
             返回首页
           </NButton>
         </EmptyState>
@@ -346,7 +358,9 @@ onBeforeUnmount(() => {
           :description="errorText"
         >
           <NButton size="small" type="primary" @click="init">
-            <template #icon><NIcon><RefreshOutline /></NIcon></template>
+            <template #icon
+              ><NIcon><RefreshOutline /></NIcon
+            ></template>
             重试
           </NButton>
         </EmptyState>
@@ -368,16 +382,23 @@ onBeforeUnmount(() => {
         />
 
         <!-- 密码 / 打开 -->
-        <section v-else-if="phase === 'gate' && info" class="glass-panel px-5 py-6 flex flex-col gap-4">
+        <section
+          v-else-if="phase === 'gate' && info"
+          class="glass-panel px-5 py-6 flex flex-col gap-4"
+        >
           <div class="flex flex-col gap-1">
             <p class="m-0 text-14px font-600 text-ink">
-              {{ info.shareType === 'collection'
-                ? `文件集合（${info.filePaths.length} 个文件）`
-                : nameOf(info.filePaths[0]) }}
+              {{
+                info.shareType === 'collection'
+                  ? `文件集合（${info.filePaths.length} 个文件）`
+                  : nameOf(info.filePaths[0])
+              }}
             </p>
             <p class="m-0 text-11px text-ink-sub">
               {{ info.category }} · {{ expiresLabel }}
-              <template v-if="info.maxAccesses !== null"> · 最多打开 {{ info.maxAccesses }} 次</template>
+              <template v-if="info.maxAccesses !== null">
+                · 最多打开 {{ info.maxAccesses }} 次</template
+              >
             </p>
           </div>
 
@@ -385,7 +406,11 @@ onBeforeUnmount(() => {
             {{ passwordError }}
           </p>
 
-          <form v-if="info.hasPassword" class="flex flex-col gap-2" @submit.prevent="unlock">
+          <form
+            v-if="info.hasPassword"
+            class="flex flex-col gap-2"
+            @submit.prevent="unlock"
+          >
             <label class="flex flex-col gap-1">
               <span class="text-12px text-ink-sub">访问密码</span>
               <NInput
@@ -405,7 +430,9 @@ onBeforeUnmount(() => {
               :loading="unlocking"
               :disabled="rateLimited"
             >
-              <template #icon><NIcon><LockClosedOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><LockClosedOutline /></NIcon
+              ></template>
               验证并打开
             </NButton>
           </form>
@@ -421,7 +448,9 @@ onBeforeUnmount(() => {
               :disabled="rateLimited"
               @click="unlock"
             >
-              <template #icon><NIcon><EyeOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><EyeOutline /></NIcon
+              ></template>
               打开分享
             </NButton>
           </div>
@@ -430,15 +459,23 @@ onBeforeUnmount(() => {
         <!-- 已解锁 -->
         <template v-else-if="phase === 'ready' && info">
           <!-- 单文件 -->
-          <section v-if="singleFile" class="glass-panel px-5 py-5 flex flex-col gap-4">
+          <section
+            v-if="singleFile"
+            class="glass-panel px-5 py-5 flex flex-col gap-4"
+          >
             <div class="flex items-center gap-3">
-              <div class="glass-chip w-11 h-11 flex items-center justify-center shrink-0">
+              <div
+                class="glass-chip w-11 h-11 flex items-center justify-center shrink-0"
+              >
                 <NIcon :size="22" class="text-brand-600 dark:text-brand-400">
                   <DocumentTextOutline />
                 </NIcon>
               </div>
               <div class="min-w-0 flex-1">
-                <p class="m-0 text-14px font-600 text-ink truncate" :title="singleFile.name">
+                <p
+                  class="m-0 text-14px font-600 text-ink truncate"
+                  :title="singleFile.name"
+                >
                   {{ singleFile.name }}
                 </p>
                 <p class="m-0 mt-0.5 text-11px text-ink-sub">
@@ -461,7 +498,9 @@ onBeforeUnmount(() => {
                 size="small"
                 @click="openSinglePreview"
               >
-                <template #icon><NIcon><EyeOutline /></NIcon></template>
+                <template #icon
+                  ><NIcon><EyeOutline /></NIcon
+                ></template>
                 在线预览
               </NButton>
               <NButton
@@ -470,7 +509,9 @@ onBeforeUnmount(() => {
                 size="small"
                 :type="isPreviewable(singleFile.name) ? 'default' : 'primary'"
               >
-                <template #icon><NIcon><DownloadOutline /></NIcon></template>
+                <template #icon
+                  ><NIcon><DownloadOutline /></NIcon
+                ></template>
                 下载文件
               </NButton>
             </div>
@@ -481,20 +522,35 @@ onBeforeUnmount(() => {
             <div class="flex items-center gap-2 flex-wrap">
               <p class="m-0 text-14px font-600 text-ink">
                 文件集合
-                <span class="text-11px text-ink-sub">（{{ collectionFiles.length }} 个）</span>
+                <span class="text-11px text-ink-sub"
+                  >（{{ collectionFiles.length }} 个）</span
+                >
               </p>
-              <NButton size="tiny" quaternary class="ml-auto" @click="loadCollection">
-                <template #icon><NIcon><RefreshOutline /></NIcon></template>
+              <NButton
+                size="tiny"
+                quaternary
+                class="ml-auto"
+                @click="loadCollection"
+              >
+                <template #icon
+                  ><NIcon><RefreshOutline /></NIcon
+                ></template>
                 刷新列表
               </NButton>
             </div>
 
-            <p v-if="collectionCategory" class="m-0 text-11px text-ink-sub truncate">
+            <p
+              v-if="collectionCategory"
+              class="m-0 text-11px text-ink-sub truncate"
+            >
               {{ collectionRootId }} / {{ collectionCategory }}
             </p>
 
             <NSpin :show="collectionLoading">
-              <p v-if="collectionError" class="m-0 text-12px text-red-500 leading-5">
+              <p
+                v-if="collectionError"
+                class="m-0 text-12px text-red-500 leading-5"
+              >
                 {{ collectionError }}
               </p>
               <div
@@ -508,7 +564,11 @@ onBeforeUnmount(() => {
                   v-if="collectionMissingCount > 0"
                   class="m-0 text-11px text-amber-600 dark:text-amber-400"
                 >
-                  有 {{ collectionMissingCount }} 个文件已被删除，已标记为不可预览/下载。
+                  有
+                  {{
+                    collectionMissingCount
+                  }}
+                  个文件已被删除，已标记为不可预览/下载。
                 </p>
                 <ul class="m-0 p-0 list-none flex flex-col gap-2">
                   <li
@@ -517,18 +577,28 @@ onBeforeUnmount(() => {
                     class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/45 dark:bg-white/4 px-3 py-2.5 flex items-center gap-3"
                     :class="!file.exists ? 'opacity-60' : ''"
                   >
-                    <div class="glass-chip w-8 h-8 flex items-center justify-center shrink-0">
-                      <NIcon :size="16" class="text-brand-600 dark:text-brand-400">
+                    <div
+                      class="glass-chip w-8 h-8 flex items-center justify-center shrink-0"
+                    >
+                      <NIcon
+                        :size="16"
+                        class="text-brand-600 dark:text-brand-400"
+                      >
                         <DocumentTextOutline />
                       </NIcon>
                     </div>
                     <span class="min-w-0 flex-1">
-                      <span class="block text-12px text-ink truncate" :title="file.path">
+                      <span
+                        class="block text-12px text-ink truncate"
+                        :title="file.path"
+                      >
                         {{ file.name }}
                       </span>
                       <span class="block text-10px text-ink-sub truncate">
                         {{ file.path }}
-                        <template v-if="file.exists"> · {{ formatBytes(file.size ?? 0) }}</template>
+                        <template v-if="file.exists">
+                          · {{ formatBytes(file.size ?? 0) }}</template
+                        >
                       </span>
                     </span>
                     <span
@@ -546,7 +616,9 @@ onBeforeUnmount(() => {
                       quaternary
                       @click="openCollectionPreview(index)"
                     >
-                      <template #icon><NIcon><EyeOutline /></NIcon></template>
+                      <template #icon
+                        ><NIcon><EyeOutline /></NIcon
+                      ></template>
                       预览
                     </NButton>
                     <NButton
@@ -556,7 +628,9 @@ onBeforeUnmount(() => {
                       size="tiny"
                       quaternary
                     >
-                      <template #icon><NIcon><DownloadOutline /></NIcon></template>
+                      <template #icon
+                        ><NIcon><DownloadOutline /></NIcon
+                      ></template>
                       下载
                     </NButton>
                   </li>
@@ -565,15 +639,22 @@ onBeforeUnmount(() => {
             </NSpin>
           </section>
 
-          <div class="glass-chip px-3 py-2 flex items-start gap-2 text-11px text-ink-sub">
-            <NIcon :size="14" class="mt-0.5 shrink-0"><ShieldCheckmarkOutline /></NIcon>
+          <div
+            class="glass-chip px-3 py-2 flex items-start gap-2 text-11px text-ink-sub"
+          >
+            <NIcon :size="14" class="mt-0.5 shrink-0"
+              ><ShieldCheckmarkOutline
+            /></NIcon>
             <span>
-              已成功解锁，本次访问已计数。文件访问令牌有效期 30 分钟，过期后刷新页面重新打开即可（可能再消耗一次打开次数）。
+              已成功解锁，本次访问已计数。文件访问令牌有效期 30
+              分钟，过期后刷新页面重新打开即可（可能再消耗一次打开次数）。
             </span>
           </div>
         </template>
 
-        <p class="m-0 text-center text-10px text-ink-sub flex items-center justify-center gap-1">
+        <p
+          class="m-0 text-center text-10px text-ink-sub flex items-center justify-center gap-1"
+        >
           <NIcon :size="12"><InformationCircleOutline /></NIcon>
           Vakao 静态资源中心 · 分享链接由文件所有者创建
         </p>

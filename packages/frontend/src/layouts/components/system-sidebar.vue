@@ -99,7 +99,10 @@ async function submitPassword() {
     passwordError.value = '请输入当前密码';
     return;
   }
-  if (passwordForm.newPassword.length < 6 || passwordForm.newPassword.length > 64) {
+  if (
+    passwordForm.newPassword.length < 6 ||
+    passwordForm.newPassword.length > 64
+  ) {
     passwordError.value = '新密码长度需在 6~64 个字符之间';
     return;
   }
@@ -156,11 +159,7 @@ function onUserAction(key: string) {
     <!-- 系统功能导航 -->
     <nav class="flex flex-col gap-1.5 overflow-y-auto w-full">
       <template v-for="item in navItems" :key="item.name">
-        <NTooltip
-          placement="right"
-          :delay="300"
-          :disabled="expanded"
-        >
+        <NTooltip placement="right" :delay="300" :disabled="expanded">
           <template #trigger>
             <button
               class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
@@ -261,7 +260,11 @@ function onUserAction(key: string) {
     >
       <div
         class="cursor-pointer flex items-center rounded-xl shrink-0"
-        :class="expanded ? 'w-full gap-2.5 px-2 py-1.5 hover:bg-white/60 dark:hover:bg-white/8' : ''"
+        :class="
+          expanded
+            ? 'w-full gap-2.5 px-2 py-1.5 hover:bg-white/60 dark:hover:bg-white/8'
+            : ''
+        "
       >
         <NAvatar
           round
@@ -317,9 +320,13 @@ function onUserAction(key: string) {
           @keyup.enter="passwordBusy || submitPassword()"
         />
       </div>
-      <p v-if="passwordError" class="m-0 text-12px text-red-500">{{ passwordError }}</p>
+      <p v-if="passwordError" class="m-0 text-12px text-red-500">
+        {{ passwordError }}
+      </p>
       <div class="flex justify-end gap-2 pt-1">
-        <NButton size="small" quaternary @click="passwordShow = false">取消</NButton>
+        <NButton size="small" quaternary @click="passwordShow = false"
+          >取消</NButton
+        >
         <NButton
           size="small"
           type="primary"

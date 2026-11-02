@@ -105,22 +105,30 @@ const stages = computed(() => {
     {
       label: '开始下载',
       value: t.downloadStart,
-      rate: t.promptShow ? Math.round((t.downloadStart / t.promptShow) * 1000) / 10 : 0,
+      rate: t.promptShow
+        ? Math.round((t.downloadStart / t.promptShow) * 1000) / 10
+        : 0,
     },
     {
       label: '下载成功',
       value: t.downloadSuccess,
-      rate: t.downloadStart ? Math.round((t.downloadSuccess / t.downloadStart) * 1000) / 10 : 0,
+      rate: t.downloadStart
+        ? Math.round((t.downloadSuccess / t.downloadStart) * 1000) / 10
+        : 0,
     },
     {
       label: '安装成功',
       value: t.installSuccess,
-      rate: t.promptShow ? Math.round((t.installSuccess / t.promptShow) * 1000) / 10 : 0,
+      rate: t.promptShow
+        ? Math.round((t.installSuccess / t.promptShow) * 1000) / 10
+        : 0,
     },
   ];
 });
 
-const maxStage = computed(() => Math.max(1, ...stages.value.map((s) => s.value)));
+const maxStage = computed(() =>
+  Math.max(1, ...stages.value.map((s) => s.value)),
+);
 
 const totalChecks = computed(
   () => data.value.checkNoUpdateTotal + totals.value.promptShow,
@@ -145,7 +153,9 @@ onMounted(async () => {
     >
       <template #actions>
         <NButton size="small" quaternary @click="load">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           刷新
         </NButton>
       </template>
@@ -185,7 +195,9 @@ onMounted(async () => {
           {{ preset.label }}
         </NButton>
       </div>
-      <span class="ml-auto text-11px text-ink-sub inline-flex items-center gap-1">
+      <span
+        class="ml-auto text-11px text-ink-sub inline-flex items-center gap-1"
+      >
         <NIcon :size="12"><InformationCircleOutline /></NIcon>
         后端仅支持 appKey + 时间范围，版本维度见下方明细
       </span>
@@ -204,8 +216,12 @@ onMounted(async () => {
             : '换一个时间范围，或确认客户端已上报 check / download / install 事件。'
         "
       >
-        <NButton v-if="!appKey" size="small" @click="loadApps">刷新应用列表</NButton>
-        <NButton v-else size="small" @click="applyPreset(90)">扩大到 90 天</NButton>
+        <NButton v-if="!appKey" size="small" @click="loadApps"
+          >刷新应用列表</NButton
+        >
+        <NButton v-else size="small" @click="applyPreset(90)"
+          >扩大到 90 天</NButton
+        >
       </EmptyState>
 
       <div v-else class="flex flex-col gap-4">
@@ -244,7 +260,9 @@ onMounted(async () => {
             <NTag v-if="range" size="tiny" :bordered="false">
               {{ formatDate(range[0]) }} ~ {{ formatDate(range[1]) }}
             </NTag>
-            <span class="ml-auto text-11px text-ink-sub">整体安装转化 {{ stages[3].rate }}%</span>
+            <span class="ml-auto text-11px text-ink-sub"
+              >整体安装转化 {{ stages[3].rate }}%</span
+            >
           </div>
 
           <div class="flex flex-col gap-3">
@@ -255,14 +273,18 @@ onMounted(async () => {
             >
               <div class="flex items-baseline gap-2 text-12px">
                 <span class="text-ink font-600">{{ stage.label }}</span>
-                <span class="text-ink-sub tabular-nums">{{ stage.value.toLocaleString() }}</span>
+                <span class="text-ink-sub tabular-nums">{{
+                  stage.value.toLocaleString()
+                }}</span>
                 <span class="ml-auto text-11px text-ink-sub">
                   <template v-if="index === 0">基准</template>
                   <template v-else>
                     较上一阶段 {{ stage.rate }}%
                     <template v-if="stages[index - 1].value">
                       · 流失
-                      {{ (stages[index - 1].value - stage.value).toLocaleString() }}
+                      {{
+                        (stages[index - 1].value - stage.value).toLocaleString()
+                      }}
                     </template>
                   </template>
                 </span>
@@ -270,9 +292,13 @@ onMounted(async () => {
               <div class="h-6 rounded-lg bg-ink-sub/10 overflow-hidden">
                 <div
                   class="h-full rounded-lg bg-gradient-to-r from-brand-700 via-brand-500 to-brand-300 transition-all duration-500 flex items-center px-2"
-                  :style="{ width: `${Math.max(4, (stage.value / maxStage) * 100)}%` }"
+                  :style="{
+                    width: `${Math.max(4, (stage.value / maxStage) * 100)}%`,
+                  }"
                 >
-                  <span class="text-10px text-white tabular-nums whitespace-nowrap">
+                  <span
+                    class="text-10px text-white tabular-nums whitespace-nowrap"
+                  >
                     {{ stage.value.toLocaleString() }}
                   </span>
                 </div>
@@ -305,16 +331,34 @@ onMounted(async () => {
                   class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
                 >
                   <td class="py-2 pr-3">
-                    <span class="text-ink font-600">v{{ item.versionName }}</span>
-                    <span class="text-10px text-ink-sub ml-1">vc {{ item.toVersionCode }}</span>
+                    <span class="text-ink font-600"
+                      >v{{ item.versionName }}</span
+                    >
+                    <span class="text-10px text-ink-sub ml-1"
+                      >vc {{ item.toVersionCode }}</span
+                    >
                   </td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ item.promptShow.toLocaleString() }}</td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ item.downloadStart.toLocaleString() }}</td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ item.downloadSuccess.toLocaleString() }}</td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ item.installSuccess.toLocaleString() }}</td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ rateLabel(item.downloadRate) }}</td>
-                  <td class="py-2 px-2 text-right tabular-nums">{{ rateLabel(item.installRate) }}</td>
-                  <td class="py-2 pl-2 text-right tabular-nums text-brand-600 dark:text-brand-400 font-600">
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.promptShow.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.downloadStart.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.downloadSuccess.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ item.installSuccess.toLocaleString() }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ rateLabel(item.downloadRate) }}
+                  </td>
+                  <td class="py-2 px-2 text-right tabular-nums">
+                    {{ rateLabel(item.installRate) }}
+                  </td>
+                  <td
+                    class="py-2 pl-2 text-right tabular-nums text-brand-600 dark:text-brand-400 font-600"
+                  >
                     {{ rateLabel(item.overallRate) }}
                   </td>
                 </tr>
@@ -322,8 +366,9 @@ onMounted(async () => {
             </table>
           </div>
           <p class="m-0 text-10px text-ink-sub">
-            失败明细：下载失败 {{ totals.downloadFail }} · 校验失败 {{ totals.verifyFail }} ·
-            安装失败 {{ totals.installFail }}；check_no_update 事件不计入漏斗阶段。
+            失败明细：下载失败 {{ totals.downloadFail }} · 校验失败
+            {{ totals.verifyFail }} · 安装失败
+            {{ totals.installFail }}；check_no_update 事件不计入漏斗阶段。
           </p>
         </section>
       </div>

@@ -58,14 +58,18 @@ function onPointerUp() {
 
 <template>
   <div class="relative w-full h-full flex flex-col">
-    <div class="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+    <div
+      class="flex-1 min-h-0 flex items-center justify-center overflow-hidden"
+    >
       <div v-if="failed" class="text-ink-sub text-13px">图片加载失败</div>
       <img
         v-else
         :src="props.src"
         :alt="props.filename"
         class="max-w-full max-h-full select-none will-change-transform cursor-grab"
-        :style="{ transform: `translate(${tx}px, ${ty}px) scale(${scale}) rotate(${rotate}deg)` }"
+        :style="{
+          transform: `translate(${tx}px, ${ty}px) scale(${scale}) rotate(${rotate}deg)`,
+        }"
         @wheel.prevent="onWheel"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
@@ -77,29 +81,45 @@ function onPointerUp() {
 
     <div class="mt-3 flex justify-center">
       <div class="glass-chip flex items-center gap-1 px-2 py-1">
-        <NTooltip :delay="300"><template #trigger>
-          <NButton size="tiny" quaternary circle @click="zoom(-0.2)">
-            <template #icon><NIcon :size="16"><RemoveOutline /></NIcon></template>
-          </NButton>
-        </template>缩小</NTooltip>
+        <NTooltip :delay="300"
+          ><template #trigger>
+            <NButton size="tiny" quaternary circle @click="zoom(-0.2)">
+              <template #icon
+                ><NIcon :size="16"><RemoveOutline /></NIcon
+              ></template>
+            </NButton> </template
+          >缩小</NTooltip
+        >
         <span class="text-12px text-ink-sub w-12 text-center">
           {{ Math.round(scale * 100) }}%
         </span>
-        <NTooltip :delay="300"><template #trigger>
-          <NButton size="tiny" quaternary circle @click="zoom(0.2)">
-            <template #icon><NIcon :size="16"><AddOutline /></NIcon></template>
-          </NButton>
-        </template>放大</NTooltip>
-        <NTooltip :delay="300"><template #trigger>
-          <NButton size="tiny" quaternary circle @click="rotate += 90">
-            <template #icon><NIcon :size="16"><RefreshOutline /></NIcon></template>
-          </NButton>
-        </template>旋转 90°</NTooltip>
-        <NTooltip :delay="300"><template #trigger>
-          <NButton size="tiny" quaternary circle @click="reset">
-            <template #icon><NIcon :size="16"><ContractOutline /></NIcon></template>
-          </NButton>
-        </template>适应屏幕</NTooltip>
+        <NTooltip :delay="300"
+          ><template #trigger>
+            <NButton size="tiny" quaternary circle @click="zoom(0.2)">
+              <template #icon
+                ><NIcon :size="16"><AddOutline /></NIcon
+              ></template>
+            </NButton> </template
+          >放大</NTooltip
+        >
+        <NTooltip :delay="300"
+          ><template #trigger>
+            <NButton size="tiny" quaternary circle @click="rotate += 90">
+              <template #icon
+                ><NIcon :size="16"><RefreshOutline /></NIcon
+              ></template>
+            </NButton> </template
+          >旋转 90°</NTooltip
+        >
+        <NTooltip :delay="300"
+          ><template #trigger>
+            <NButton size="tiny" quaternary circle @click="reset">
+              <template #icon
+                ><NIcon :size="16"><ContractOutline /></NIcon
+              ></template>
+            </NButton> </template
+          >适应屏幕</NTooltip
+        >
       </div>
     </div>
   </div>

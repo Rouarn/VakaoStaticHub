@@ -11,7 +11,10 @@ import {
   ContractOutline,
 } from '@vicons/ionicons5';
 import type { PreviewTarget } from './types';
-import { resolvePreview, registerBuiltinPreviews } from '@/utils/preview-registry';
+import {
+  resolvePreview,
+  registerBuiltinPreviews,
+} from '@/utils/preview-registry';
 import { formatBytes, getFileKind } from '@/utils/file-types';
 import DefaultPreview from './default-preview.vue';
 
@@ -40,9 +43,13 @@ const failed = ref('');
 const fullscreen = ref(false);
 const bypassSizeGuard = ref(false);
 
-const current = computed<PreviewTarget | undefined>(() => props.files[props.index]);
+const current = computed<PreviewTarget | undefined>(
+  () => props.files[props.index],
+);
 const kind = computed(() => getFileKind(current.value?.filename ?? ''));
-const isMedia = computed(() => ['image', 'video', 'audio'].includes(kind.value));
+const isMedia = computed(() =>
+  ['image', 'video', 'audio'].includes(kind.value),
+);
 const tooLarge = computed(
   () =>
     !isMedia.value &&
@@ -98,7 +105,10 @@ function close() {
 }
 
 function prev() {
-  emit('update:index', (props.index - 1 + props.files.length) % props.files.length);
+  emit(
+    'update:index',
+    (props.index - 1 + props.files.length) % props.files.length,
+  );
 }
 function next() {
   emit('update:index', (props.index + 1) % props.files.length);
@@ -145,50 +155,68 @@ function forcePreview() {
               </p>
               <p class="m-0 text-11px text-ink-sub">
                 {{ formatBytes(current?.size ?? 0) }}
-                <span v-if="canPage"> · {{ props.index + 1 }} / {{ props.files.length }}</span>
+                <span v-if="canPage">
+                  · {{ props.index + 1 }} / {{ props.files.length }}</span
+                >
               </p>
             </div>
             <div class="ml-auto flex items-center gap-1">
               <!-- trigger 必须是单节点：条件渲染放在 Tooltip 上，避免 v-if 产生空 trigger -->
-              <NTooltip v-if="canPage" :delay="300"><template #trigger>
-                <NButton size="small" quaternary circle @click="prev">
-                  <template #icon><NIcon><ChevronBackOutline /></NIcon></template>
-                </NButton>
-              </template>上一张</NTooltip>
-              <NTooltip v-if="canPage" :delay="300"><template #trigger>
-                <NButton size="small" quaternary circle @click="next">
-                  <template #icon><NIcon><ChevronForwardOutline /></NIcon></template>
-                </NButton>
-              </template>下一张</NTooltip>
-              <NTooltip :delay="300"><template #trigger>
-                <NButton
-                  size="small"
-                  quaternary
-                  circle
-                  @click="fullscreen = !fullscreen"
-                >
-                  <template #icon>
-                    <NIcon>
-                      <ContractOutline v-if="fullscreen" />
-                      <ExpandOutline v-else />
-                    </NIcon>
-                  </template>
-                </NButton>
-              </template>{{ fullscreen ? '退出全屏' : '全屏' }}</NTooltip>
-              <NTooltip v-if="current" :delay="300"><template #trigger>
-                <NButton
-                  tag="a"
-                  :href="current.downloadSrc"
-                  download
-                  size="small"
-                  quaternary
-                  circle
-                >
-                  <template #icon><NIcon><DownloadOutline /></NIcon></template>
-                </NButton>
-              </template>下载</NTooltip>
+              <NTooltip v-if="canPage" :delay="300"
+                ><template #trigger>
+                  <NButton size="small" quaternary circle @click="prev">
+                    <template #icon
+                      ><NIcon><ChevronBackOutline /></NIcon
+                    ></template>
+                  </NButton> </template
+                >上一张</NTooltip
+              >
+              <NTooltip v-if="canPage" :delay="300"
+                ><template #trigger>
+                  <NButton size="small" quaternary circle @click="next">
+                    <template #icon
+                      ><NIcon><ChevronForwardOutline /></NIcon
+                    ></template>
+                  </NButton> </template
+                >下一张</NTooltip
+              >
+              <NTooltip :delay="300"
+                ><template #trigger>
+                  <NButton
+                    size="small"
+                    quaternary
+                    circle
+                    @click="fullscreen = !fullscreen"
+                  >
+                    <template #icon>
+                      <NIcon>
+                        <ContractOutline v-if="fullscreen" />
+                        <ExpandOutline v-else />
+                      </NIcon>
+                    </template>
+                  </NButton> </template
+                >{{ fullscreen ? '退出全屏' : '全屏' }}</NTooltip
+              >
+              <NTooltip v-if="current" :delay="300"
+                ><template #trigger>
+                  <NButton
+                    tag="a"
+                    :href="current.downloadSrc"
+                    download
+                    size="small"
+                    quaternary
+                    circle
+                  >
+                    <template #icon
+                      ><NIcon><DownloadOutline /></NIcon
+                    ></template>
+                  </NButton> </template
+                >下载</NTooltip
+              >
               <NButton size="small" quaternary circle @click="close">
-                <template #icon><NIcon><CloseOutline /></NIcon></template>
+                <template #icon
+                  ><NIcon><CloseOutline /></NIcon
+                ></template>
               </NButton>
             </div>
           </header>
@@ -200,7 +228,9 @@ function forcePreview() {
               class="h-full flex flex-col items-center justify-center gap-3"
             >
               <p class="m-0 text-13px text-ink-sub">
-                文件较大（{{ formatBytes(current?.size ?? 0) }}），已跳过自动预览以避免占用内存
+                文件较大（{{
+                  formatBytes(current?.size ?? 0)
+                }}），已跳过自动预览以避免占用内存
               </p>
               <NButton type="primary" size="small" @click="forcePreview">
                 仍要预览

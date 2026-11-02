@@ -42,10 +42,16 @@ onBeforeUnmount(() => {
       HTML 以沙箱渲染（脚本禁用、无同源权限）
       <span v-if="truncated">· 内容已截断</span>
     </p>
-    <div v-if="error" class="flex-1 flex items-center justify-center text-13px text-ink-sub">
+    <div
+      v-if="error"
+      class="flex-1 flex items-center justify-center text-13px text-ink-sub"
+    >
       {{ error }}
     </div>
-    <div v-else-if="loading" class="flex-1 flex items-center justify-center text-13px text-ink-sub">
+    <div
+      v-else-if="loading"
+      class="flex-1 flex items-center justify-center text-13px text-ink-sub"
+    >
       加载中…
     </div>
     <iframe

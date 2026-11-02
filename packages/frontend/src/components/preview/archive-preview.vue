@@ -100,7 +100,9 @@ onMounted(async () => {
       <p class="m-0 mb-2 text-12px text-ink-sub">
         {{ entries.length }} 个条目 · 解压后约 {{ formatBytes(totalOriginal) }}
       </p>
-      <div class="flex-1 min-h-0 overflow-auto rounded-xl border border-glass-border dark:border-glass-border-dark">
+      <div
+        class="flex-1 min-h-0 overflow-auto rounded-xl border border-glass-border dark:border-glass-border-dark"
+      >
         <table class="w-full border-collapse text-12px">
           <tbody>
             <tr

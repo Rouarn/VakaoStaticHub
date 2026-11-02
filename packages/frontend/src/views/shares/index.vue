@@ -123,7 +123,11 @@ const statusTabs = computed(() => [
   { key: 'all' as const, label: '全部', count: counts.value.all },
   { key: 'active' as const, label: '活跃', count: counts.value.active },
   { key: 'expired' as const, label: '已过期', count: counts.value.expired },
-  { key: 'exhausted' as const, label: '次数用尽', count: counts.value.exhausted },
+  {
+    key: 'exhausted' as const,
+    label: '次数用尽',
+    count: counts.value.exhausted,
+  },
   { key: 'disabled' as const, label: '已停用', count: counts.value.disabled },
 ]);
 
@@ -168,10 +172,7 @@ function resetAndReload() {
 watch(page, () => void load());
 watch(pageSize, resetAndReload);
 watch(statusFilter, resetAndReload);
-watch(
-  keyword,
-  useDebounceFn(resetAndReload, 300),
-);
+watch(keyword, useDebounceFn(resetAndReload, 300));
 
 function targetLabel(link: ShareLink) {
   if (link.shareType === 'collection') {
@@ -204,7 +205,9 @@ const filesLoading = ref(false);
 const filesError = ref('');
 
 const roots = computed(() => categoryStore.roots);
-const categories = computed(() => categoryStore.categoriesOf(form.value.rootId));
+const categories = computed(() =>
+  categoryStore.categoriesOf(form.value.rootId),
+);
 const selectedCount = computed(() => selectedPaths.value.length);
 
 const expiryOptions = [
@@ -287,7 +290,8 @@ async function openCreate() {
   if (form.value.rootId && categories.value.length === 0) {
     await categoryStore.loadCategories(form.value.rootId);
   }
-  if (!form.value.category) form.value.category = categories.value[0]?.name ?? '';
+  if (!form.value.category)
+    form.value.category = categories.value[0]?.name ?? '';
   createShow.value = true;
   await loadFiles();
 }
@@ -331,7 +335,10 @@ function toggleAllOnPage() {
     );
   } else {
     selectedPaths.value = [
-      ...new Set([...selectedPaths.value, ...fileItems.value.map((f) => f.path)]),
+      ...new Set([
+        ...selectedPaths.value,
+        ...fileItems.value.map((f) => f.path),
+      ]),
     ];
   }
 }
@@ -348,7 +355,10 @@ async function submitCreate() {
       : preset === -1
         ? form.value.customHours * 3_600_000
         : undefined;
-  if (preset === -1 && (!form.value.customHours || form.value.customHours <= 0)) {
+  if (
+    preset === -1 &&
+    (!form.value.customHours || form.value.customHours <= 0)
+  ) {
     message.warning('自定义有效期必须大于 0 小时');
     return;
   }
@@ -364,7 +374,9 @@ async function submitCreate() {
       filePaths: selectedPaths.value,
       ...(form.value.remark.trim() ? { remark: form.value.remark.trim() } : {}),
       ...(expiresInMs ? { expiresInMs } : {}),
-      ...(form.value.maxAccesses ? { maxAccesses: form.value.maxAccesses } : {}),
+      ...(form.value.maxAccesses
+        ? { maxAccesses: form.value.maxAccesses }
+        : {}),
       ...(form.value.requirePassword && form.value.password.trim()
         ? { password: form.value.password.trim() }
         : {}),
@@ -489,7 +501,8 @@ async function submitEdit() {
   if (remark !== (target.remark ?? null)) body.remark = remark;
   // 仅在发生变化时提交，避免把已过期的历史时间原样回传被后端拒绝
   if (next.expiresAt !== target.expiresAt) body.expiresAt = next.expiresAt;
-  if (next.maxAccesses !== target.maxAccesses) body.maxAccesses = next.maxAccesses;
+  if (next.maxAccesses !== target.maxAccesses)
+    body.maxAccesses = next.maxAccesses;
   if (next.enabled !== target.enabled) body.enabled = next.enabled;
   if (next.clearPassword) body.password = null;
   else if (next.password.trim()) body.password = next.password.trim();
@@ -540,21 +553,28 @@ onMounted(async () => {
         <NTooltip :delay="300">
           <template #trigger>
             <NButton size="small" quaternary circle @click="() => load()">
-              <template #icon><NIcon><RefreshOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><RefreshOutline /></NIcon
+              ></template>
             </NButton>
           </template>
           刷新
         </NTooltip>
         <NButton type="primary" size="small" @click="openCreate">
-          <template #icon><NIcon><AddOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><AddOutline /></NIcon
+          ></template>
           创建分享
         </NButton>
       </template>
     </PageHeader>
 
-    <div class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub">
+    <div
+      class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub"
+    >
       <NIcon :size="14"><InformationCircleOutline /></NIcon>
-      列表由服务端分页与检索（token / 文件 / 分类 / 备注）；停用后访问返回「已停用」，撤销会物理删除链接与访问记录
+      列表由服务端分页与检索（token / 文件 / 分类 /
+      备注）；停用后访问返回「已停用」，撤销会物理删除链接与访问记录
     </div>
 
     <!-- 工具条 -->
@@ -583,7 +603,9 @@ onMounted(async () => {
         placeholder="搜索 token / 文件 / 分类"
         class="w-64 ml-auto"
       >
-        <template #prefix><NIcon :size="15"><SearchOutline /></NIcon></template>
+        <template #prefix
+          ><NIcon :size="15"><SearchOutline /></NIcon
+        ></template>
       </NInput>
     </header>
 
@@ -600,10 +622,22 @@ onMounted(async () => {
             : '调整状态筛选或清空搜索关键词后再试。'
         "
       >
-        <NButton v-if="counts.all === 0" type="primary" size="small" @click="openCreate">
+        <NButton
+          v-if="counts.all === 0"
+          type="primary"
+          size="small"
+          @click="openCreate"
+        >
           创建第一个分享
         </NButton>
-        <NButton v-else size="small" @click="keyword = ''; statusFilter = 'all'">
+        <NButton
+          v-else
+          size="small"
+          @click="
+            keyword = '';
+            statusFilter = 'all';
+          "
+        >
           清空筛选
         </NButton>
       </EmptyState>
@@ -615,63 +649,101 @@ onMounted(async () => {
           class="glass-panel px-4 py-3 flex flex-col gap-3"
         >
           <div class="flex items-start gap-3 flex-wrap">
-            <div class="glass-chip w-9 h-9 flex items-center justify-center shrink-0">
+            <div
+              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
+            >
               <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
                 <LinkOutline />
               </NIcon>
             </div>
 
             <div class="min-w-0 flex-1">
-              <p class="m-0 text-13px font-600 text-ink truncate" :title="targetLabel(link)">
+              <p
+                class="m-0 text-13px font-600 text-ink truncate"
+                :title="targetLabel(link)"
+              >
                 {{ targetLabel(link) }}
               </p>
               <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
-                {{ link.category }} · 创建于 {{ formatDateTime(link.createdAt) }}
+                {{ link.category }} · 创建于
+                {{ formatDateTime(link.createdAt) }}
               </p>
-              <p v-if="link.remark" class="m-0 mt-0.5 text-11px text-ink-sub truncate">
+              <p
+                v-if="link.remark"
+                class="m-0 mt-0.5 text-11px text-ink-sub truncate"
+              >
                 备注：{{ link.remark }}
               </p>
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
-              <NTag size="small" :type="STATUS_TAG[statusOf(link)].type" :bordered="false">
+              <NTag
+                size="small"
+                :type="STATUS_TAG[statusOf(link)].type"
+                :bordered="false"
+              >
                 {{ STATUS_TAG[statusOf(link)].label }}
               </NTag>
-              <NTag v-if="link.hasPassword" size="small" :bordered="false">密码保护</NTag>
+              <NTag v-if="link.hasPassword" size="small" :bordered="false"
+                >密码保护</NTag
+              >
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub">
+          <div
+            class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
+          >
             <span>
-              打开 <span class="text-ink font-600 tabular-nums">{{ link.accessCount }}</span>
-              <template v-if="link.maxAccesses !== null"> / {{ link.maxAccesses }}</template>
+              打开
+              <span class="text-ink font-600 tabular-nums">{{
+                link.accessCount
+              }}</span>
+              <template v-if="link.maxAccesses !== null">
+                / {{ link.maxAccesses }}</template
+              >
               次
             </span>
             <span>
-              {{ link.expiresAt ? `有效期至 ${formatDateTime(link.expiresAt)}` : '永久有效' }}
+              {{
+                link.expiresAt
+                  ? `有效期至 ${formatDateTime(link.expiresAt)}`
+                  : '永久有效'
+              }}
             </span>
             <span class="font-mono" :title="link.token">
               token {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
-              <span v-if="!isTokenValid(link.token)" class="text-red-500 ml-1">格式异常</span>
+              <span v-if="!isTokenValid(link.token)" class="text-red-500 ml-1"
+                >格式异常</span
+              >
             </span>
           </div>
 
           <div class="flex items-center gap-1.5 flex-wrap">
             <NButton size="tiny" @click="copyUrl(link.token)">
-              <template #icon><NIcon><CopyOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><CopyOutline /></NIcon
+              ></template>
               复制链接
             </NButton>
             <NButton size="tiny" @click="openQr(link.token)">
-              <template #icon><NIcon><QrCodeOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><QrCodeOutline /></NIcon
+              ></template>
               二维码
             </NButton>
             <NButton size="tiny" @click="openLogs(link)">
-              <template #icon><NIcon><EyeOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><EyeOutline /></NIcon
+              ></template>
               访问记录
-              <span class="ml-1 tabular-nums text-ink-sub">{{ link.accessCount }}</span>
+              <span class="ml-1 tabular-nums text-ink-sub">{{
+                link.accessCount
+              }}</span>
             </NButton>
             <NButton size="tiny" @click="openEdit(link)">
-              <template #icon><NIcon><CreateOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><CreateOutline /></NIcon
+              ></template>
               编辑
             </NButton>
             <NButton size="tiny" quaternary @click="toggleEnabled(link)">
@@ -683,14 +755,24 @@ onMounted(async () => {
               </template>
               {{ link.enabled ? '停用' : '启用' }}
             </NButton>
-            <NButton size="tiny" quaternary type="error" class="ml-auto" @click="openRevoke(link)">
-              <template #icon><NIcon><TrashOutline /></NIcon></template>
+            <NButton
+              size="tiny"
+              quaternary
+              type="error"
+              class="ml-auto"
+              @click="openRevoke(link)"
+            >
+              <template #icon
+                ><NIcon><TrashOutline /></NIcon
+              ></template>
               撤销
             </NButton>
           </div>
         </article>
 
-        <footer class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2">
+        <footer
+          class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2"
+        >
           <span class="mr-auto text-11px text-ink-sub">
             共 {{ total }} 条 · 服务端分页
           </span>
@@ -728,7 +810,12 @@ onMounted(async () => {
             <NSelect
               v-model:value="form.category"
               size="small"
-              :options="categories.map((c) => ({ label: `${c.name}（${c.fileCount}）`, value: c.name }))"
+              :options="
+                categories.map((c) => ({
+                  label: `${c.name}（${c.fileCount}）`,
+                  value: c.name,
+                }))
+              "
             />
           </label>
         </div>
@@ -749,7 +836,10 @@ onMounted(async () => {
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-12px text-ink-sub">
               选择文件
-              <span v-if="selectedCount" class="text-brand-600 dark:text-brand-400 font-600">
+              <span
+                v-if="selectedCount"
+                class="text-brand-600 dark:text-brand-400 font-600"
+              >
                 已选 {{ selectedCount }} 个
               </span>
             </span>
@@ -760,7 +850,9 @@ onMounted(async () => {
               placeholder="搜索文件名"
               class="w-48 ml-auto"
             >
-              <template #prefix><NIcon :size="13"><SearchOutline /></NIcon></template>
+              <template #prefix
+                ><NIcon :size="13"><SearchOutline /></NIcon
+              ></template>
             </NInput>
             <NButton size="tiny" quaternary @click="toggleAllOnPage">
               {{ allOnPageSelected ? '取消本页' : '全选本页' }}
@@ -773,7 +865,9 @@ onMounted(async () => {
             <NSpin :show="filesLoading">
               <div v-if="filesError" class="p-4 text-12px text-ink-sub">
                 {{ filesError }}
-                <NButton size="tiny" class="ml-2" @click="loadFiles">重试</NButton>
+                <NButton size="tiny" class="ml-2" @click="loadFiles"
+                  >重试</NButton
+                >
               </div>
               <div
                 v-else-if="!filesLoading && fileItems.length === 0"
@@ -792,7 +886,10 @@ onMounted(async () => {
                   @update:checked="togglePath(file.path)"
                 />
                 <span class="min-w-0 flex-1">
-                  <span class="block text-12px text-ink truncate" :title="file.path">
+                  <span
+                    class="block text-12px text-ink truncate"
+                    :title="file.path"
+                  >
                     {{ file.name }}
                   </span>
                   <span class="block text-11px text-ink-sub">
@@ -803,7 +900,10 @@ onMounted(async () => {
             </NSpin>
           </div>
 
-          <div v-if="filePages > 1" class="flex items-center justify-end gap-2 text-11px text-ink-sub">
+          <div
+            v-if="filePages > 1"
+            class="flex items-center justify-end gap-2 text-11px text-ink-sub"
+          >
             <span>{{ filePage }} / {{ filePages }}</span>
             <NButton
               size="tiny"
@@ -811,7 +911,9 @@ onMounted(async () => {
               :disabled="filePage <= 1"
               @click="filePage -= 1"
             >
-              <template #icon><NIcon><ChevronBackOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><ChevronBackOutline /></NIcon
+              ></template>
             </NButton>
             <NButton
               size="tiny"
@@ -819,7 +921,9 @@ onMounted(async () => {
               :disabled="filePage >= filePages"
               @click="filePage += 1"
             >
-              <template #icon><NIcon><ChevronForwardOutline /></NIcon></template>
+              <template #icon
+                ><NIcon><ChevronForwardOutline /></NIcon
+              ></template>
             </NButton>
           </div>
         </section>
@@ -869,10 +973,10 @@ onMounted(async () => {
           </label>
         </div>
 
-        <p
-          class="m-0 text-11px text-ink-sub flex items-start gap-1.5"
-        >
-          <NIcon :size="13" class="mt-0.5 shrink-0"><InformationCircleOutline /></NIcon>
+        <p class="m-0 text-11px text-ink-sub flex items-start gap-1.5">
+          <NIcon :size="13" class="mt-0.5 shrink-0"
+            ><InformationCircleOutline
+          /></NIcon>
           <span>
             打开次数按「成功解锁」计数，解锁后下载文件不重复计数。
             暂不支持整目录分享：服务端未提供目录打包下载能力，多文件请在此多选生成文件集合。
@@ -930,7 +1034,9 @@ onMounted(async () => {
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">最大打开次数（留空不限制）</span>
+            <span class="text-12px text-ink-sub"
+              >最大打开次数（留空不限制）</span
+            >
             <NInputNumber
               v-model:value="editForm.maxAccesses"
               size="small"
@@ -945,7 +1051,9 @@ onMounted(async () => {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
             <span class="text-12px text-ink-sub">
-              新访问密码{{ editTarget?.hasPassword ? '（留空则保留原密码）' : '（可选）' }}
+              新访问密码{{
+                editTarget?.hasPassword ? '（留空则保留原密码）' : '（可选）'
+              }}
             </span>
             <NInput
               v-model:value="editForm.password"
@@ -969,14 +1077,20 @@ onMounted(async () => {
         </div>
 
         <p class="m-0 text-11px text-ink-sub">
-          停用后公开访问返回「分享链接已停用」（HTTP 410），不会误报为不存在；重新启用即可恢复。
+          停用后公开访问返回「分享链接已停用」（HTTP
+          410），不会误报为不存在；重新启用即可恢复。
         </p>
       </div>
 
       <template #footer>
         <div class="flex items-center justify-end gap-2">
           <NButton size="small" @click="editShow = false">取消</NButton>
-          <NButton size="small" type="primary" :loading="editSaving" @click="submitEdit">
+          <NButton
+            size="small"
+            type="primary"
+            :loading="editSaving"
+            @click="submitEdit"
+          >
             保存
           </NButton>
         </div>
@@ -1009,7 +1123,10 @@ onMounted(async () => {
           title="暂无访问记录"
           description="链接被成功解锁后，这里会记录访问时间、IP 与 User-Agent。解锁失败不会计数。"
         />
-        <ul v-else class="m-0 p-0 list-none flex flex-col gap-2 max-h-100 overflow-y-auto">
+        <ul
+          v-else
+          class="m-0 p-0 list-none flex flex-col gap-2 max-h-100 overflow-y-auto"
+        >
           <li
             v-for="log in logs"
             :key="log.id"
@@ -1019,7 +1136,9 @@ onMounted(async () => {
               <span class="text-12px text-ink font-600 tabular-nums">
                 {{ formatDateTime(log.accessedAt) }}
               </span>
-              <span class="text-11px text-ink-sub">{{ log.ip ?? 'IP 未知' }}</span>
+              <span class="text-11px text-ink-sub">{{
+                log.ip ?? 'IP 未知'
+              }}</span>
             </div>
             <p class="m-0 mt-1 text-10px text-ink-sub break-all">
               {{ log.userAgent ?? 'UA 未记录' }}

@@ -70,7 +70,12 @@ async function load() {
     });
   } catch (e) {
     error.value = getErrorMessage(e, '审计日志加载失败');
-    data.value = { items: [], total: 0, page: page.value, pageSize: pageSize.value };
+    data.value = {
+      items: [],
+      total: 0,
+      page: page.value,
+      pageSize: pageSize.value,
+    };
   } finally {
     loading.value = false;
   }
@@ -129,7 +134,9 @@ onMounted(() => void load());
     >
       <template #actions>
         <NButton size="small" quaternary @click="load">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           刷新
         </NButton>
       </template>
@@ -144,7 +151,9 @@ onMounted(() => void load());
         placeholder="操作人"
         class="w-36"
       >
-        <template #prefix><NIcon :size="14"><SearchOutline /></NIcon></template>
+        <template #prefix
+          ><NIcon :size="14"><SearchOutline /></NIcon
+        ></template>
       </NInput>
       <NSelect
         v-model:value="action"
@@ -210,21 +219,35 @@ onMounted(() => void load());
                   :key="log.id"
                   class="border-t border-glass-border/60 dark:border-glass-border-dark/60 hover:bg-brand-500/5"
                 >
-                  <td class="py-2.5 pr-3 text-ink-sub tabular-nums whitespace-nowrap">
+                  <td
+                    class="py-2.5 pr-3 text-ink-sub tabular-nums whitespace-nowrap"
+                  >
                     {{ formatDateTime(log.createdAt) }}
                   </td>
                   <td class="py-2.5 px-2">
-                    <span class="text-ink truncate max-w-28" :title="log.username">
+                    <span
+                      class="text-ink truncate max-w-28"
+                      :title="log.username"
+                    >
                       {{ log.username }}
                     </span>
                   </td>
                   <td class="py-2.5 px-2">
-                    <NTag size="tiny" :bordered="false" type="info">{{ log.action }}</NTag>
+                    <NTag size="tiny" :bordered="false" type="info">{{
+                      log.action
+                    }}</NTag>
                   </td>
                   <td class="py-2.5 px-2">
                     <span class="text-ink-sub">{{ log.resourceType }}</span>
-                    <span v-if="log.resourceId" class="text-10px text-ink-sub ml-1">
-                      #{{ log.resourceId.length > 18 ? `${log.resourceId.slice(0, 10)}…` : log.resourceId }}
+                    <span
+                      v-if="log.resourceId"
+                      class="text-10px text-ink-sub ml-1"
+                    >
+                      #{{
+                        log.resourceId.length > 18
+                          ? `${log.resourceId.slice(0, 10)}…`
+                          : log.resourceId
+                      }}
                     </span>
                   </td>
                   <td class="py-2.5 px-2 text-ink-sub font-mono text-11px">
@@ -232,7 +255,9 @@ onMounted(() => void load());
                   </td>
                   <td class="py-2.5 pl-2 text-right">
                     <NButton size="tiny" quaternary @click="openDetail(log)">
-                      <template #icon><NIcon><EyeOutline /></NIcon></template>
+                      <template #icon
+                        ><NIcon><EyeOutline /></NIcon
+                      ></template>
                     </NButton>
                   </td>
                 </tr>
@@ -260,11 +285,15 @@ onMounted(() => void load());
           <div class="grid grid-cols-2 gap-2 text-12px">
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">时间</p>
-              <p class="m-0 mt-0.5 text-ink tabular-nums">{{ formatDateTime(current.createdAt) }}</p>
+              <p class="m-0 mt-0.5 text-ink tabular-nums">
+                {{ formatDateTime(current.createdAt) }}
+              </p>
             </div>
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">操作人</p>
-              <p class="m-0 mt-0.5 text-ink">{{ current.username }}（#{{ current.userId ?? '—' }}）</p>
+              <p class="m-0 mt-0.5 text-ink">
+                {{ current.username }}（#{{ current.userId ?? '—' }}）
+              </p>
             </div>
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">动作</p>
@@ -273,16 +302,25 @@ onMounted(() => void load());
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">资源</p>
               <p class="m-0 mt-0.5 text-ink break-all">
-                {{ current.resourceType }}{{ current.resourceId ? ` / ${current.resourceId}` : '' }}
+                {{ current.resourceType
+                }}{{ current.resourceId ? ` / ${current.resourceId}` : '' }}
               </p>
             </div>
-            <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-2">
+            <div
+              class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-2"
+            >
               <p class="m-0 text-10px text-ink-sub">IP</p>
-              <p class="m-0 mt-0.5 text-ink font-mono text-11px">{{ current.ip ?? '—' }}</p>
+              <p class="m-0 mt-0.5 text-ink font-mono text-11px">
+                {{ current.ip ?? '—' }}
+              </p>
             </div>
-            <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-2">
+            <div
+              class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-2"
+            >
               <p class="m-0 text-10px text-ink-sub">User-Agent</p>
-              <p class="m-0 mt-0.5 text-ink text-11px break-all">{{ current.userAgent ?? '—' }}</p>
+              <p class="m-0 mt-0.5 text-ink text-11px break-all">
+                {{ current.userAgent ?? '—' }}
+              </p>
             </div>
           </div>
 
@@ -294,7 +332,7 @@ onMounted(() => void load());
             <pre
               v-if="prettyDetails"
               class="m-0 max-h-96 overflow-auto rounded-xl bg-black/4 dark:bg-black/30 border border-glass-border dark:border-glass-border-dark p-3 text-11px leading-5 text-ink-sub font-mono"
-            >{{ prettyDetails }}</pre>
+              >{{ prettyDetails }}</pre>
             <p v-else class="m-0 text-11px text-ink-sub">无附加详情</p>
           </div>
         </div>

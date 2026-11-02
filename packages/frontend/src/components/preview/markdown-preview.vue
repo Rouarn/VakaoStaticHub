@@ -50,10 +50,19 @@ const state = computed(() => ({ loading: loading.value, error: error.value }));
   margin: 1.2em 0 0.6em;
   font-weight: 600;
 }
-.md-body :deep(h1) { font-size: 1.6em; }
-.md-body :deep(h2) { font-size: 1.35em; }
-.md-body :deep(p) { margin: 0.7em 0; }
-.md-body :deep(a) { color: #7c3aed; text-decoration: underline; }
+.md-body :deep(h1) {
+  font-size: 1.6em;
+}
+.md-body :deep(h2) {
+  font-size: 1.35em;
+}
+.md-body :deep(p) {
+  margin: 0.7em 0;
+}
+.md-body :deep(a) {
+  color: #7c3aed;
+  text-decoration: underline;
+}
 .md-body :deep(code) {
   padding: 2px 6px;
   border-radius: 6px;
@@ -66,19 +75,29 @@ const state = computed(() => ({ loading: loading.value, error: error.value }));
   background: rgba(20, 24, 36, 0.85);
   overflow-x: auto;
 }
-.md-body :deep(pre code) { background: transparent; padding: 0; color: #e6e6e6; }
+.md-body :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: #e6e6e6;
+}
 .md-body :deep(blockquote) {
   margin: 1em 0;
   padding-left: 12px;
   border-left: 3px solid rgba(124, 58, 237, 0.5);
   color: var(--ink-sub);
 }
-.md-body :deep(table) { border-collapse: collapse; width: 100%; }
+.md-body :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+}
 .md-body :deep(th),
 .md-body :deep(td) {
   border: 1px solid rgba(140, 150, 170, 0.3);
   padding: 6px 10px;
   text-align: left;
 }
-.md-body :deep(img) { max-width: 100%; border-radius: 10px; }
+.md-body :deep(img) {
+  max-width: 100%;
+  border-radius: 10px;
+}
 </style>

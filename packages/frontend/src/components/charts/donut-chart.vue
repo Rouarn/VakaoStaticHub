@@ -76,8 +76,8 @@ const circumference = 2 * Math.PI * radius;
           stroke-width="10"
           stroke-linecap="round"
           :class="arc.tone"
-          :stroke-dasharray="`${arc.dash * circumference / 100} ${circumference}`"
-          :stroke-dashoffset="`-${arc.offset * circumference / 100}`"
+          :stroke-dasharray="`${(arc.dash * circumference) / 100} ${circumference}`"
+          :stroke-dashoffset="`-${(arc.offset * circumference) / 100}`"
           transform="rotate(-90 60 60)"
         />
       </svg>
@@ -97,8 +97,12 @@ const circumference = 2 * Math.PI * radius;
           class="w-2.5 h-2.5 rounded-full shrink-0 bg-current"
           :class="TONES[i % TONES.length]"
         />
-        <span class="text-ink-sub truncate flex-1" :title="arc.label">{{ arc.label }}</span>
-        <span class="text-ink font-600 tabular-nums">{{ arc.percent.toFixed(1) }}%</span>
+        <span class="text-ink-sub truncate flex-1" :title="arc.label">{{
+          arc.label
+        }}</span>
+        <span class="text-ink font-600 tabular-nums"
+          >{{ arc.percent.toFixed(1) }}%</span
+        >
       </li>
       <li v-if="arcs.length === 0" class="text-12px text-ink-sub">暂无数据</li>
     </ul>

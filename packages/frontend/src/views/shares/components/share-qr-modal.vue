@@ -98,11 +98,15 @@ onBeforeUnmount(() => {
       <p class="m-0 text-11px text-ink-sub break-all text-center">{{ url }}</p>
       <div class="flex items-center gap-2">
         <NButton size="small" :disabled="!ready" @click="downloadPng">
-          <template #icon><NIcon><DownloadOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><DownloadOutline /></NIcon
+          ></template>
           下载 PNG
         </NButton>
         <NButton size="small" :disabled="!url" @click="copy">
-          <template #icon><NIcon><CopyOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><CopyOutline /></NIcon
+          ></template>
           复制链接
         </NButton>
       </div>

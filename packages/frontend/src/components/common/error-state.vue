@@ -21,11 +21,15 @@ const emit = defineEmits<{ retry: [] }>();
       </NIcon>
     </div>
     <p class="m-0 text-14px font-600 text-ink">{{ title ?? '加载失败' }}</p>
-    <p class="m-0 max-w-460px text-12px text-ink-sub leading-5 whitespace-pre-line">
+    <p
+      class="m-0 max-w-460px text-12px text-ink-sub leading-5 whitespace-pre-line"
+    >
       {{ message }}
     </p>
     <NButton size="small" quaternary @click="emit('retry')">
-      <template #icon><NIcon><RefreshOutline /></NIcon></template>
+      <template #icon
+        ><NIcon><RefreshOutline /></NIcon
+      ></template>
       重试
     </NButton>
   </div>

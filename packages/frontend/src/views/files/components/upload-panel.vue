@@ -83,9 +83,8 @@ const queuedCount = computed(
 );
 const activeCount = computed(
   () =>
-    tasks.value.filter(
-      (t) => t.status === 'queued' || t.status === 'uploading',
-    ).length,
+    tasks.value.filter((t) => t.status === 'queued' || t.status === 'uploading')
+      .length,
 );
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -254,9 +253,7 @@ async function onDrop(e: DragEvent) {
     }
     enqueueFiles(files);
     if (folders > 0) {
-      message.success(
-        `已从 ${folders} 个文件夹中读取 ${files.length} 个文件`,
-      );
+      message.success(`已从 ${folders} 个文件夹中读取 ${files.length} 个文件`);
     }
   } catch {
     message.error('读取拖入内容失败，请改用点击选择');
@@ -599,9 +596,7 @@ async function clearAll() {
       <NIcon :size="34" class="text-brand-500 dark:text-brand-400">
         <CloudUploadOutline />
       </NIcon>
-      <p class="m-0 text-13px text-ink">
-        点击选择，或拖拽文件/文件夹到此处
-      </p>
+      <p class="m-0 text-13px text-ink">点击选择，或拖拽文件/文件夹到此处</p>
       <p class="m-0 text-11px text-ink-sub text-center">
         拖入文件夹会递归读取内部文件并自动去重；选择后先列在下方，
         确认无误再点「开始上传」（大于 5MB 自动走分片断点续传）
@@ -646,10 +641,7 @@ async function clearAll() {
         class="glass-panel px-3 py-2 flex flex-col gap-1.5"
       >
         <div class="flex items-center gap-2">
-          <NIcon
-            :size="15"
-            class="text-brand-600 dark:text-brand-400 shrink-0"
-          >
+          <NIcon :size="15" class="text-brand-600 dark:text-brand-400 shrink-0">
             <FolderOpenOutline />
           </NIcon>
           <span
@@ -667,10 +659,7 @@ async function clearAll() {
           >
             {{ task.resumed ? '已续传' : '分片' }}
           </span>
-          <span
-            class="text-10px shrink-0"
-            :class="STATUS_CLASS[task.status]"
-          >
+          <span class="text-10px shrink-0" :class="STATUS_CLASS[task.status]">
             {{ STATUS_LABEL[task.status] }}
           </span>
           <NButton
@@ -681,13 +670,10 @@ async function clearAll() {
           >
             重试
           </NButton>
-          <NButton
-            size="tiny"
-            quaternary
-            circle
-            @click="removeTask(task)"
-          >
-            <template #icon><NIcon :size="14"><CloseOutline /></NIcon></template>
+          <NButton size="tiny" quaternary circle @click="removeTask(task)">
+            <template #icon
+              ><NIcon :size="14"><CloseOutline /></NIcon
+            ></template>
           </NButton>
         </div>
         <p class="m-0 text-10px text-ink-sub truncate">
@@ -726,7 +712,11 @@ async function clearAll() {
         :loading="running"
         @click="startQueue"
       >
-        {{ running ? '上传中…' : `开始上传${queuedCount > 0 ? `（${queuedCount}）` : ''}` }}
+        {{
+          running
+            ? '上传中…'
+            : `开始上传${queuedCount > 0 ? `（${queuedCount}）` : ''}`
+        }}
       </NButton>
     </div>
   </div>

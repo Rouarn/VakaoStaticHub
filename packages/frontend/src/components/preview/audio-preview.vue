@@ -64,7 +64,9 @@ onBeforeUnmount(() => {
 <template>
   <div class="w-full h-full flex items-center justify-center">
     <div class="w-full max-w-140">
-      <p v-if="failed" class="text-center text-ink-sub text-13px">音频加载失败</p>
+      <p v-if="failed" class="text-center text-ink-sub text-13px">
+        音频加载失败
+      </p>
       <template v-else>
         <div
           class="glass-card px-6 py-6 bg-gradient-to-br from-brand-500/15 via-transparent to-brand-700/10"
@@ -74,14 +76,22 @@ onBeforeUnmount(() => {
               v-for="(h, i) in bars"
               :key="i"
               class="flex-1 rounded-sm bg-brand-500/70 transition-all duration-300"
-              :style="{ height: `${h}%`, opacity: i / 48 < current / (duration || 1) ? 1 : 0.35 }"
+              :style="{
+                height: `${h}%`,
+                opacity: i / 48 < current / (duration || 1) ? 1 : 0.35,
+              }"
             />
           </div>
 
-          <div class="h-1.5 rounded-full bg-white/40 dark:bg-white/10 cursor-pointer mb-3" @click="seek">
+          <div
+            class="h-1.5 rounded-full bg-white/40 dark:bg-white/10 cursor-pointer mb-3"
+            @click="seek"
+          >
             <div
               class="h-full rounded-full bg-brand-500"
-              :style="{ width: `${duration ? (current / duration) * 100 : 0}%` }"
+              :style="{
+                width: `${duration ? (current / duration) * 100 : 0}%`,
+              }"
             />
           </div>
 
@@ -103,7 +113,12 @@ onBeforeUnmount(() => {
             </span>
           </div>
         </div>
-        <audio ref="audioEl" :src="props.src" preload="metadata" @error="failed = true" />
+        <audio
+          ref="audioEl"
+          :src="props.src"
+          preload="metadata"
+          @error="failed = true"
+        />
       </template>
     </div>
   </div>

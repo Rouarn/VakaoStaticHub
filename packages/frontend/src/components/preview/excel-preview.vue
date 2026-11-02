@@ -38,11 +38,14 @@ onMounted(async () => {
         defval: '',
       });
       const truncated = raw.length > MAX_ROWS;
-      const rows = raw.slice(0, MAX_ROWS).map((row) =>
-        Array.from({ length: Math.min(MAX_COLS, (row as unknown[]).length) }, (_, i) =>
-          String((row as unknown[])[i] ?? ''),
-        ),
-      );
+      const rows = raw
+        .slice(0, MAX_ROWS)
+        .map((row) =>
+          Array.from(
+            { length: Math.min(MAX_COLS, (row as unknown[]).length) },
+            (_, i) => String((row as unknown[])[i] ?? ''),
+          ),
+        );
       return { name, rows, truncated };
     });
   } catch (e) {
@@ -63,7 +66,9 @@ onMounted(async () => {
           v-for="(sheet, idx) in sheets"
           :key="sheet.name"
           class="glass-chip px-3 py-1 text-12px cursor-pointer border-none whitespace-nowrap"
-          :class="{ 'text-brand-600 dark:text-brand-400 font-600': idx === active }"
+          :class="{
+            'text-brand-600 dark:text-brand-400 font-600': idx === active,
+          }"
           @click="active = idx"
         >
           {{ sheet.name }}
@@ -72,7 +77,9 @@ onMounted(async () => {
           {{ formatBytes(props.size) }}
         </span>
       </div>
-      <div class="flex-1 min-h-0 overflow-auto rounded-xl border border-glass-border dark:border-glass-border-dark">
+      <div
+        class="flex-1 min-h-0 overflow-auto rounded-xl border border-glass-border dark:border-glass-border-dark"
+      >
         <table class="w-full border-collapse text-12px">
           <tbody>
             <tr
@@ -91,7 +98,10 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
-      <p v-if="sheets[active]?.truncated" class="m-0 mt-2 text-11px text-ink-sub">
+      <p
+        v-if="sheets[active]?.truncated"
+        class="m-0 mt-2 text-11px text-ink-sub"
+      >
         仅展示前 {{ MAX_ROWS }} 行 / {{ MAX_COLS }} 列
       </p>
     </template>

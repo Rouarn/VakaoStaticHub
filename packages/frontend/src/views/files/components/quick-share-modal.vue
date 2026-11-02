@@ -35,7 +35,8 @@ const message = useMessage();
 const isCollection = computed(() => props.paths.length > 1);
 const fileName = computed(() => {
   if (props.paths.length === 0) return '';
-  if (props.paths.length === 1) return props.paths[0].split('/').pop() ?? props.paths[0];
+  if (props.paths.length === 1)
+    return props.paths[0].split('/').pop() ?? props.paths[0];
   return `文件集合（${props.paths.length} 个文件）`;
 });
 
@@ -158,7 +159,11 @@ async function copyUrl() {
 
       <div class="flex flex-col gap-1">
         <label class="text-11px text-ink-sub">备注（可选）</label>
-        <NInput v-model:value="remark" size="small" placeholder="仅自己可见的备注" />
+        <NInput
+          v-model:value="remark"
+          size="small"
+          placeholder="仅自己可见的备注"
+        />
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
@@ -222,11 +227,16 @@ async function copyUrl() {
       <div class="flex items-center gap-2">
         <NInput :value="shareUrl" size="small" readonly class="font-mono" />
         <NButton size="small" quaternary @click="copyUrl">
-          <template #icon><NIcon :size="14"><CopyOutline /></NIcon></template>
+          <template #icon
+            ><NIcon :size="14"><CopyOutline /></NIcon
+          ></template>
           复制
         </NButton>
       </div>
-      <p v-if="requirePassword && password.trim()" class="m-0 text-11px text-ink-sub">
+      <p
+        v-if="requirePassword && password.trim()"
+        class="m-0 text-11px text-ink-sub"
+      >
         访问密码：{{ password }}
       </p>
       <p class="m-0 text-11px text-ink-sub">

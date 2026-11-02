@@ -44,10 +44,13 @@ const format = (value: number) =>
           {{ item.label }}
         </span>
         <span class="text-11px text-ink-sub tabular-nums shrink-0">
-          {{ format(item.value) }}<template v-if="item.hint"> · {{ item.hint }}</template>
+          {{ format(item.value)
+          }}<template v-if="item.hint"> · {{ item.hint }}</template>
         </span>
       </div>
-      <div class="h-2 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden">
+      <div
+        class="h-2 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
+      >
         <div
           class="h-full rounded-full bg-gradient-to-r transition-all duration-500"
           :class="tone"

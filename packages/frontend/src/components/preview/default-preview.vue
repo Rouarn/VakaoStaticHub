@@ -14,21 +14,19 @@ const props = defineProps<PreviewProps>();
 <template>
   <div class="w-full h-full flex items-center justify-center">
     <div class="glass-card px-10 py-10 text-center max-w-110">
-      <p class="m-0 text-15px font-600 text-ink truncate">{{ props.filename }}</p>
+      <p class="m-0 text-15px font-600 text-ink truncate">
+        {{ props.filename }}
+      </p>
       <p class="m-0 mt-2 text-12px text-ink-sub">
         {{ formatBytes(props.size) }} · {{ formatTime(Date.now()) }}
       </p>
       <p class="m-0 mt-4 text-12px text-ink-sub">
         该格式暂不支持在线预览，可下载后本地打开
       </p>
-      <NButton
-        tag="a"
-        :href="props.src"
-        download
-        type="primary"
-        class="mt-5"
-      >
-        <template #icon><NIcon><DownloadOutline /></NIcon></template>
+      <NButton tag="a" :href="props.src" download type="primary" class="mt-5">
+        <template #icon
+          ><NIcon><DownloadOutline /></NIcon
+        ></template>
         下载文件
       </NButton>
     </div>

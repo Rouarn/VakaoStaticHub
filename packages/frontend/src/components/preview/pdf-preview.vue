@@ -86,30 +86,69 @@ onBeforeUnmount(() => {
 <template>
   <div class="w-full h-full flex flex-col">
     <div class="mb-2 flex items-center justify-center gap-1">
-      <NTooltip :delay="300"><template #trigger>
-        <NButton size="tiny" quaternary circle :disabled="pageNo <= 1" @click="pageNo--">
-          <template #icon><NIcon :size="16"><ChevronBackOutline /></NIcon></template>
-        </NButton>
-      </template>上一页</NTooltip>
+      <NTooltip :delay="300"
+        ><template #trigger>
+          <NButton
+            size="tiny"
+            quaternary
+            circle
+            :disabled="pageNo <= 1"
+            @click="pageNo--"
+          >
+            <template #icon
+              ><NIcon :size="16"><ChevronBackOutline /></NIcon
+            ></template>
+          </NButton> </template
+        >上一页</NTooltip
+      >
       <span class="text-12px text-ink-sub min-w-16 text-center">
         {{ pageNo }} / {{ pageCount || '—' }}
       </span>
-      <NTooltip :delay="300"><template #trigger>
-        <NButton size="tiny" quaternary circle :disabled="pageNo >= pageCount" @click="pageNo++">
-          <template #icon><NIcon :size="16"><ChevronForwardOutline /></NIcon></template>
-        </NButton>
-      </template>下一页</NTooltip>
+      <NTooltip :delay="300"
+        ><template #trigger>
+          <NButton
+            size="tiny"
+            quaternary
+            circle
+            :disabled="pageNo >= pageCount"
+            @click="pageNo++"
+          >
+            <template #icon
+              ><NIcon :size="16"><ChevronForwardOutline /></NIcon
+            ></template>
+          </NButton> </template
+        >下一页</NTooltip
+      >
       <span class="mx-2 w-px h-4 bg-glass-border dark:bg-glass-border-dark" />
-      <NButton size="tiny" quaternary circle @click="zoom = Math.max(0.4, zoom - 0.2)">
-        <template #icon><NIcon :size="16"><RemoveOutline /></NIcon></template>
+      <NButton
+        size="tiny"
+        quaternary
+        circle
+        @click="zoom = Math.max(0.4, zoom - 0.2)"
+      >
+        <template #icon
+          ><NIcon :size="16"><RemoveOutline /></NIcon
+        ></template>
       </NButton>
-      <span class="text-12px text-ink-sub w-12 text-center">{{ Math.round(zoom * 100) }}%</span>
-      <NButton size="tiny" quaternary circle @click="zoom = Math.min(4, zoom + 0.2)">
-        <template #icon><NIcon :size="16"><AddOutline /></NIcon></template>
+      <span class="text-12px text-ink-sub w-12 text-center"
+        >{{ Math.round(zoom * 100) }}%</span
+      >
+      <NButton
+        size="tiny"
+        quaternary
+        circle
+        @click="zoom = Math.min(4, zoom + 0.2)"
+      >
+        <template #icon
+          ><NIcon :size="16"><AddOutline /></NIcon
+        ></template>
       </NButton>
     </div>
 
-    <div v-if="error" class="flex-1 flex items-center justify-center text-13px text-ink-sub">
+    <div
+      v-if="error"
+      class="flex-1 flex items-center justify-center text-13px text-ink-sub"
+    >
       {{ error }}
     </div>
     <div

@@ -163,7 +163,12 @@ function rasterize(
 }
 
 async function download() {
-  if (form.width < 1 || form.width > 4096 || form.height < 1 || form.height > 4096) {
+  if (
+    form.width < 1 ||
+    form.width > 4096 ||
+    form.height < 1 ||
+    form.height > 4096
+  ) {
     message.error('宽高需在 1~4096 之间');
     return;
   }
@@ -175,12 +180,22 @@ async function download() {
     }
     const svgText = await res.text();
     if (form.format === 'svg') {
-      saveBlob(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }), 'svg');
+      saveBlob(
+        new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }),
+        'svg',
+      );
     } else {
-      const blob = await rasterize(svgText, form.width, form.height, form.format);
+      const blob = await rasterize(
+        svgText,
+        form.width,
+        form.height,
+        form.format,
+      );
       saveBlob(blob, form.format === 'png' ? 'png' : 'jpg');
     }
-    message.success(`已下载 ${form.width}×${form.height} ${form.format.toUpperCase()}`);
+    message.success(
+      `已下载 ${form.width}×${form.height} ${form.format.toUpperCase()}`,
+    );
   } catch (e) {
     message.error(e instanceof Error ? e.message : '下载失败');
   } finally {
@@ -198,11 +213,20 @@ async function download() {
     >
       <template #actions>
         <NButton size="small" quaternary @click="copyUrl">
-          <template #icon><NIcon><CopyOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><CopyOutline /></NIcon
+          ></template>
           复制链接
         </NButton>
-        <NButton size="small" type="primary" :loading="downloading" @click="download">
-          <template #icon><NIcon><DownloadOutline /></NIcon></template>
+        <NButton
+          size="small"
+          type="primary"
+          :loading="downloading"
+          @click="download"
+        >
+          <template #icon
+            ><NIcon><DownloadOutline /></NIcon
+          ></template>
           下载
         </NButton>
       </template>
@@ -248,8 +272,14 @@ async function download() {
         </div>
 
         <div class="flex flex-col gap-1">
-          <label class="text-11px text-ink-sub">文字（留空显示「宽×高」）</label>
-          <NInput v-model:value="form.text" size="small" placeholder="例如：封面占位" />
+          <label class="text-11px text-ink-sub"
+            >文字（留空显示「宽×高」）</label
+          >
+          <NInput
+            v-model:value="form.text"
+            size="small"
+            placeholder="例如：封面占位"
+          />
         </div>
 
         <div class="grid grid-cols-2 gap-2">
@@ -306,7 +336,11 @@ async function download() {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-11px text-ink-sub">下载格式</label>
-            <NSelect v-model:value="form.format" size="small" :options="formatOptions" />
+            <NSelect
+              v-model:value="form.format"
+              size="small"
+              :options="formatOptions"
+            />
           </div>
         </div>
 
@@ -315,7 +349,11 @@ async function download() {
             {{ form.width }}×{{ form.height }}
           </NTag>
           <NTag size="tiny" :bordered="false">
-            字号 {{ form.fontSize ?? Math.floor(Math.min(form.width, form.height) * 0.2) }}
+            字号
+            {{
+              form.fontSize ??
+              Math.floor(Math.min(form.width, form.height) * 0.2)
+            }}
           </NTag>
         </div>
       </section>
@@ -325,7 +363,9 @@ async function download() {
         <div class="flex items-center gap-2 flex-wrap">
           <h2 class="m-0 text-13px font-600 text-ink">实时预览</h2>
           <NButton size="tiny" quaternary @click="reloadPreview">
-            <template #icon><NIcon><RefreshOutline /></NIcon></template>
+            <template #icon
+              ><NIcon><RefreshOutline /></NIcon
+            ></template>
             刷新
           </NButton>
           <span class="ml-auto text-11px text-ink-sub">
@@ -346,22 +386,29 @@ async function download() {
           />
           <div v-else class="flex flex-col items-center gap-2 text-center">
             <NIcon :size="26" class="text-ink-sub"><ImageOutline /></NIcon>
-            <p class="m-0 text-12px text-ink-sub">预览加载失败，请检查尺寸是否在 1~4096 之间</p>
+            <p class="m-0 text-12px text-ink-sub">
+              预览加载失败，请检查尺寸是否在 1~4096 之间
+            </p>
             <NButton size="tiny" @click="reloadPreview">重试</NButton>
           </div>
         </div>
 
         <div class="flex items-center gap-2 min-w-0">
-          <NIcon :size="14" class="text-ink-sub shrink-0"><LinkOutline /></NIcon>
+          <NIcon :size="14" class="text-ink-sub shrink-0"
+            ><LinkOutline
+          /></NIcon>
           <NInput :value="url" size="small" readonly class="font-mono" />
           <NButton size="small" quaternary @click="copyUrl">
-            <template #icon><NIcon><CopyOutline /></NIcon></template>
+            <template #icon
+              ><NIcon><CopyOutline /></NIcon
+            ></template>
           </NButton>
         </div>
 
         <p class="m-0 text-10px text-ink-sub">
-          接口：GET /placeholder/:width/:height（query: text / bgColor / textColor /
-          fontFamily / fontWeight / fontSize）。后端仅返回 image/svg+xml。
+          接口：GET /placeholder/:width/:height（query: text / bgColor /
+          textColor / fontFamily / fontWeight / fontSize）。后端仅返回
+          image/svg+xml。
         </p>
       </section>
     </div>

@@ -132,7 +132,10 @@ function onAction(key: string) {
 
       <template v-else-if="kind === 'video'">
         <img v-if="poster" :src="poster" class="media-image" alt="" />
-        <div v-else class="w-full h-full flex items-center justify-center text-white/70">
+        <div
+          v-else
+          class="w-full h-full flex items-center justify-center text-white/70"
+        >
           <NIcon :size="34"><VideocamOutline /></NIcon>
         </div>
         <div class="absolute inset-0 flex items-center justify-center">
@@ -189,7 +192,9 @@ function onAction(key: string) {
       />
 
       <!-- 操作菜单 -->
-      <div class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div
+        class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
         <NDropdown
           trigger="click"
           :options="menuOptions"
@@ -207,7 +212,10 @@ function onAction(key: string) {
     </div>
 
     <div class="px-3 py-2">
-      <p class="m-0 text-13px font-500 text-ink truncate" :title="props.file.name">
+      <p
+        class="m-0 text-13px font-500 text-ink truncate"
+        :title="props.file.name"
+      >
         {{ props.file.name }}
       </p>
       <p class="m-0 mt-0.5 text-11px text-ink-sub">
@@ -237,20 +245,30 @@ function onAction(key: string) {
         loading="lazy"
       />
       <img v-else-if="poster" :src="poster" alt="" class="media-image" />
-      <div v-else class="w-full h-full flex items-center justify-center text-brand-500 dark:text-brand-400">
+      <div
+        v-else
+        class="w-full h-full flex items-center justify-center text-brand-500 dark:text-brand-400"
+      >
         <NIcon :size="18" :component="kindIcon" />
       </div>
     </div>
     <div class="min-w-0 flex-1">
-      <p class="m-0 text-13px font-500 text-ink truncate" :title="props.file.name">
+      <p
+        class="m-0 text-13px font-500 text-ink truncate"
+        :title="props.file.name"
+      >
         {{ props.file.name }}
       </p>
-      <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">{{ props.file.path }}</p>
+      <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
+        {{ props.file.path }}
+      </p>
     </div>
     <span class="w-20 text-right text-12px text-ink-sub shrink-0">
       {{ formatBytes(props.file.size) }}
     </span>
-    <span class="w-36 text-right text-12px text-ink-sub shrink-0 hidden md:block">
+    <span
+      class="w-36 text-right text-12px text-ink-sub shrink-0 hidden md:block"
+    >
       {{ formatTime(props.file.mtime) }}
     </span>
     <NDropdown

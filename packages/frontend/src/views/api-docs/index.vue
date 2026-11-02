@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import {
-  NButton,
-  NIcon,
-  NInput,
-  NSpin,
-  NTag,
-} from 'naive-ui';
+import { NButton, NIcon, NInput, NSpin, NTag } from 'naive-ui';
 import {
   CodeSlashOutline,
   DocumentTextOutline,
@@ -20,11 +14,7 @@ import type {
   OpenApiOperation,
   OpenApiSchema,
 } from '@/api/docs';
-import {
-  fetchOpenApiDocument,
-  resolveSchema,
-  schemaExample,
-} from '@/api/docs';
+import { fetchOpenApiDocument, resolveSchema, schemaExample } from '@/api/docs';
 import { highlightCode } from '@/utils/hljs';
 import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -164,7 +154,9 @@ function typeLabel(schema: OpenApiSchema | undefined): string {
   if (schema.enum?.length) {
     return `${schema.type ?? 'enum'}（${schema.enum.join(' | ')}）`;
   }
-  return schema.format ? `${schema.type ?? 'unknown'}(${schema.format})` : (schema.type ?? 'object');
+  return schema.format
+    ? `${schema.type ?? 'unknown'}(${schema.format})`
+    : (schema.type ?? 'object');
 }
 
 interface FieldRow {
@@ -174,9 +166,7 @@ interface FieldRow {
   description: string;
 }
 
-function schemaFields(
-  schema: OpenApiSchema | undefined,
-): FieldRow[] {
+function schemaFields(schema: OpenApiSchema | undefined): FieldRow[] {
   const resolved = resolveSchema(schema, doc.value ?? {}, 0);
   if (!resolved?.properties) return [];
   const required = new Set(resolved.required ?? []);
@@ -268,7 +258,9 @@ function copy(text: string) {
     >
       <template #actions>
         <NButton size="small" quaternary :loading="loading" @click="load">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon
+          ></template>
           刷新文档
         </NButton>
       </template>
@@ -277,14 +269,18 @@ function copy(text: string) {
     <!-- 鉴权说明 -->
     <section class="glass-panel px-4 py-3 flex items-start gap-3">
       <div class="glass-chip w-9 h-9 flex items-center justify-center shrink-0">
-        <NIcon :size="18" class="text-brand-600 dark:text-brand-400"><KeyOutline /></NIcon>
+        <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
+          ><KeyOutline
+        /></NIcon>
       </div>
       <div class="min-w-0">
         <p class="m-0 text-12px font-600 text-ink">鉴权说明（Bearer Token）</p>
         <p class="m-0 mt-1 text-11px text-ink-sub leading-5">
           除标记为「公开」的接口外，均需在请求头携带
-          <code class="font-mono">Authorization: Bearer &lt;accessToken&gt;</code>。
-          令牌通过 <code class="font-mono">POST /static/auth/login</code> 获取，
+          <code class="font-mono"
+            >Authorization: Bearer &lt;accessToken&gt;</code
+          >。 令牌通过
+          <code class="font-mono">POST /static/auth/login</code> 获取，
           有效期见登录接口响应。公开接口（分享访问、认证登录、占位图等）无需令牌。
         </p>
       </div>
@@ -303,7 +299,9 @@ function copy(text: string) {
       </EmptyState>
 
       <div v-else class="flex flex-col gap-3">
-        <section class="glass-panel px-4 py-3 flex items-center gap-3 flex-wrap">
+        <section
+          class="glass-panel px-4 py-3 flex items-center gap-3 flex-wrap"
+        >
           <NInput
             v-model:value="search"
             size="small"
@@ -311,11 +309,15 @@ function copy(text: string) {
             placeholder="搜索接口路径 / 名称 / 标签"
             class="w-72"
           >
-            <template #prefix><NIcon :size="14"><SearchOutline /></NIcon></template>
+            <template #prefix
+              ><NIcon :size="14"><SearchOutline /></NIcon
+            ></template>
           </NInput>
           <span class="text-11px text-ink-sub">
             {{ doc?.info?.title ?? 'OpenAPI' }}
-            <template v-if="doc?.info?.version">· v{{ doc.info.version }}</template>
+            <template v-if="doc?.info?.version"
+              >· v{{ doc.info.version }}</template
+            >
           </span>
           <span class="ml-auto text-11px text-ink-sub">
             共 {{ operations.length }} 个接口 · 当前 {{ filtered.length }} 个
@@ -324,13 +326,24 @@ function copy(text: string) {
 
         <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)] items-start">
           <!-- 接口目录 -->
-          <aside class="glass-panel px-3 py-3 flex flex-col gap-3 xl:sticky xl:top-2 max-h-70vh overflow-y-auto">
-            <div v-for="group in grouped" :key="group.tag" class="flex flex-col gap-1">
+          <aside
+            class="glass-panel px-3 py-3 flex flex-col gap-3 xl:sticky xl:top-2 max-h-70vh overflow-y-auto"
+          >
+            <div
+              v-for="group in grouped"
+              :key="group.tag"
+              class="flex flex-col gap-1"
+            >
               <div class="flex items-center gap-2 px-1">
                 <p class="m-0 text-11px font-600 text-ink">{{ group.tag }}</p>
-                <span class="text-10px text-ink-sub">{{ group.operations.length }}</span>
+                <span class="text-10px text-ink-sub">{{
+                  group.operations.length
+                }}</span>
               </div>
-              <p v-if="group.description" class="m-0 px-1 text-10px text-ink-sub leading-4">
+              <p
+                v-if="group.description"
+                class="m-0 px-1 text-10px text-ink-sub leading-4"
+              >
                 {{ group.description }}
               </p>
               <button
@@ -345,23 +358,40 @@ function copy(text: string) {
                 "
                 @click="selectedKey = op.key"
               >
-                <NTag size="tiny" :bordered="false" :type="methodType(op.method)" class="shrink-0">
+                <NTag
+                  size="tiny"
+                  :bordered="false"
+                  :type="methodType(op.method)"
+                  class="shrink-0"
+                >
                   {{ op.method.toUpperCase() }}
                 </NTag>
-                <span class="text-11px font-mono truncate" :title="op.path">{{ op.path }}</span>
+                <span class="text-11px font-mono truncate" :title="op.path">{{
+                  op.path
+                }}</span>
               </button>
             </div>
 
-            <p v-if="grouped.length === 0" class="m-0 px-2 py-4 text-center text-11px text-ink-sub">
+            <p
+              v-if="grouped.length === 0"
+              class="m-0 px-2 py-4 text-center text-11px text-ink-sub"
+            >
               没有匹配的接口
             </p>
           </aside>
 
           <!-- 接口详情 -->
-          <section v-if="current" class="glass-panel px-5 py-4 flex flex-col gap-4 min-w-0">
+          <section
+            v-if="current"
+            class="glass-panel px-5 py-4 flex flex-col gap-4 min-w-0"
+          >
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-2 flex-wrap">
-                <NTag size="small" :bordered="false" :type="methodType(current.method)">
+                <NTag
+                  size="small"
+                  :bordered="false"
+                  :type="methodType(current.method)"
+                >
                   {{ current.method.toUpperCase() }}
                 </NTag>
                 <span class="text-14px font-600 text-ink font-mono break-all">
@@ -373,12 +403,16 @@ function copy(text: string) {
                   :bordered="false"
                   type="warning"
                 >
-                  <template #icon><NIcon><LockClosedOutline /></NIcon></template>
+                  <template #icon
+                    ><NIcon><LockClosedOutline /></NIcon
+                  ></template>
                   Bearer
                 </NTag>
                 <NTag v-else size="tiny" :bordered="false">公开</NTag>
               </div>
-              <p class="m-0 text-13px font-500 text-ink">{{ current.summary }}</p>
+              <p class="m-0 text-13px font-500 text-ink">
+                {{ current.summary }}
+              </p>
               <p
                 v-if="current.description"
                 class="m-0 text-11px text-ink-sub leading-5 whitespace-pre-line"
@@ -386,17 +420,30 @@ function copy(text: string) {
                 {{ current.description }}
               </p>
               <div class="flex items-center gap-1 flex-wrap">
-                <NTag v-for="tag in current.tags" :key="tag" size="tiny" :bordered="false">
+                <NTag
+                  v-for="tag in current.tags"
+                  :key="tag"
+                  size="tiny"
+                  :bordered="false"
+                >
                   {{ tag }}
                 </NTag>
-                <NButton size="tiny" quaternary class="ml-auto" @click="copy(current.path)">
+                <NButton
+                  size="tiny"
+                  quaternary
+                  class="ml-auto"
+                  @click="copy(current.path)"
+                >
                   复制路径
                 </NButton>
               </div>
             </div>
 
             <!-- 参数 -->
-            <div v-if="queryRows(current.operation).length > 0" class="flex flex-col gap-1.5">
+            <div
+              v-if="queryRows(current.operation).length > 0"
+              class="flex flex-col gap-1.5"
+            >
               <h3 class="m-0 text-12px font-600 text-ink">参数</h3>
               <div class="overflow-x-auto">
                 <table class="w-full min-w-560px border-collapse text-12px">
@@ -415,7 +462,9 @@ function copy(text: string) {
                       :key="`${row.in}-${row.name}`"
                       class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
                     >
-                      <td class="py-1.5 pr-3 font-mono text-11px text-ink">{{ row.name }}</td>
+                      <td class="py-1.5 pr-3 font-mono text-11px text-ink">
+                        {{ row.name }}
+                      </td>
                       <td class="py-1.5 px-2 text-ink-sub">{{ row.in }}</td>
                       <td class="py-1.5 px-2">
                         <NTag
@@ -428,8 +477,12 @@ function copy(text: string) {
                         </NTag>
                         <span v-else class="text-11px text-ink-sub">否</span>
                       </td>
-                      <td class="py-1.5 px-2 font-mono text-11px text-ink-sub">{{ row.type }}</td>
-                      <td class="py-1.5 pl-2 text-ink-sub">{{ row.description || '—' }}</td>
+                      <td class="py-1.5 px-2 font-mono text-11px text-ink-sub">
+                        {{ row.type }}
+                      </td>
+                      <td class="py-1.5 pl-2 text-ink-sub">
+                        {{ row.description || '—' }}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -444,7 +497,9 @@ function copy(text: string) {
             >
               <h3 class="m-0 text-12px font-600 text-ink">
                 请求体
-                <span class="text-11px font-400 text-ink-sub font-mono">· {{ body.contentType }}</span>
+                <span class="text-11px font-400 text-ink-sub font-mono"
+                  >· {{ body.contentType }}</span
+                >
               </h3>
               <div v-if="body.fields.length > 0" class="overflow-x-auto">
                 <table class="w-full min-w-560px border-collapse text-12px">
@@ -462,7 +517,9 @@ function copy(text: string) {
                       :key="row.name"
                       class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
                     >
-                      <td class="py-1.5 pr-3 font-mono text-11px text-ink">{{ row.name }}</td>
+                      <td class="py-1.5 pr-3 font-mono text-11px text-ink">
+                        {{ row.name }}
+                      </td>
                       <td class="py-1.5 px-2">
                         <NTag
                           v-if="row.required"
@@ -474,8 +531,12 @@ function copy(text: string) {
                         </NTag>
                         <span v-else class="text-11px text-ink-sub">否</span>
                       </td>
-                      <td class="py-1.5 px-2 font-mono text-11px text-ink-sub">{{ row.type }}</td>
-                      <td class="py-1.5 pl-2 text-ink-sub">{{ row.description || '—' }}</td>
+                      <td class="py-1.5 px-2 font-mono text-11px text-ink-sub">
+                        {{ row.type }}
+                      </td>
+                      <td class="py-1.5 pl-2 text-ink-sub">
+                        {{ row.description || '—' }}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -496,11 +557,20 @@ function copy(text: string) {
                 class="flex flex-col gap-1.5"
               >
                 <div class="flex items-center gap-2 flex-wrap">
-                  <NTag size="tiny" :bordered="false" :type="statusType(response.status)">
+                  <NTag
+                    size="tiny"
+                    :bordered="false"
+                    :type="statusType(response.status)"
+                  >
                     {{ response.status }}
                   </NTag>
-                  <span class="text-11px text-ink-sub">{{ response.description || '—' }}</span>
-                  <span v-if="response.contentType" class="text-10px text-ink-sub font-mono">
+                  <span class="text-11px text-ink-sub">{{
+                    response.description || '—'
+                  }}</span>
+                  <span
+                    v-if="response.contentType"
+                    class="text-10px text-ink-sub font-mono"
+                  >
                     {{ response.contentType }}
                   </span>
                 </div>

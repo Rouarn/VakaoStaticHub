@@ -29,10 +29,16 @@ defineProps<{
       </NIcon>
     </div>
     <p class="m-0 text-14px font-600 text-ink">{{ title }}</p>
-    <p v-if="description" class="m-0 max-w-420px text-12px text-ink-sub leading-5">
+    <p
+      v-if="description"
+      class="m-0 max-w-420px text-12px text-ink-sub leading-5"
+    >
       {{ description }}
     </p>
-    <div v-if="$slots.default" class="mt-1 flex items-center gap-2 flex-wrap justify-center">
+    <div
+      v-if="$slots.default"
+      class="mt-1 flex items-center gap-2 flex-wrap justify-center"
+    >
       <slot />
     </div>
   </div>

@@ -57,7 +57,9 @@ const message = useMessage();
 const defaultCategory = ref('TemporaryFile');
 
 const rootId = computed(() => appStore.activeRootId);
-const category = computed(() => categoryStore.activeCategory || defaultCategory.value);
+const category = computed(
+  () => categoryStore.activeCategory || defaultCategory.value,
+);
 const categories = computed(() => categoryStore.categoriesOf(rootId.value));
 
 const items = ref<FileItem[]>([]);
@@ -94,9 +96,7 @@ async function load() {
     total.value = result.total;
     // 翻页后清理已不在当前页的选中项
     const visible = new Set(result.items.map((i) => i.path));
-    selected.value = new Set(
-      [...selected.value].filter((p) => visible.has(p)),
-    );
+    selected.value = new Set([...selected.value].filter((p) => visible.has(p)));
   } catch (e) {
     error.value = getErrorMessage(e, '文件列表加载失败');
     items.value = [];
@@ -280,7 +280,9 @@ async function submitMove(targetCategory: string) {
         `已移动 ${result.movedCount} 个，${failed.length} 个失败：${failed[0].error ?? '未知原因'}`,
       );
     } else {
-      message.success(`已移动 ${result.movedCount} 个文件到「${targetCategory}」`);
+      message.success(
+        `已移动 ${result.movedCount} 个文件到「${targetCategory}」`,
+      );
     }
     moveShow.value = false;
     selected.value = new Set();
@@ -397,37 +399,51 @@ function openBatchShare() {
       </NTooltip>
 
       <div class="flex items-center gap-1">
-        <NTooltip :delay="300"><template #trigger>
-          <NButton
-            size="small"
-            circle
-            :type="viewMode === 'grid' ? 'primary' : 'default'"
-            quaternary
-            @click="viewMode = 'grid'"
-          >
-            <template #icon><NIcon><GridOutline /></NIcon></template>
-          </NButton>
-        </template>网格视图</NTooltip>
-        <NTooltip :delay="300"><template #trigger>
-          <NButton
-            size="small"
-            circle
-            :type="viewMode === 'list' ? 'primary' : 'default'"
-            quaternary
-            @click="viewMode = 'list'"
-          >
-            <template #icon><NIcon><ListOutline /></NIcon></template>
-          </NButton>
-        </template>列表视图</NTooltip>
-        <NTooltip :delay="300"><template #trigger>
-          <NButton size="small" circle quaternary @click="reload">
-            <template #icon><NIcon><RefreshOutline /></NIcon></template>
-          </NButton>
-        </template>刷新</NTooltip>
+        <NTooltip :delay="300"
+          ><template #trigger>
+            <NButton
+              size="small"
+              circle
+              :type="viewMode === 'grid' ? 'primary' : 'default'"
+              quaternary
+              @click="viewMode = 'grid'"
+            >
+              <template #icon
+                ><NIcon><GridOutline /></NIcon
+              ></template>
+            </NButton> </template
+          >网格视图</NTooltip
+        >
+        <NTooltip :delay="300"
+          ><template #trigger>
+            <NButton
+              size="small"
+              circle
+              :type="viewMode === 'list' ? 'primary' : 'default'"
+              quaternary
+              @click="viewMode = 'list'"
+            >
+              <template #icon
+                ><NIcon><ListOutline /></NIcon
+              ></template>
+            </NButton> </template
+          >列表视图</NTooltip
+        >
+        <NTooltip :delay="300"
+          ><template #trigger>
+            <NButton size="small" circle quaternary @click="reload">
+              <template #icon
+                ><NIcon><RefreshOutline /></NIcon
+              ></template>
+            </NButton> </template
+          >刷新</NTooltip
+        >
       </div>
 
       <NButton type="primary" size="small" @click="uploadShow = true">
-        <template #icon><NIcon><CloudUploadOutline /></NIcon></template>
+        <template #icon
+          ><NIcon><CloudUploadOutline /></NIcon
+        ></template>
         上传文件
       </NButton>
     </header>
@@ -442,18 +458,26 @@ function openBatchShare() {
         {{ allSelected ? '取消全选' : '全选本页' }}
       </NButton>
       <NButton size="tiny" quaternary @click="openBatchMove">
-        <template #icon><NIcon :size="14"><SwapHorizontalOutline /></NIcon></template>
+        <template #icon
+          ><NIcon :size="14"><SwapHorizontalOutline /></NIcon
+        ></template>
         移动
       </NButton>
       <NButton size="tiny" quaternary @click="openBatchShare">
-        <template #icon><NIcon :size="14"><ShareSocialOutline /></NIcon></template>
+        <template #icon
+          ><NIcon :size="14"><ShareSocialOutline /></NIcon
+        ></template>
         创建分享（{{ selected.size }} 个文件）
       </NButton>
       <NButton size="tiny" quaternary type="error" @click="openBatchDelete">
-        <template #icon><NIcon :size="14"><TrashOutline /></NIcon></template>
+        <template #icon
+          ><NIcon :size="14"><TrashOutline /></NIcon
+        ></template>
         删除
       </NButton>
-      <NButton size="tiny" quaternary @click="selected = new Set()">取消</NButton>
+      <NButton size="tiny" quaternary @click="selected = new Set()"
+        >取消</NButton
+      >
     </div>
 
     <!-- 内容区 -->
@@ -469,7 +493,12 @@ function openBatchShare() {
           class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
         >
           <NEmpty :description="q ? '没有匹配的文件' : '当前分类还没有文件'" />
-          <NButton v-if="!q" size="small" type="primary" @click="uploadShow = true">
+          <NButton
+            v-if="!q"
+            size="small"
+            type="primary"
+            @click="uploadShow = true"
+          >
             上传第一个文件
           </NButton>
         </div>
