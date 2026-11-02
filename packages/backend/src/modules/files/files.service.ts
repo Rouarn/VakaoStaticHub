@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -9,40 +10,44 @@ import {
   constants,
   mkdir,
   readdir,
-  readFile,
   rename as fsRename,
   rm,
   stat,
-  writeFile,
 } from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
-import { createHash } from 'node:crypto';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { platform } from 'node:os';
-import { pipeline } from 'node:stream/promises';
-import { ResourceRootsService } from '#/infra/resource-roots/resource-roots.service.js';
+import { dirname } from 'node:path';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FileEntryEntity } from '#/infra/database/entities/file-entry.entity.js';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
+import { ResourceRootsService } from '#/infra/resource-roots/resource-roots.service.js';
 import {
   safeJoin,
   normalizeCategoryPath,
   getFileExtension,
-  UPLOAD_ID_REGEX,
 } from '#/common/utils/path.util.js';
+import { getMimeType } from '#/common/utils/mime.util.js';
 import { SOFTWARE_UPDATE_ROOT_ID } from '../app-update/app-update.constants.js';
-import type {
-  UsageStatsResult,
-  BatchDeleteResult,
-  BatchMoveResult,
-  DuplicateScanResult,
-  ChunkUploadInitResult,
-} from '@vakao/shared';
+import { toFileListItem } from './files.mapper.js';
+import type { BatchDeleteResult, BatchMoveResult } from '@vakao/shared';
 
+/** 文件列表查询参数 */
+export interface ListFilesOptions {
+  page: number;
+  pageSize: number;
+  q?: string;
+  sort?: string;
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * 文件域核心服务
+ * 负责文件列表、分类增删改、文件重命名/删除/批量删除/批量移动
+ */
 @Injectable()
 export class FilesService {
+  private readonly logger = new Logger(FilesService.name);
+
   constructor(
     private readonly resourceRoots: ResourceRootsService,
     private readonly configService: ConfigService,
@@ -69,32 +74,11 @@ export class FilesService {
     return safeJoin(rootPath, [dbCategory, ...parts]);
   }
 
-  async listSystemDirectories(path?: string) {
-    if (!path) {
-      if (platform() === 'win32') {
-        const drives = [];
-        for (let i = 65; i <= 90; i++) {
-          const letter = String.fromCharCode(i);
-          const driveRoot = `${letter}:\\`;
-          try {
-            await access(driveRoot, constants.F_OK);
-            drives.push({ name: `${letter}:`, path: driveRoot });
-          } catch {
-            // ignore inaccessible drives
-          }
-        }
-        return drives;
-      } else {
-        path = '/';
-      }
-    }
-
-    const target = isAbsolute(path) ? path : resolve(process.cwd(), path);
-    const entries = await readdir(target, { withFileTypes: true });
-    return entries
-      .filter((d) => d.isDirectory())
-      .map((d) => ({ name: d.name, path: join(target, d.name) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+  /** 静态直出目标解析：路径安全校验 + MIME 判定（不触碰 HTTP 上下文） */
+  resolveServeTarget(rootId: string, category: string, filename: string) {
+    const fullPath = this.safeJoinCategory(rootId, category, [filename]);
+    const mimeType = getMimeType(filename);
+    return { fullPath, mimeType, isImage: mimeType.startsWith('image/') };
   }
 
   async listCategories(rootId: string) {
@@ -286,201 +270,10 @@ export class FilesService {
     return { success: true, removedEntries: entries.length };
   }
 
-  /**
-   * 存储用量统计：按资源根/分类聚合 file_entries 索引表
-   * 数据与文件索引实时一致（索引本身由文件操作事件驱动同步）
-   */
-  async getUsageStats(): Promise<UsageStatsResult> {
-    const rows = await this.repo
-      .createQueryBuilder('f')
-      .select('f.rootId', 'rootId')
-      .addSelect('f.category', 'category')
-      .addSelect('SUM(f.size)', 'totalSize')
-      .addSelect('COUNT(*)', 'fileCount')
-      .groupBy('f.rootId')
-      .addGroupBy('f.category')
-      .getRawMany<{
-        rootId: string;
-        category: string;
-        totalSize: number | string;
-        fileCount: number | string;
-      }>();
-
-    const rootMap = new Map<
-      string,
-      {
-        rootId: string;
-        rootName: string;
-        totalSize: number;
-        fileCount: number;
-        categories: {
-          category: string;
-          totalSize: number;
-          fileCount: number;
-        }[];
-      }
-    >();
-
-    for (const row of rows) {
-      let root = rootMap.get(row.rootId);
-      if (!root) {
-        root = {
-          rootId: row.rootId,
-          rootName: this.resourceRoots.getRoot(row.rootId)?.name ?? row.rootId,
-          totalSize: 0,
-          fileCount: 0,
-          categories: [],
-        };
-        rootMap.set(row.rootId, root);
-      }
-      const totalSize = Number(row.totalSize);
-      const fileCount = Number(row.fileCount);
-      root.categories.push({ category: row.category, totalSize, fileCount });
-      root.totalSize += totalSize;
-      root.fileCount += fileCount;
-    }
-
-    // 补充没有任何索引记录的资源根（空目录也应在统计中可见）
-    for (const root of this.resourceRoots.getRoots()) {
-      if (!rootMap.has(root.id)) {
-        rootMap.set(root.id, {
-          rootId: root.id,
-          rootName: root.name,
-          totalSize: 0,
-          fileCount: 0,
-          categories: [],
-        });
-      }
-    }
-
-    const roots = [...rootMap.values()].map((root) => ({
-      ...root,
-      categories: root.categories.sort((a, b) => b.totalSize - a.totalSize),
-    }));
-    roots.sort((a, b) => b.totalSize - a.totalSize);
-
-    return {
-      roots,
-      totalSize: roots.reduce((sum, r) => sum + r.totalSize, 0),
-      fileCount: roots.reduce((sum, r) => sum + r.fileCount, 0),
-    };
-  }
-
-  /**
-   * 重复文件检测：按内容 SHA-256 分组找出内容完全相同的文件
-   * 存量索引记录可能没有 contentHash——先按文件大小分组（大小相同才可能重复），
-   * 仅对大小重复且尚未计算哈希的记录惰性补算并回写索引，避免全量扫盘
-   */
-  async getDuplicateFiles(
-    rootId?: string,
-    page = 1,
-    pageSize = 20,
-  ): Promise<DuplicateScanResult> {
-    // 1. 找出存在重复的文件大小（忽略 0 字节文件，空文件无去重意义）
-    const sizeQb = this.repo
-      .createQueryBuilder('f')
-      .select('f.size', 'size')
-      .where('f.size > 0')
-      .groupBy('f.size')
-      .having('COUNT(*) > 1');
-    if (rootId) {
-      sizeQb.andWhere('f.rootId = :rootId', { rootId });
-    }
-    const dupSizes = await sizeQb.getRawMany<{ size: number | string }>();
-    const sizes = dupSizes.map((r) => Number(r.size));
-
-    // 2. 对大小重复但缺少哈希的记录补算 SHA-256 并回写索引
-    let hashedCount = 0;
-    if (sizes.length > 0) {
-      const pendingQb = this.repo
-        .createQueryBuilder('f')
-        .where('f.contentHash IS NULL')
-        .andWhere('f.size IN (:...sizes)', { sizes });
-      if (rootId) {
-        pendingQb.andWhere('f.rootId = :rootId', { rootId });
-      }
-      const pending = await pendingQb.getMany();
-
-      for (const row of pending) {
-        try {
-          const absPath = safeJoin(
-            this.resourceRoots.resolveRootPath(row.rootId),
-            [row.category, row.relPath],
-          );
-          const s = await stat(absPath);
-          // 文件在索引后被修改过：大小或修改时间不一致时哈希无意义，跳过
-          if (s.size !== row.size || s.mtimeMs !== row.mtimeMs) continue;
-          const hash = createHash('sha256');
-          await pipeline(createReadStream(absPath), hash);
-          row.contentHash = hash.digest('hex');
-          await this.repo.update(
-            { id: row.id },
-            { contentHash: row.contentHash },
-          );
-          hashedCount++;
-        } catch {
-          // 文件已被移动/删除等，跳过等待下次索引同步
-        }
-      }
-    }
-
-    // 3. 按内容哈希分组，保留数量大于 1 的重复组
-    const hashQb = this.repo
-      .createQueryBuilder('f')
-      .select('f.contentHash', 'contentHash')
-      .where('f.contentHash IS NOT NULL')
-      .groupBy('f.contentHash')
-      .having('COUNT(*) > 1');
-    if (rootId) {
-      hashQb.andWhere('f.rootId = :rootId', { rootId });
-    }
-    const dupHashes = await hashQb.getRawMany<{ contentHash: string }>();
-
-    const groups = [];
-    for (const { contentHash } of dupHashes) {
-      const files = await this.repo.find({
-        where: rootId ? { contentHash, rootId } : { contentHash },
-        order: { mtimeMs: 'DESC' },
-      });
-      groups.push({
-        contentHash,
-        size: files[0]?.size ?? 0,
-        count: files.length,
-        files: files.map((f) => ({
-          rootId: f.rootId,
-          category: f.category,
-          relPath: f.relPath,
-          name: f.name,
-          size: f.size,
-          mtime: f.mtimeMs,
-        })),
-      });
-    }
-    groups.sort((a, b) => b.size * b.count - a.size * a.count);
-
-    const groupCount = groups.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      groups: groups.slice(start, start + pageSize),
-      groupCount,
-      duplicateFileCount: groups.reduce((sum, g) => sum + g.count, 0),
-      hashedCount,
-      page,
-      pageSize,
-    };
-  }
-
   async listFilesPaged(
     rootId: string,
     category: string,
-    opts: {
-      page: number;
-      pageSize: number;
-      q?: string;
-      sort?: string;
-      order?: 'asc' | 'desc';
-    },
+    opts: ListFilesOptions,
   ) {
     const { dbCategory, relPathSuffix } = normalizeCategoryPath(category);
 
@@ -518,89 +311,11 @@ export class FilesService {
     const [rows, total] = await qb.getManyAndCount();
 
     return {
-      items: rows.map((r) => {
-        let relativePath = r.relPath;
-        if (relPathSuffix && relativePath.startsWith(relPathSuffix + '/')) {
-          relativePath = relativePath.substring(relPathSuffix.length + 1);
-        }
-        return {
-          name: r.name,
-          path: relativePath,
-          size: r.size,
-          mtime: r.mtimeMs,
-        };
-      }),
+      items: rows.map((row) => toFileListItem(row, relPathSuffix)),
       total,
       page: opts.page,
       pageSize: opts.pageSize,
     };
-  }
-
-  async saveFile(
-    rootId: string,
-    category: string,
-    filename: string,
-    buffer: Buffer,
-  ) {
-    const { dbCategory, relPathSuffix } = normalizeCategoryPath(category);
-    const relPath = relPathSuffix ? `${relPathSuffix}/${filename}` : filename;
-
-    const targetPath = safeJoin(this.resourceRoots.resolveRootPath(rootId), [
-      dbCategory,
-      relPath,
-    ]);
-
-    await mkdir(resolve(targetPath, '..'), { recursive: true });
-    await writeFile(targetPath, buffer);
-    const s = await stat(targetPath);
-
-    // 上传内容已在内存中，直接计算 SHA-256 用于重复文件检测
-    const contentHash = createHash('sha256').update(buffer).digest('hex');
-
-    await this.repo.upsert(
-      {
-        rootId,
-        category: dbCategory,
-        relPath,
-        name: filename,
-        ext: getFileExtension(filename),
-        size: s.size,
-        mtimeMs: s.mtimeMs,
-        contentHash,
-      },
-      ['rootId', 'category', 'relPath'],
-    );
-
-    return {
-      name: filename,
-      path: filename,
-      size: s.size,
-      mtime: s.mtimeMs,
-    };
-  }
-
-  async batchSaveFiles(
-    rootId: string,
-    category: string,
-    files: Array<{ originalname: string; buffer: Buffer }>,
-  ) {
-    const results = [];
-    for (const file of files) {
-      try {
-        const originalName = Buffer.from(file.originalname, 'latin1').toString(
-          'utf8',
-        );
-        await this.saveFile(rootId, category, originalName, file.buffer);
-        results.push({ name: originalName, success: true });
-      } catch (e) {
-        results.push({
-          name: file.originalname,
-          success: false,
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-    }
-    return results;
   }
 
   async batchDeleteFiles(
@@ -715,7 +430,7 @@ export class FilesService {
           // 目标不存在，可继续
         }
 
-        await mkdir(resolve(targetPath, '..'), { recursive: true });
+        await mkdir(dirname(targetPath), { recursive: true });
         await fsRename(sourcePath, targetPath);
 
         await manager.update(
@@ -800,207 +515,15 @@ export class FilesService {
         }
       }
     } catch (e) {
-      console.warn('清理空目录失败:', e);
+      this.logger.warn(`清理空目录失败: ${(e as Error).message}`);
     }
-  }
-
-  // ==================== 大文件分片上传 ====================
-
-  /** 分片临时目录：操作系统临时目录下的应用专属子目录
-   *  配置收敛到 files.uploadTempDir（默认 os.tmpdir()/vakao-static-hub/uploads，
-   *  可通过 UPLOAD_TEMP_DIR 环境变量覆盖） */
-  private get chunkUploadDir(): string {
-    const dir = this.configService.get<string>('files.uploadTempDir');
-    if (!dir) {
-      throw new Error('files.uploadTempDir 未配置');
-    }
-    return dir;
-  }
-
-  private sanitizeUploadId(id: string): string {
-    if (!UPLOAD_ID_REGEX.test(id)) {
-      throw new BadRequestException('uploadId 不合法');
-    }
-    return id;
-  }
-
-  /** 已取消的 uploadId 集合：阻止取消瞬间仍在途的分片写入重建临时目录 */
-  private readonly cancelledUploads = new Set<string>();
-
-  private getChunkUploadPath(uploadId: string): string {
-    return resolve(this.chunkUploadDir, this.sanitizeUploadId(uploadId));
-  }
-
-  /**
-   * 初始化分片上传
-   * 返回 uploadId；若 uploadId 已存在则返回已上传分片列表（断点续传）
-   */
-  async initChunkUpload(
-    rootId: string,
-    category: string,
-    filename: string,
-    size: number,
-    chunkSize: number,
-    userId: number,
-  ): Promise<ChunkUploadInitResult> {
-    // uploadId 必须用稳定标识（不含时间戳），否则相同文件重复 init 会得到不同 id，
-    // 导致断点续传失效——前端无法拿到已上传分片列表
-    // 同时必须带上 userId：两个用户同时上传同名同大小文件如果命中同一个 uploadId
-    // 会互相覆盖分片目录（saveChunk 会互相覆写同一个 index 文件），
-    // 加 userId 把同一 uploadId 限制在单个用户的会话空间内。
-    const uploadId = createHash('md5')
-      .update(`${userId}:${rootId}:${category}:${filename}:${size}`)
-      .digest('hex');
-
-    // 新的上传尝试开始：清除上一次「已取消」标记，
-    // 否则相同文件取消后重新上传会被 saveChunk 误判为已取消。
-    this.cancelledUploads.delete(uploadId);
-
-    const uploadDir = this.getChunkUploadPath(uploadId);
-    await mkdir(uploadDir, { recursive: true });
-
-    // 检查是否有已上传的分片（断点续传场景：相同文件第二次 init 时复用已有 uploadId）
-    let uploadedChunks: number[] = [];
-    try {
-      const files = await readdir(uploadDir);
-      uploadedChunks = files
-        .filter((f) => /^\d+$/.test(f))
-        .map((f) => parseInt(f, 10))
-        .sort((a, b) => a - b);
-    } catch {
-      // 目录刚创建，无分片
-    }
-
-    return { uploadId, chunkSize, uploadedChunks };
-  }
-
-  /**
-   * 保存单个分片
-   */
-  async saveChunk(uploadId: string, index: number, buffer: Buffer) {
-    if (this.cancelledUploads.has(uploadId)) {
-      throw new BadRequestException('上传已取消');
-    }
-    const uploadDir = this.getChunkUploadPath(uploadId);
-    await mkdir(uploadDir, { recursive: true });
-    await writeFile(resolve(uploadDir, String(index)), buffer);
-    // 取消与在途分片写入存在竞态：cancel 的 rm 可能先执行，
-    // 分片随后又重建了临时目录。写完后再检查一次并主动清理，
-    // 保证「取消后临时目录一定不存在」。
-    if (this.cancelledUploads.has(uploadId)) {
-      await rm(uploadDir, { recursive: true, force: true });
-      throw new BadRequestException('上传已取消');
-    }
-    return { index, size: buffer.length };
-  }
-
-  /**
-   * 取消分片上传，清理临时目录
-   */
-  async cancelChunkUpload(uploadId: string) {
-    const safeId = this.sanitizeUploadId(uploadId);
-    this.cancelledUploads.add(safeId);
-    // 标记只需覆盖「取消瞬间仍在途的分片请求」，5 分钟后自动释放，避免集合无限增长
-    const timer = setTimeout(
-      () => this.cancelledUploads.delete(safeId),
-      5 * 60 * 1000,
-    );
-    timer.unref?.();
-    const uploadDir = this.getChunkUploadPath(uploadId);
-    await rm(uploadDir, { recursive: true, force: true });
-    return { success: true };
-  }
-
-  /**
-   * 合并分片，写入目标位置并建立索引
-   */
-  async completeChunkUpload(
-    uploadId: string,
-    rootId: string,
-    category: string,
-    filename: string,
-    expectedSize: number,
-  ) {
-    const uploadDir = this.getChunkUploadPath(uploadId);
-
-    if (this.cancelledUploads.has(uploadId)) {
-      await rm(uploadDir, { recursive: true, force: true });
-      throw new BadRequestException('上传已取消');
-    }
-
-    // 读取所有分片索引
-    const files = await readdir(uploadDir);
-    const chunkIndices = files
-      .filter((f) => /^\d+$/.test(f))
-      .map((f) => parseInt(f, 10))
-      .sort((a, b) => a - b);
-
-    if (chunkIndices.length === 0) {
-      throw new BadRequestException('没有可合并的分片');
-    }
-
-    // 按顺序读取并合并
-    const chunks: Buffer[] = [];
-    let totalSize = 0;
-    for (const idx of chunkIndices) {
-      const chunkPath = resolve(uploadDir, String(idx));
-      const chunk = await readFile(chunkPath);
-      chunks.push(chunk);
-      totalSize += chunk.length;
-    }
-
-    if (totalSize !== expectedSize) {
-      throw new BadRequestException(
-        `文件大小不匹配，期望 ${expectedSize} 字节，实际 ${totalSize} 字节`,
-      );
-    }
-
-    const merged = Buffer.concat(chunks);
-    const contentHash = createHash('sha256').update(merged).digest('hex');
-
-    const { dbCategory, relPathSuffix } = normalizeCategoryPath(category);
-    const relPath = relPathSuffix ? `${relPathSuffix}/${filename}` : filename;
-
-    const targetPath = safeJoin(this.resourceRoots.resolveRootPath(rootId), [
-      dbCategory,
-      relPath,
-    ]);
-
-    await mkdir(resolve(targetPath, '..'), { recursive: true });
-    await writeFile(targetPath, merged);
-    const s = await stat(targetPath);
-
-    await this.repo.upsert(
-      {
-        rootId,
-        category: dbCategory,
-        relPath,
-        name: filename,
-        ext: getFileExtension(filename),
-        size: s.size,
-        mtimeMs: s.mtimeMs,
-        contentHash,
-      },
-      ['rootId', 'category', 'relPath'],
-    );
-
-    // 清理临时分片
-    await rm(uploadDir, { recursive: true, force: true });
-
-    return {
-      name: filename,
-      path: filename,
-      size: s.size,
-      mtime: s.mtimeMs,
-      contentHash,
-    };
   }
 
   /**
    * 校验文件名是否为合法的 basename
    * 禁止路径分隔符、控制字符、"." / ".." 以及首尾空白
    */
-  private validateBasename(name: string): string {
+  validateBasename(name: string): string {
     const trimmed = typeof name === 'string' ? name.trim() : '';
     const hasControlChar =
       trimmed.length > 0 &&

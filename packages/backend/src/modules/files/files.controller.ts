@@ -11,7 +11,6 @@ import {
   Query,
   Req,
   Res,
-  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -25,8 +24,22 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response, Request } from 'express';
+import { SkipThrottle } from '@nestjs/throttler';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
+import { Public } from '#/common/decorators/public.decorator.js';
+import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
+import { getRequestMeta } from '#/common/utils/request-meta.util.js';
+import { ConfigurableFilesInterceptor } from '#/common/interceptors/configurable-files.interceptor.js';
+import { ConfigurableChunkFileInterceptor } from '#/common/interceptors/configurable-chunk-file.interceptor.js';
+import { serveStaticFile } from '#/infra/storage/file-serve.util.js';
+import { AuditLogService } from '../audit-log/audit-log.service.js';
 import { FilesService } from './files.service.js';
+import { UploadService } from './upload.service.js';
+import { FileIndexService } from './file-index.service.js';
+import { DuplicateService } from './duplicate.service.js';
+import { UsageService } from './usage.service.js';
+import { ImageProcessorService } from './image-processor.service.js';
 import { BatchDeleteDto } from './dto/batch-delete.dto.js';
 import { BatchMoveDto } from './dto/batch-move.dto.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
@@ -35,18 +48,12 @@ import { DuplicateFilesQueryDto } from './dto/duplicate-files-query.dto.js';
 import { ListFilesQueryDto } from './dto/list-files-query.dto.js';
 import { RenameFileDto } from './dto/rename-file.dto.js';
 import { RenameCategoryDto } from './dto/rename-category.dto.js';
-import { SkipThrottle } from '@nestjs/throttler';
-import { Public } from '#/common/decorators/public.decorator.js';
-import { ImageProcessorService } from './image-processor.service.js';
-import { getMimeType } from '#/common/utils/mime.util.js';
-import { ConfigurableFilesInterceptor } from '#/common/interceptors/configurable-files.interceptor.js';
-import { ConfigurableChunkFileInterceptor } from '#/common/interceptors/configurable-chunk-file.interceptor.js';
-import { serveStaticFile } from '#/infra/storage/file-serve.util.js';
-import { FileIndexService } from './file-index.service.js';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
-import { AuditLogService } from '../audit-log/audit-log.service.js';
-import { getRequestMeta } from '#/common/utils/request-meta.util.js';
+
+/** 分片上传 multipart 字段（兼容前端 chunk 与文档约定的 file） */
+interface ChunkUploadFiles {
+  chunk?: Express.Multer.File[];
+  file?: Express.Multer.File[];
+}
 
 @ApiTags('文件管理')
 @Controller('files')
@@ -54,8 +61,11 @@ import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 export class FilesController {
   constructor(
     private readonly service: FilesService,
+    private readonly uploadService: UploadService,
     private readonly imageProcessor: ImageProcessorService,
     private readonly fileIndexService: FileIndexService,
+    private readonly duplicateService: DuplicateService,
+    private readonly usageService: UsageService,
     private readonly eventEmitter: EventEmitter2,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -71,14 +81,14 @@ export class FilesController {
   @Get('stats/usage')
   @ApiOperation({ summary: '存储用量统计（按资源根/分类聚合）' })
   async getUsageStats() {
-    return await this.service.getUsageStats();
+    return await this.usageService.getUsageStats();
   }
 
   // 单段静态路由，按内容哈希分组检测重复文件（可对存量文件惰性补算哈希）
   @Get('duplicates')
   @ApiOperation({ summary: '重复文件检测（按内容 SHA-256 分组，服务端分页）' })
   async getDuplicates(@Query() query: DuplicateFilesQueryDto) {
-    return await this.service.getDuplicateFiles(
+    return await this.duplicateService.getDuplicateFiles(
       query.rootId,
       query.page,
       query.pageSize,
@@ -305,7 +315,7 @@ export class FilesController {
     },
     @CurrentUser() currentUser: { userId: number; username: string },
   ) {
-    return await this.service.initChunkUpload(
+    return await this.uploadService.initChunkUpload(
       body.rootId,
       body.category,
       body.filename,
@@ -322,12 +332,13 @@ export class FilesController {
   async uploadChunk(
     @Query('uploadId') uploadId: string,
     @Query('index') index: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles() files: ChunkUploadFiles,
   ) {
+    const file = files?.chunk?.[0] ?? files?.file?.[0];
     if (!file) {
       throw new BadRequestException('No chunk uploaded');
     }
-    return await this.service.saveChunk(
+    return await this.uploadService.saveChunk(
       uploadId,
       parseInt(index, 10),
       file.buffer,
@@ -361,7 +372,7 @@ export class FilesController {
     @CurrentUser() currentUser: { userId: number; username: string },
     @Req() req: Request,
   ) {
-    const result = await this.service.completeChunkUpload(
+    const result = await this.uploadService.completeChunkUpload(
       body.uploadId,
       body.rootId,
       body.category,
@@ -389,7 +400,7 @@ export class FilesController {
   @Post('upload/cancel')
   @ApiOperation({ summary: '取消分片上传并清理临时文件' })
   async cancelChunkUpload(@Body() body: { uploadId: string }) {
-    return await this.service.cancelChunkUpload(body.uploadId);
+    return await this.uploadService.cancelChunkUpload(body.uploadId);
   }
 
   @Post(':rootId/upload')
@@ -419,7 +430,7 @@ export class FilesController {
     if (!files || files.length === 0) {
       throw new BadRequestException('No files uploaded');
     }
-    const result = await this.service.batchSaveFiles(
+    const result = await this.uploadService.batchSaveFiles(
       rootId,
       category || '',
       files,
@@ -478,12 +489,13 @@ export class FilesController {
     }
 
     try {
-      const fullPath = this.service.safeJoinCategory(rootId, category, [
+      const { fullPath, isImage } = this.service.resolveServeTarget(
+        rootId,
+        category,
         filename,
-      ]);
-      const mimeType = getMimeType(filename);
+      );
 
-      if (mimeType.startsWith('image/') && (w || h || q || format)) {
+      if (isImage && (w || h || q || format)) {
         await this.serveProcessedImage(fullPath, w, h, q, format, res);
         return;
       }
