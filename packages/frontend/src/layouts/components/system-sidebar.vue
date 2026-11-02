@@ -9,21 +9,27 @@ import {
   KeyOutline,
   LogOutOutline,
   CloudOutline,
+  ChevronForwardOutline,
+  ChevronBackOutline,
 } from '@vicons/ionicons5';
 import { routes } from '@/router/routes';
 import { useAppStore } from '@/stores/modules/app';
 import { useAuthStore } from '@/stores/modules/auth';
 
 /**
- * System Sidebar（72px 固定图标栏）
+ * System Sidebar
  *
- * 只放系统级功能入口（来自路由表 meta.sidebar），纯图标 + Hover Tooltip；
- * 底部为主题切换与当前用户菜单。用户动态资源分类在 Category Panel。
+ * 只放系统级功能入口（来自路由表 meta.sidebar）。
+ * - 收起态：72px 纯图标 + Hover Tooltip
+ * - 展开态：208px 图标 + 文字，此时不再显示 Tooltip
+ * 用户动态资源分类在 Category Panel。
  */
 const route = useRoute();
 const router = useRouter();
 const appStore = useAppStore();
 const authStore = useAuthStore();
+
+const expanded = computed(() => appStore.sidebarExpanded);
 
 interface NavItem {
   name: string;
@@ -75,30 +81,52 @@ function onUserAction(key: string) {
 
 <template>
   <aside
-    class="glass-panel w-18 h-full flex flex-col items-center py-4 gap-2 shrink-0"
+    class="glass-panel h-full flex flex-col items-center py-4 shrink-0 overflow-hidden transition-all duration-300 ease-out box-border"
+    :class="expanded ? 'w-52 px-3 gap-2' : 'w-18 px-2 gap-2'"
   >
     <!-- Logo -->
     <div
-      class="rail-icon-active w-11 h-11 mb-2 flex items-center justify-center rounded-xl"
+      class="flex items-center mb-1 shrink-0"
+      :class="expanded ? 'w-full gap-2.5 px-1' : 'justify-center'"
     >
-      <NIcon :size="24"><CloudOutline /></NIcon>
+      <div
+        class="rail-icon-active w-11 h-11 flex items-center justify-center rounded-xl shrink-0"
+      >
+        <NIcon :size="24"><CloudOutline /></NIcon>
+      </div>
+      <span
+        v-if="expanded"
+        class="text-ink text-sm font-600 whitespace-nowrap animate-fade-in"
+      >
+        静态资源
+      </span>
     </div>
 
     <!-- 系统功能导航 -->
-    <nav class="flex flex-col gap-1.5 overflow-y-auto w-full items-center">
+    <nav class="flex flex-col gap-1.5 overflow-y-auto w-full">
       <NTooltip
         v-for="item in navItems"
         :key="item.name"
         placement="right"
         :delay="300"
+        :disabled="expanded"
       >
         <template #trigger>
           <button
-            class="rail-icon cursor-pointer border-none bg-transparent"
-            :class="{ 'rail-icon-active': activeName === item.name }"
+            class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
+            :class="[
+              activeName === item.name ? 'rail-icon-active' : '',
+              expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11',
+            ]"
             @click="go(item.name)"
           >
-            <NIcon :size="22" :component="item.icon" />
+            <NIcon :size="22" class="shrink-0" :component="item.icon" />
+            <span
+              v-if="expanded"
+              class="text-13px whitespace-nowrap animate-fade-in"
+            >
+              {{ item.title }}
+            </span>
           </button>
         </template>
         {{ item.title }}
@@ -107,17 +135,47 @@ function onUserAction(key: string) {
 
     <div class="flex-1" />
 
-    <!-- 主题切换 -->
-    <NTooltip placement="right" :delay="300">
+    <!-- 展开 / 收起 -->
+    <NTooltip placement="right" :delay="300" :disabled="expanded">
       <template #trigger>
         <button
-          class="rail-icon cursor-pointer border-none bg-transparent"
+          class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
+          :class="expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11'"
+          @click="appStore.toggleSidebar()"
+        >
+          <NIcon :size="20" class="shrink-0">
+            <ChevronForwardOutline v-if="!expanded" />
+            <ChevronBackOutline v-else />
+          </NIcon>
+          <span
+            v-if="expanded"
+            class="text-13px whitespace-nowrap animate-fade-in"
+          >
+            收起菜单
+          </span>
+        </button>
+      </template>
+      展开菜单
+    </NTooltip>
+
+    <!-- 主题切换 -->
+    <NTooltip placement="right" :delay="300" :disabled="expanded">
+      <template #trigger>
+        <button
+          class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
+          :class="expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11'"
           @click="appStore.toggleDark()"
         >
-          <NIcon :size="22">
+          <NIcon :size="22" class="shrink-0">
             <SunnyOutline v-if="appStore.isDark" />
             <MoonOutline v-else />
           </NIcon>
+          <span
+            v-if="expanded"
+            class="text-13px whitespace-nowrap animate-fade-in"
+          >
+            {{ appStore.isDark ? '切换浅色' : '切换深色' }}
+          </span>
         </button>
       </template>
       {{ appStore.isDark ? '切换浅色' : '切换深色' }}
@@ -130,14 +188,23 @@ function onUserAction(key: string) {
       :options="userOptions"
       @select="onUserAction"
     >
-      <div class="cursor-pointer">
+      <div
+        class="cursor-pointer flex items-center rounded-xl shrink-0"
+        :class="expanded ? 'w-full gap-2.5 px-2 py-1.5 hover:bg-white/60 dark:hover:bg-white/8' : ''"
+      >
         <NAvatar
           round
           size="medium"
-          class="bg-brand-600! text-white align-middle"
+          class="bg-brand-600! text-white align-middle shrink-0"
         >
           {{ authStore.user?.username?.slice(0, 1).toUpperCase() ?? 'U' }}
         </NAvatar>
+        <span
+          v-if="expanded"
+          class="text-13px text-ink-sub whitespace-nowrap truncate animate-fade-in"
+        >
+          {{ authStore.user?.username ?? '未登录' }}
+        </span>
       </div>
     </NDropdown>
   </aside>

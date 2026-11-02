@@ -31,6 +31,8 @@ export const colors = {
   glass: {
     light: 'rgba(255,255,255,0.65)',
     dark: 'rgba(22,30,46,0.6)',
+    /** 浅色模式下更实一级的浮层（Tooltip 等需要保证文字对比度的场景） */
+    solidLight: 'rgba(255,255,255,0.96)',
     /** 深色模式下更实一级的浮层（弹窗/下拉） */
     darkSolid: 'rgba(26,35,54,0.92)',
     borderLight: 'rgba(255,255,255,0.9)',

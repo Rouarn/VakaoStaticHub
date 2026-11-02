@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RouterView } from 'vue-router';
+import { RouterView, useRoute } from 'vue-router';
 import { useAppStore } from '@/stores/modules/app';
 import SystemSidebar from './components/system-sidebar.vue';
 import CategoryPanel from './components/category-panel.vue';
@@ -15,9 +15,12 @@ import CategoryPanel from './components/category-panel.vue';
  * 背景光晕层按主题切换（aurora-light / aurora-dark，色值来自 design-tokens）
  */
 const appStore = useAppStore();
+const route = useRoute();
 const auroraClass = computed(() =>
   appStore.isDark ? 'aurora-dark' : 'aurora-light',
 );
+/** 是否渲染第二栏分类面板：唯一开关是路由 meta.categoryPanel */
+const showCategoryPanel = computed(() => route.meta.categoryPanel === true);
 </script>
 
 <template>
@@ -28,12 +31,19 @@ const auroraClass = computed(() =>
       :class="auroraClass"
     />
 
-    <div class="relative h-full flex gap-4 p-4">
+    <div class="relative h-full flex gap-4 p-4 box-border">
       <SystemSidebar />
-      <CategoryPanel />
+
+      <!-- 分类面板：仅资源管理路由渲染；宽度过渡收起，避免主区瞬移 -->
+      <div
+        class="shrink-0 h-full overflow-hidden transition-[width,margin] duration-300 ease-out"
+        :class="showCategoryPanel ? 'w-60' : 'w-0 -mr-4'"
+      >
+        <CategoryPanel v-if="showCategoryPanel" />
+      </div>
 
       <!-- 主内容区 -->
-      <main class="min-w-0 flex-1 overflow-y-auto">
+      <main class="min-w-0 min-h-0 flex-1 overflow-y-auto">
         <RouterView v-slot="{ Component }">
           <Transition name="fade-slide" mode="out-in">
             <component :is="Component" />

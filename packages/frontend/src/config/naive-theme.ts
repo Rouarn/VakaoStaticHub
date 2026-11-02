@@ -36,9 +36,41 @@ export const lightThemeOverrides: GlobalThemeOverrides = {
     borderRadius: glassEffect.borderRadius,
   },
   Modal: { borderRadius: glassEffect.borderRadius },
-  Popover: { color: colors.glass.light, borderRadius: '12px' },
-  Dropdown: { color: colors.glass.light, borderRadius: '12px' },
-  Tooltip: { borderRadius: '8px' },
+  Popover: {
+    color: colors.glass.light,
+    borderRadius: '12px',
+    textColor: colors.ink.primary,
+  },
+  Dropdown: {
+    color: colors.glass.light,
+    borderRadius: '12px',
+    optionTextColor: colors.ink.primary,
+    optionTextColorHover: colors.ink.primary,
+    optionTextColorActive: colors.ink.primary,
+    optionTextColorChildActive: colors.ink.primary,
+  },
+  // Tooltip 必须给不透明底色 + 深色文字：
+  // 默认是浅色文字叠在玻璃半透明底上，实测对比度只有 1:1。
+  // Popover 的全局覆盖在 Naive 合并顺序里会盖掉 Tooltip 自带的 color，
+  // 所以必须通过 peers.Popover（最高优先级）注入。
+  Tooltip: {
+    borderRadius: '8px',
+    peers: {
+      Popover: {
+        color: colors.glass.solidLight,
+        textColor: colors.ink.primary,
+      },
+    },
+  },
+  Select: {
+    peers: {
+      InternalSelectMenu: {
+        color: colors.glass.solidLight,
+        optionTextColor: colors.ink.primary,
+        optionTextColorActive: colors.ink.primary,
+      },
+    },
+  },
   Menu: { borderRadius: '12px' },
   DataTable: {
     thColor: 'transparent',
@@ -79,9 +111,29 @@ export const darkThemeOverrides: GlobalThemeOverrides = {
   Dropdown: {
     color: colors.glass.darkSolid,
     borderRadius: '12px',
-    textColor: colors.ink.darkPrimary,
+    optionTextColor: colors.ink.darkPrimary,
+    optionTextColorHover: colors.ink.darkPrimary,
+    optionTextColorActive: colors.ink.darkPrimary,
+    optionTextColorChildActive: colors.ink.darkPrimary,
   },
-  Tooltip: { borderRadius: '8px' },
+  Tooltip: {
+    borderRadius: '8px',
+    peers: {
+      Popover: {
+        color: colors.glass.darkSolid,
+        textColor: colors.ink.darkPrimary,
+      },
+    },
+  },
+  Select: {
+    peers: {
+      InternalSelectMenu: {
+        color: colors.glass.darkSolid,
+        optionTextColor: colors.ink.darkPrimary,
+        optionTextColorActive: colors.ink.darkPrimary,
+      },
+    },
+  },
   Menu: { borderRadius: '12px' },
   DataTable: {
     thColor: 'transparent',

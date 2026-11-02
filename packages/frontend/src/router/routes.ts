@@ -32,6 +32,11 @@ declare module 'vue-router' {
     sidebar?: boolean;
     /** System Sidebar 图标 */
     icon?: Component;
+    /**
+     * 是否为资源管理路由：只有该路由会在布局中渲染第二个分类面板。
+     * 单一开关由布局层读取，视图内不再各自判断。
+     */
+    categoryPanel?: boolean;
   }
 }
 
@@ -41,7 +46,12 @@ const protectedChildren: RouteRecordRaw[] = [
     path: 'files',
     name: 'files',
     component: () => import('@/views/files/index.vue'),
-    meta: { title: '文件库', sidebar: true, icon: FolderOpenOutline },
+    meta: {
+      title: '文件库',
+      sidebar: true,
+      icon: FolderOpenOutline,
+      categoryPanel: true,
+    },
   },
   {
     path: 'shares',
