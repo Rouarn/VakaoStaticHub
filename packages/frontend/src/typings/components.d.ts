@@ -11,13 +11,9 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    CopyableCode: typeof import('./../components/copyable-code.vue')['default']
-    LoadingScreen: typeof import('./../components/loading-screen.vue')['default']
-    NInput: typeof import('naive-ui')['NInput']
-    QrCode: typeof import('./../components/qr-code.vue')['default']
-    RootManagement: typeof import('./../components/root-management.vue')['default']
+    PlaceholderView: typeof import('./../components/common/placeholder-view.vue')['default']
+    PublicPage: typeof import('./../components/common/public-page.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    UploadModal: typeof import('./../components/upload-modal.vue')['default']
   }
 }

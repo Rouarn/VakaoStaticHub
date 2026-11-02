@@ -1,119 +1,21 @@
 <script setup lang="ts">
-import UrlInput from './components/url-input.vue';
-import FileViewer from './components/file-viewer.vue';
-import StatusDisplay from './components/status-display.vue';
-import { useFilePreview } from '@/composables/use-file-preview';
+import { EyeOutline } from '@vicons/ionicons5';
+import PublicPage from '@/components/common/public-page.vue';
+import PlaceholderView from '@/components/common/placeholder-view.vue';
 
-defineOptions({ name: 'FilePreviewPage' });
-
-const {
-  fileUrl,
-  inputUrl,
-  isShowToolbar,
-  loadError,
-  errorMessage,
-  hasPreview,
-  supported,
-  reloadTrigger,
-  handlePreview,
-  handleClear,
-  handleError,
-  handleReady,
-  handleLoad,
-} = useFilePreview();
-
-import { ref, watch } from 'vue';
-
-const fileViewerRef = ref<InstanceType<typeof FileViewer> | null>(null);
-
-const handleReload = () => {
-  fileViewerRef.value?.reload();
-};
-
-watch(reloadTrigger, () => {
-  handleReload();
-});
-
-const getCurrentStatus = (): 'empty' | 'unsupported' | 'error' | 'preview' => {
-  if (loadError.value) return 'error';
-  if (!fileUrl.value) return 'empty';
-  if (!supported.value) return 'unsupported';
-  return 'preview';
-};
+/**
+ * 独立文件预览页（/file-preview，公开）
+ * 按 URL 预览远程文件；下一轮接入 preview-registry 按格式分发预览组件。
+ */
 </script>
 
 <template>
-  <div class="w-full h-screen bg-base overflow-hidden">
-    <div v-if="isShowToolbar" class="p-6">
-      <UrlInput
-        v-model="inputUrl"
-        :has-preview="hasPreview"
-        @preview="handlePreview"
-        @clear="handleClear"
-      />
-    </div>
-
-    <div
-      :class="isShowToolbar ? 'px-6 pb-6' : ''"
-      class="w-full overflow-hidden"
-      :style="{
-        height: isShowToolbar ? 'calc(100vh - 104px)' : '100vh',
-      }"
-    >
-      <div
-        v-if="isShowToolbar"
-        class="h-full w-full bg-container rounded-xl overflow-hidden relative"
-      >
-        <StatusDisplay v-if="getCurrentStatus() === 'empty'" type="empty" />
-
-        <StatusDisplay
-          v-else-if="getCurrentStatus() === 'unsupported'"
-          type="unsupported"
-          :file-url="fileUrl"
-        />
-
-        <StatusDisplay
-          v-else-if="getCurrentStatus() === 'error'"
-          type="error"
-          :error-message="errorMessage"
-          @reload="handleReload"
-        />
-
-        <FileViewer
-          v-else
-          ref="fileViewerRef"
-          :file-url="fileUrl"
-          @ready="handleReady"
-          @load="handleLoad"
-          @error="handleError"
-        />
-      </div>
-
-      <div v-else class="h-full w-full overflow-hidden">
-        <StatusDisplay v-if="getCurrentStatus() === 'empty'" type="empty" />
-
-        <StatusDisplay
-          v-else-if="getCurrentStatus() === 'unsupported'"
-          type="unsupported"
-          :file-url="fileUrl"
-        />
-
-        <StatusDisplay
-          v-else-if="getCurrentStatus() === 'error'"
-          type="error"
-          :error-message="errorMessage"
-          @reload="handleReload"
-        />
-
-        <FileViewer
-          v-else
-          ref="fileViewerRef"
-          :file-url="fileUrl"
-          @ready="handleReady"
-          @load="handleLoad"
-          @error="handleError"
-        />
-      </div>
-    </div>
-  </div>
+  <PublicPage>
+    <PlaceholderView
+      title="文件预览"
+      description="输入远程文件 URL 即可预览，按格式自动分发到对应预览组件。"
+      :icon="EyeOutline"
+      :features="['URL 输入预览', 'preview-registry 格式分发', '默认兜底']"
+    />
+  </PublicPage>
 </template>

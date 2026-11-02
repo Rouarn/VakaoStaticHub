@@ -1,45 +1,44 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watchEffect } from 'vue';
 import { RouterView } from 'vue-router';
 import {
+  NConfigProvider,
   NMessageProvider,
   NDialogProvider,
-  NConfigProvider,
   darkTheme,
   zhCN,
   dateZhCN,
 } from 'naive-ui';
-import type { GlobalThemeOverrides } from 'naive-ui';
-import { useDark } from '@vueuse/core';
-import LoadingScreen from '@/components/loading-screen.vue';
+import { useAppStore } from '@/stores/modules/app';
+import {
+  lightThemeOverrides,
+  darkThemeOverrides,
+} from '@/config/naive-theme';
 
-const isDark = useDark();
+const appStore = useAppStore();
 
-const theme = computed(() => (isDark.value ? darkTheme : null));
+// 启动时恢复持久化的主题偏好，切换时同步 <html> 的 dark class（驱动 UnoCSS dark: 变体）
+watchEffect(() => {
+  appStore.applyDarkClass();
+});
 
-const themeOverrides: GlobalThemeOverrides = {
-  common: {
-    primaryColor: '#18a058',
-    primaryColorHover: '#36ad6a',
-    primaryColorPressed: '#0c7a43',
-    primaryColorSuppl: '#36ad6a',
-  },
-};
+const naiveTheme = computed(() => (appStore.isDark ? darkTheme : null));
+const themeOverrides = computed(() =>
+  appStore.isDark ? darkThemeOverrides : lightThemeOverrides,
+);
 </script>
 
 <template>
-  <LoadingScreen />
   <NConfigProvider
-    :theme="theme"
+    :theme="naiveTheme"
     :theme-overrides="themeOverrides"
     :locale="zhCN"
     :date-locale="dateZhCN"
+    class="h-full"
   >
     <NMessageProvider>
       <NDialogProvider>
-        <div class="w-full h-full">
-          <RouterView />
-        </div>
+        <RouterView />
       </NDialogProvider>
     </NMessageProvider>
   </NConfigProvider>
