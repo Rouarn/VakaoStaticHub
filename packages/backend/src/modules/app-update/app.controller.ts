@@ -28,7 +28,7 @@ import { RenameAppDto } from './dto/rename-app.dto.js';
 @ApiBearerAuth()
 @Controller('app-updates/apps')
 @UseGuards(JwtAuthGuard)
-export class AppUpdateAppController {
+export class AppController {
   constructor(
     private readonly service: AppUpdateService,
     private readonly auditLogService: AuditLogService,

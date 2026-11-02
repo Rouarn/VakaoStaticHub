@@ -3,10 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileEntryEntity } from '#/infra/database/entities/file-entry.entity.js';
 import { AppUpgradeEventEntity } from '#/infra/database/entities/app-upgrade-event.entity.js';
 import { AppVersionEntity } from '#/infra/database/entities/app-version.entity.js';
-import { AppUpdateAdminController } from './app-update-admin.controller.js';
-import { AppUpdateAppController } from './app-update-app.controller.js';
-import { AppUpdateClientController } from './app-update-client.controller.js';
+import { AppController } from './app.controller.js';
+import { VersionController } from './version.controller.js';
+import { ClientController } from './client.controller.js';
 import { AppUpdateService } from './app-update.service.js';
+import { VersionPublishService } from './version-publish.service.js';
+import { VersionSchedulerService } from './version-scheduler.service.js';
 import { AppUpdateStatsService } from './app-update-stats.service.js';
 
 @Module({
@@ -17,12 +19,13 @@ import { AppUpdateStatsService } from './app-update-stats.service.js';
       FileEntryEntity,
     ]),
   ],
-  controllers: [
-    AppUpdateClientController,
-    AppUpdateAppController,
-    AppUpdateAdminController,
+  controllers: [ClientController, AppController, VersionController],
+  providers: [
+    AppUpdateService,
+    VersionPublishService,
+    VersionSchedulerService,
+    AppUpdateStatsService,
   ],
-  providers: [AppUpdateService, AppUpdateStatsService],
-  exports: [AppUpdateService],
+  exports: [AppUpdateService, AppUpdateStatsService],
 })
 export class AppUpdateModule {}

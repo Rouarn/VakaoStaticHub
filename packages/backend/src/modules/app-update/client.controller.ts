@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { Public } from '#/common/decorators/public.decorator.js';
 import { serveApkFile } from '#/infra/storage/file-serve.util.js';
 import { AppUpdateService } from './app-update.service.js';
+import { AppUpdateStatsService } from './app-update-stats.service.js';
 import { CheckUpdateQueryDto } from './dto/check-update-query.dto.js';
 import { ReportEventDto } from './dto/report-event.dto.js';
 
@@ -29,8 +30,11 @@ import { ReportEventDto } from './dto/report-event.dto.js';
 @Controller('app-updates')
 @UseGuards(JwtAuthGuard)
 @Public()
-export class AppUpdateClientController {
-  constructor(private readonly service: AppUpdateService) {}
+export class ClientController {
+  constructor(
+    private readonly service: AppUpdateService,
+    private readonly statsService: AppUpdateStatsService,
+  ) {}
 
   @Get('check')
   @ApiOperation({ summary: '版本检查：以客户端上报 versionCode 为判定基准' })
@@ -63,6 +67,6 @@ export class AppUpdateClientController {
   @Post('report')
   @ApiOperation({ summary: '升级事件上报（失败客户端无感）' })
   async report(@Body() dto: ReportEventDto) {
-    return await this.service.reportEvent(dto);
+    return await this.statsService.reportEvent(dto);
   }
 }

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AppUpgradeEventEntity } from '#/infra/database/entities/app-upgrade-event.entity.js';
 import { AppVersionEntity } from '#/infra/database/entities/app-version.entity.js';
 import type { FunnelStatItem, FunnelStatsResult } from '@vakao/shared';
+import { ReportEventDto } from './dto/report-event.dto.js';
 
 interface RawFunnelRow {
   toVersionCode: string | number | null;
@@ -19,6 +20,25 @@ export class AppUpdateStatsService {
     @InjectRepository(AppVersionEntity)
     private readonly versionRepo: Repository<AppVersionEntity>,
   ) {}
+
+  /** 事件上报：单条轻量写入，失败由调用方吞掉（客户端无感） */
+  async reportEvent(dto: ReportEventDto) {
+    const event = this.eventRepo.create({
+      deviceId: dto.deviceId,
+      appKey: dto.appKey,
+      event: dto.event,
+      fromVersionCode: dto.fromVersionCode ?? null,
+      toVersionCode: dto.toVersionCode ?? null,
+      failCode: dto.failCode ?? null,
+      networkType: dto.networkType ?? null,
+      osVersion: dto.osVersion ?? null,
+      deviceModel: dto.deviceModel ?? null,
+      costMs: dto.costMs ?? null,
+      createdAt: Date.now(),
+    });
+    await this.eventRepo.insert(event);
+    return { success: true };
+  }
 
   async getFunnelStats(
     appKey: string,

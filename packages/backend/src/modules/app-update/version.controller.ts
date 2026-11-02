@@ -1,6 +1,6 @@
 /**
  * APP 更新管理端接口（JWT 鉴权）
- * 上传 APK、版本 CRUD、发布/灰度、强更开关、下架止血
+ * 上传 APK、版本 CRUD、发布/灰度、强更开关、下架止血、升级漏斗
  */
 
 import {
@@ -31,6 +31,7 @@ import type { Request } from 'express';
 import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { AppUpdateService } from './app-update.service.js';
 import { AppUpdateStatsService } from './app-update-stats.service.js';
+import { VersionPublishService } from './version-publish.service.js';
 import { ApkUploadInterceptor } from './apk-upload.interceptor.js';
 import { CreateVersionDto } from './dto/create-version.dto.js';
 import { ForceUpdateDto } from './dto/force-update.dto.js';
@@ -46,9 +47,10 @@ import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 @ApiBearerAuth()
 @Controller('app-updates/versions')
 @UseGuards(JwtAuthGuard)
-export class AppUpdateAdminController {
+export class VersionController {
   constructor(
     private readonly service: AppUpdateService,
+    private readonly publishService: VersionPublishService,
     private readonly statsService: AppUpdateStatsService,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -115,7 +117,7 @@ export class AppUpdateAdminController {
   })
   @ApiParam({ name: 'id' })
   async rollbackCandidates(@Param('id', ParseIntPipe) id: number) {
-    return await this.service.listRollbackCandidates(id);
+    return await this.publishService.listRollbackCandidates(id);
   }
 
   @Patch(':id')
@@ -137,7 +139,7 @@ export class AppUpdateAdminController {
     @CurrentUser() currentUser: { userId: number; username: string },
     @Req() req: Request,
   ) {
-    const result = await this.service.publishVersion(id, dto);
+    const result = await this.publishService.publishVersion(id, dto);
     // 审计：发布版本
     this.auditLogService.log({
       userId: currentUser.userId,
@@ -166,7 +168,7 @@ export class AppUpdateAdminController {
     @CurrentUser() currentUser: { userId: number; username: string },
     @Req() req: Request,
   ) {
-    const result = await this.service.setForce(id, dto);
+    const result = await this.publishService.setForce(id, dto);
     // 审计：修改强更开关
     this.auditLogService.log({
       userId: currentUser.userId,
@@ -191,7 +193,7 @@ export class AppUpdateAdminController {
     @CurrentUser() currentUser: { userId: number; username: string },
     @Req() req: Request,
   ) {
-    const result = await this.service.offline(id);
+    const result = await this.publishService.offline(id);
     // 审计：下架版本
     this.auditLogService.log({
       userId: currentUser.userId,
@@ -219,7 +221,7 @@ export class AppUpdateAdminController {
     @CurrentUser() currentUser: { userId: number; username: string },
     @Req() req: Request,
   ) {
-    const result = await this.service.rollback(id);
+    const result = await this.publishService.rollback(id);
     // 审计：回滚版本
     this.auditLogService.log({
       userId: currentUser.userId,
