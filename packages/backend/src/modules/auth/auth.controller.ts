@@ -27,11 +27,11 @@ import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
-import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
-import { Public } from './decorators/public.decorator.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
+import { Public } from '#/common/decorators/public.decorator.js';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
 import { AuditLogService } from '../audit-log/audit-log.service.js';
-import { getRequestMeta } from '#/utils/request-meta.util.js';
+import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 
 /**
  * 认证控制器

@@ -28,7 +28,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { AppUpdateService } from './app-update.service.js';
 import { AppUpdateStatsService } from './app-update-stats.service.js';
 import { ApkUploadInterceptor } from './apk-upload.interceptor.js';
@@ -40,7 +40,7 @@ import { PublishVersionDto } from './dto/publish-version.dto.js';
 import { UpdateVersionDto } from './dto/update-version.dto.js';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
 import { AuditLogService } from '../audit-log/audit-log.service.js';
-import { getRequestMeta } from '#/utils/request-meta.util.js';
+import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 
 @ApiTags('APP 更新（管理端）')
 @ApiBearerAuth()

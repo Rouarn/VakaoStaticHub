@@ -23,17 +23,17 @@ import type { Request, Response } from 'express';
 import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { basename } from 'node:path';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { Public } from '../auth/decorators/public.decorator.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
+import { Public } from '#/common/decorators/public.decorator.js';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
 import { AuditLogService } from '../audit-log/audit-log.service.js';
-import { getRequestMeta } from '#/utils/request-meta.util.js';
+import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 import { ShareService } from './share.service.js';
 import { FilesService } from '../files/files.service.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
 import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
 import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
-import { getMimeType, isPreviewable } from '../files/utils/mime-types.js';
+import { getMimeType, isPreviewable } from '#/common/utils/mime.util.js';
 
 @ApiTags('分享链接')
 @Controller('share')

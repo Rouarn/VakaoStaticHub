@@ -2,10 +2,7 @@ import type { Response, Request } from 'express';
 import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { basename } from 'node:path';
-import {
-  getMimeType,
-  isPreviewable,
-} from '../modules/files/utils/mime-types.js';
+import { getMimeType, isPreviewable } from '#/common/utils/mime.util.js';
 
 export interface FileServeOptions {
   download?: string;

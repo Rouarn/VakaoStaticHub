@@ -16,10 +16,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
 import { AuditLogService } from '../audit-log/audit-log.service.js';
-import { getRequestMeta } from '#/utils/request-meta.util.js';
+import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 import { AppUpdateService } from './app-update.service.js';
 import { CreateAppDto } from './dto/create-app.dto.js';
 import { RenameAppDto } from './dto/rename-app.dto.js';

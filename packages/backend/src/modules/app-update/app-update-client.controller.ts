@@ -18,9 +18,9 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { Public } from '../auth/decorators/public.decorator.js';
-import { serveApkFile } from '#/utils/file-serve.util.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
+import { Public } from '#/common/decorators/public.decorator.js';
+import { serveApkFile } from '#/infra/storage/file-serve.util.js';
 import { AppUpdateService } from './app-update.service.js';
 import { CheckUpdateQueryDto } from './dto/check-update-query.dto.js';
 import { ReportEventDto } from './dto/report-event.dto.js';

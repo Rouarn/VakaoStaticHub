@@ -1,5 +1,5 @@
 import { Controller, All } from '@nestjs/common';
-import { Public } from '../auth/decorators/public.decorator.js';
+import { Public } from '#/common/decorators/public.decorator.js';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
 @ApiTags('一言 hitokoto')

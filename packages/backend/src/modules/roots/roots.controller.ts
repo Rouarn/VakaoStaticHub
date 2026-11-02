@@ -15,7 +15,7 @@ import {
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { ResourceRootsService } from '#/infra/resource-roots/resource-roots.service.js';
 import {
   CreateResourceRootDto,

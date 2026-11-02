@@ -42,7 +42,7 @@ import {
   VERSION_STATUS,
 } from '#/infra/database/entities/app-version.entity.js';
 import { ResourceRootsService } from '#/infra/resource-roots/resource-roots.service.js';
-import { safeJoin } from '../files/utils/path-utils.js';
+import { safeJoin } from '#/common/utils/path.util.js';
 import {
   SOFTWARE_UPDATE_ROOT_ID,
   SOFTWARE_UPDATE_ROOT_PATH,

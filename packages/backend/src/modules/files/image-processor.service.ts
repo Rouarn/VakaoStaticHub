@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, access, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import sharp, { Sharp } from 'sharp';
-import { getMimeTypeForFormat } from './utils/mime-types.js';
+import { getMimeTypeForFormat } from '#/common/utils/mime.util.js';
 
 interface CacheManifest {
   [cacheFile: string]: { sourcePath: string; createdAt: number };

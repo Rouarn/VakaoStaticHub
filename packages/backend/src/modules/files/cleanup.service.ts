@@ -7,7 +7,7 @@ import { access, constants, readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rm } from 'node:fs/promises';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
-import { UPLOAD_ID_REGEX } from './utils/path-utils.js';
+import { UPLOAD_ID_REGEX } from '#/common/utils/path.util.js';
 import { ImageProcessorService } from './image-processor.service.js';
 
 /** 分片上传临时目录 mtime 超过此阈值视为"孤儿"（默认 24 小时） */

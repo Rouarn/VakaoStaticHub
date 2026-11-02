@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { parseSize } from '#/utils/size.util.js';
+import { parseSize } from '#/common/utils/size.util.js';
 import { FileEntryEntity } from '#/infra/database/entities/file-entry.entity.js';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
 import { ResourceRootsModule } from '#/infra/resource-roots/resource-roots.module.js';

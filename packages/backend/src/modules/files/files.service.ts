@@ -31,7 +31,7 @@ import {
   normalizeCategoryPath,
   getFileExtension,
   UPLOAD_ID_REGEX,
-} from './utils/path-utils.js';
+} from '#/common/utils/path.util.js';
 import { SOFTWARE_UPDATE_ROOT_ID } from '../app-update/app-update.constants.js';
 import type {
   UsageStatsResult,

@@ -6,6 +6,8 @@ storage
 software-update
 deploy
 resource-roots.json
+# 后端源码目录 infra/storage 需入库（上方 storage 仅忽略运行期存储目录）
+!packages/backend/src/infra/storage/
 
 # TypeScript incremental build info
 *.tsbuildinfo

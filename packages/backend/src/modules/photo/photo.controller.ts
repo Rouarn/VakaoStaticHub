@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { Public } from '../auth/decorators/public.decorator.js';
+import { Public } from '#/common/decorators/public.decorator.js';
 import { PhotoService } from './photo.service.js';
 
 @ApiTags('图片服务')

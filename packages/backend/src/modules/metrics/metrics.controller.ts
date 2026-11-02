@@ -5,7 +5,7 @@
 
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { MetricsService } from './metrics.service.js';
 
 @ApiTags('监控指标')

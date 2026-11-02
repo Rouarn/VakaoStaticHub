@@ -25,7 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response, Request } from 'express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { FilesService } from './files.service.js';
 import { BatchDeleteDto } from './dto/batch-delete.dto.js';
 import { BatchMoveDto } from './dto/batch-move.dto.js';
@@ -36,17 +36,17 @@ import { ListFilesQueryDto } from './dto/list-files-query.dto.js';
 import { RenameFileDto } from './dto/rename-file.dto.js';
 import { RenameCategoryDto } from './dto/rename-category.dto.js';
 import { SkipThrottle } from '@nestjs/throttler';
-import { Public } from '../auth/decorators/public.decorator.js';
+import { Public } from '#/common/decorators/public.decorator.js';
 import { ImageProcessorService } from './image-processor.service.js';
-import { getMimeType } from './utils/mime-types.js';
+import { getMimeType } from '#/common/utils/mime.util.js';
 import { ConfigurableFilesInterceptor } from '#/common/interceptors/configurable-files.interceptor.js';
 import { ConfigurableChunkFileInterceptor } from '#/common/interceptors/configurable-chunk-file.interceptor.js';
-import { serveStaticFile } from '#/utils/file-serve.util.js';
+import { serveStaticFile } from '#/infra/storage/file-serve.util.js';
 import { FileIndexService } from './file-index.service.js';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
 import { AuditLogService } from '../audit-log/audit-log.service.js';
-import { getRequestMeta } from '#/utils/request-meta.util.js';
+import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 
 @ApiTags('文件管理')
 @Controller('files')
