@@ -30,7 +30,10 @@ export class DatabaseBootstrapService implements OnModuleInit {
           '生产环境忽略 DB_SYNCHRONIZE=true，未自动修改数据库结构；结构变更请执行 pnpm db:sync',
         );
       }
-      await assertSchemaReady(this.dataSource);
+      await assertSchemaReady(
+        this.dataSource,
+        '生产环境不自动修改数据库结构：请先执行 pnpm db:sync 同步数据库后再启动',
+      );
       this.logger.log('生产模式：未执行自动同步，schema 校验通过');
       return;
     }
@@ -42,6 +45,11 @@ export class DatabaseBootstrapService implements OnModuleInit {
           `变更 ${result.changedObjects.length} 个对象，删除 ${result.droppedObjects.length} 个对象，` +
           `当前共 ${result.tables.length} 张表`,
       );
+      if (result.legacyFixes.length > 0) {
+        this.logger.log(
+          `开发模式：旧分享数据已规整（${result.legacyFixes.join('；')}）`,
+        );
+      }
       this.logger.log(
         result.seededAdmin
           ? `开发模式：已播种默认管理员账号 ${result.seededAdmin}`
@@ -53,7 +61,10 @@ export class DatabaseBootstrapService implements OnModuleInit {
     this.logger.log(
       '开发模式（DB_SYNCHRONIZE=false）：跳过自动同步，开始校验 schema',
     );
-    await assertSchemaReady(this.dataSource);
+    await assertSchemaReady(
+      this.dataSource,
+      '开发环境已关闭 DB_SYNCHRONIZE：请在 .env 将 DB_SYNCHRONIZE 设为 true 后重启自动同步，或执行 pnpm db:sync',
+    );
     this.logger.log('开发模式（DB_SYNCHRONIZE=false）：schema 校验通过');
   }
 }

@@ -61,6 +61,9 @@ async function main(): Promise<void> {
       );
     }
 
+    for (const fix of result.legacyFixes) {
+      log(`旧数据规整：${fix}`);
+    }
     log(
       `当前表清单（${result.tables.length} 张）：${result.tables.join(', ')}`,
     );
