@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/utils/http';
+import { getApiBaseUrl } from '@/utils/file-url';
 
 export interface PlaceholderParams {
   width: number;

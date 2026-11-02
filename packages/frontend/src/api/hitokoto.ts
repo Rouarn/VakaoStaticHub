@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/utils/http';
+import { getApiBaseUrl } from '@/utils/file-url';
 
 /** 一言失败类型：用于把「代理未启用」与「网络不可达」明确区分开 */
 export type HitokotoErrorKind =

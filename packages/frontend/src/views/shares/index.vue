@@ -175,9 +175,10 @@ watch(
 
 function targetLabel(link: ShareLink) {
   if (link.shareType === 'collection') {
-    return `文件集合（${(link.filePaths ?? []).length} 个文件）`;
+    return `文件集合（${link.filePaths.length} 个文件）`;
   }
-  return link.filePath.split('/').pop() ?? link.filePath;
+  const path = link.filePaths[0];
+  return path.split('/').pop() ?? path;
 }
 
 // ===================== 创建分享 =====================
@@ -351,13 +352,10 @@ async function submitCreate() {
   }
   creating.value = true;
   try {
-    const isCollection = selectedPaths.value.length > 1;
     const result = await createShare({
       rootId: form.value.rootId,
       category: form.value.category,
-      filePath: selectedPaths.value[0],
-      shareType: isCollection ? 'collection' : 'file',
-      ...(isCollection ? { filePaths: selectedPaths.value } : {}),
+      filePaths: selectedPaths.value,
       ...(form.value.remark.trim() ? { remark: form.value.remark.trim() } : {}),
       ...(expiresInMs ? { expiresInMs } : {}),
       ...(form.value.maxAccesses ? { maxAccesses: form.value.maxAccesses } : {}),

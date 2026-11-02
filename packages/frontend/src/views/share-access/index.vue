@@ -237,13 +237,11 @@ function nameOf(path: string) {
 
 /**
  * 单文件视图仅在 shareType==='file' 时渲染。
- * 注意：collection 分享的 filePath 也会被设置为首个文件，
- * 不能仅凭 filePath 是否存在判断，否则会把集合误渲染成单文件。
+ * shareType 由后端按 filePaths 长度派生，是唯一的判定依据。
  */
 const singleFile = computed(() => {
   if (info.value?.shareType !== 'file') return null;
-  const path = info.value?.filePath;
-  if (!path) return null;
+  const path = info.value.filePaths[0];
   return { name: nameOf(path), path };
 });
 
@@ -374,8 +372,8 @@ onBeforeUnmount(() => {
           <div class="flex flex-col gap-1">
             <p class="m-0 text-14px font-600 text-ink">
               {{ info.shareType === 'collection'
-                ? `文件集合（${(info.filePaths ?? []).length} 个文件）`
-                : nameOf(info.filePath) }}
+                ? `文件集合（${info.filePaths.length} 个文件）`
+                : nameOf(info.filePaths[0]) }}
             </p>
             <p class="m-0 text-11px text-ink-sub">
               {{ info.category }} · {{ expiresLabel }}

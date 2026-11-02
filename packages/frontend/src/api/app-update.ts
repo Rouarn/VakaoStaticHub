@@ -8,7 +8,8 @@ import type {
   RollbackResult,
 } from '@vakao/shared';
 import type { RequestOptions } from '@vakao-ui/axios';
-import { getApiBaseUrl, http } from '@/utils/http';
+import { http } from '@/utils/http';
+import { getApiBaseUrl } from '@/utils/file-url';
 
 /** 后端 AppVersionEntity 与 shared AppVersion 字段一致 */
 export type AppVersionRecord = AppVersion;

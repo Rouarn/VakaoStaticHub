@@ -64,7 +64,7 @@ export class ShareController {
         rootId: dto.rootId,
         category: dto.category,
         shareType: result.shareType,
-        fileCount: result.filePaths?.length ?? 1,
+        fileCount: result.filePaths.length,
       },
       ...getRequestMeta(req),
     });
@@ -187,9 +187,9 @@ export class ShareController {
       // collection 类型且未指定 index 时，返回文件列表 JSON。
       // 注意：本方法用了 @Res()，全局 ResponseInterceptor 不会生效，
       // 必须手工输出与其它接口一致的 { code, message, data } 信封，
-      // 否则前端 publicHttp 会把它当成业务失败（多文件分享只显示一个文件的根因之一）。
+      // 否则前端 publicHttp 会把它当成业务失败。
       if (linkInfo.shareType === 'collection' && index === undefined) {
-        const paths = linkInfo.filePaths ?? [];
+        const paths = linkInfo.filePaths;
         const files = await Promise.all(
           paths.map(async (filePath) => {
             const name = basename(filePath);
@@ -226,11 +226,9 @@ export class ShareController {
         return;
       }
 
-      // collection 类型且指定了 index 时，按 index 取文件路径
-      const filePath =
-        linkInfo.shareType === 'collection' && index !== undefined
-          ? (linkInfo.filePaths ?? [])[Number(index)]
-          : linkInfo.filePath;
+      // 单文件分享固定取第 0 项；collection 按 index 取对应项
+      const position = index === undefined ? 0 : Number(index);
+      const filePath = linkInfo.filePaths[position];
 
       if (!filePath) {
         res.status(400).json({ message: '无效的文件索引' });

@@ -724,11 +724,17 @@ export class FilesService {
           { category: targetDbCategory },
         );
 
-        await manager.update(
-          ShareLinkEntity,
-          { rootId, category: dbCategory, filePath: filename },
-          { category: targetDbCategory },
-        );
+        // 分享链接以 filePaths（分类内相对路径数组）表达，命中该路径的链接随分类一起迁移
+        const affectedShares = await manager.find(ShareLinkEntity, {
+          where: { rootId, category: dbCategory },
+        });
+        for (const link of affectedShares) {
+          const linkPaths = JSON.parse(link.filePaths) as string[];
+          if (!linkPaths.includes(relPath)) continue;
+          await manager.update(ShareLinkEntity, link.id, {
+            category: targetDbCategory,
+          });
+        }
 
         results.push({ path: filename, success: true });
 
@@ -1083,15 +1089,24 @@ export class FilesService {
       },
     );
 
-    // 同步更新指向该文件的分享链接（filePath 相对分类目录）
+    // 同步更新分享链接中指向该文件的路径（filePaths 为分类内相对路径数组）
     const fileDir = dirname(filename);
     const newFilePath =
       fileDir === '.' ? targetName : `${fileDir}/${targetName}`;
     if (filename !== newFilePath) {
-      await this.shareRepo.update(
-        { rootId, category, filePath: filename },
-        { filePath: newFilePath },
-      );
+      const affectedShares = await this.shareRepo.find({
+        where: { rootId, category },
+      });
+      for (const link of affectedShares) {
+        const replaced = this.rewriteSharePaths(
+          link.filePaths,
+          filename,
+          newFilePath,
+        );
+        if (replaced) {
+          await this.shareRepo.update(link.id, { filePaths: replaced });
+        }
+      }
     }
 
     return {
@@ -1100,5 +1115,19 @@ export class FilesService {
       size: s.size,
       mtime: s.mtimeMs,
     };
+  }
+
+  /** 在分享链接的 filePaths JSON 数组里替换命中路径；未命中返回 null */
+  private rewriteSharePaths(
+    raw: string,
+    match: string,
+    replacement: string,
+  ): string | null {
+    const paths = JSON.parse(raw) as string[];
+    if (!paths.includes(match)) return null;
+    const next = [
+      ...new Set(paths.map((p) => (p === match ? replacement : p))),
+    ];
+    return JSON.stringify(next);
   }
 }

@@ -39,21 +39,9 @@ export class ShareService {
 
   async createShareLink(dto: CreateShareLinkDto) {
     const token = this.generateToken();
-    const shareType = dto.shareType ?? 'file';
-
-    // 统一收敛为「路径数组」再校验：单文件就是长度 1 的数组
-    const rawPaths =
-      shareType === 'collection'
-        ? dto.filePaths?.length
-          ? dto.filePaths
-          : dto.filePath
-            ? [dto.filePath]
-            : []
-        : dto.filePath
-          ? [dto.filePath]
-          : [];
-
-    const paths = [...new Set(rawPaths.map((p) => p.trim()).filter(Boolean))];
+    const paths = [
+      ...new Set(dto.filePaths.map((p) => p.trim()).filter(Boolean)),
+    ];
     if (paths.length === 0) {
       throw new BadRequestException('请选择至少一个文件');
     }
@@ -89,17 +77,11 @@ export class ShareService {
       );
     }
 
-    // collection 类型时，将 filePaths 序列化为 JSON 存储；filePath 保留首个路径以兼容旧逻辑
-    const filePathsJson =
-      shareType === 'collection' ? JSON.stringify(paths) : null;
-
     const entity = this.repo.create({
       token,
       rootId: dto.rootId,
       category: dto.category,
-      filePath: paths[0],
-      shareType,
-      filePaths: filePathsJson,
+      filePaths: JSON.stringify(paths),
       remark: dto.remark?.trim() || null,
       enabled: 1,
       expiresAt: dto.expiresInMs ? Date.now() + dto.expiresInMs : null,
@@ -190,12 +172,12 @@ export class ShareService {
       );
     }
 
+    const filePaths = this.parseFilePaths(link.filePaths);
     return {
       rootId: link.rootId,
       category: link.category,
-      filePath: link.filePath,
-      shareType: link.shareType,
-      filePaths: this.parseFilePaths(link.filePaths),
+      shareType: this.shareTypeOf(filePaths),
+      filePaths,
       expiresAt: link.expiresAt,
       maxAccesses: link.maxAccesses,
     };
@@ -210,13 +192,13 @@ export class ShareService {
     if (link.enabled === 0) {
       throw new GoneException('分享链接已停用');
     }
+    const filePaths = this.parseFilePaths(link.filePaths);
     return {
       token: link.token,
       rootId: link.rootId,
       category: link.category,
-      filePath: link.filePath,
-      shareType: link.shareType,
-      filePaths: this.parseFilePaths(link.filePaths),
+      shareType: this.shareTypeOf(filePaths),
+      filePaths,
       expiresAt: link.expiresAt,
       maxAccesses: link.maxAccesses,
       hasPassword: !!link.passwordHash,
@@ -236,7 +218,7 @@ export class ShareService {
     const qb = this.repo.createQueryBuilder('s');
     if (query.q?.trim()) {
       qb.andWhere(
-        "(LOWER(s.token) LIKE :q OR LOWER(s.filePath) LIKE :q OR LOWER(s.category) LIKE :q OR LOWER(COALESCE(s.remark, '')) LIKE :q)",
+        "(LOWER(s.token) LIKE :q OR LOWER(s.filePaths) LIKE :q OR LOWER(s.category) LIKE :q OR LOWER(COALESCE(s.remark, '')) LIKE :q)",
         { q: `%${query.q.trim().toLowerCase()}%` },
       );
     }
@@ -342,15 +324,18 @@ export class ShareService {
     }));
   }
 
-  /** 将数据库中的 JSON 字符串解析为 string[]，解析失败返回 null */
-  private parseFilePaths(filePaths: string | null): string[] | null {
-    if (!filePaths) return null;
-    try {
-      const parsed = JSON.parse(filePaths) as unknown;
-      return Array.isArray(parsed) ? (parsed as string[]) : null;
-    } catch {
-      return null;
+  /** 读取 filePaths JSON 数组（唯一存储形态，空数组视为数据损坏） */
+  private parseFilePaths(filePaths: string): string[] {
+    const parsed: unknown = JSON.parse(filePaths);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error('share_links.filePaths 数据损坏：期望非空 JSON 数组');
     }
+    return parsed as string[];
+  }
+
+  /** 分享类型由路径数量派生，不单独存储 */
+  private shareTypeOf(filePaths: string[]): 'file' | 'collection' {
+    return filePaths.length > 1 ? 'collection' : 'file';
   }
 
   /** 查询分享链接，不存在时抛 404（停用语义由调用方按需追加） */
@@ -412,14 +397,14 @@ export class ShareService {
 
   /** 实体 → 管理端列表/详情返回结构 */
   private toShareLink(link: ShareLinkEntity) {
+    const filePaths = this.parseFilePaths(link.filePaths);
     return {
       id: link.id,
       token: link.token,
       rootId: link.rootId,
       category: link.category,
-      filePath: link.filePath,
-      shareType: link.shareType,
-      filePaths: this.parseFilePaths(link.filePaths),
+      shareType: this.shareTypeOf(filePaths),
+      filePaths,
       remark: link.remark,
       enabled: link.enabled !== 0,
       expiresAt: link.expiresAt,
@@ -431,7 +416,7 @@ export class ShareService {
   }
 
   private generateToken(): string {
-    // CSPRNG：16 字节 = 32 个十六进制字符，与前端现有解析约定兼容
+    // CSPRNG：16 字节 = 32 个十六进制字符（前端 SHARE_TOKEN_RE 按此校验）
     return randomBytes(16).toString('hex');
   }
 

@@ -4,12 +4,6 @@ import router from '@/router';
 import { getApiBaseUrl } from '@/utils/file-url';
 
 /**
- * API 基础地址统一由 utils/file-url.ts 构造（保证 /static 只出现一次）。
- * 这里保留导出，兼容既有 import { getApiBaseUrl } from '@/utils/http' 的调用方。
- */
-export { getApiBaseUrl };
-
-/**
  * 全局请求客户端（基于 @vakao-ui/axios）
  *
  * - 适配后端 { code, message, data } 响应信封，成功解包 data

@@ -6,8 +6,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
-  IsIn,
   IsInt,
   IsOptional,
   IsPositive,
@@ -41,29 +41,17 @@ export class CreateShareLinkDto {
   @Matches(SAFE_REL_PATH_RE, { message: '分类名不合法（禁止绝对路径与 ..）' })
   category!: string;
 
-  /** 文件相对路径（单文件分享时使用） */
-  @ApiProperty({ description: '文件相对路径' })
-  @IsString()
-  @Matches(SAFE_REL_PATH_RE, { message: '文件路径不合法（禁止绝对路径与 ..）' })
-  filePath!: string;
-
-  /** 分享类型：file 单文件 / collection 多文件 */
-  @ApiPropertyOptional({ description: '分享类型，默认 file' })
-  @IsOptional()
-  @IsIn(['file', 'collection'])
-  shareType?: 'file' | 'collection';
-
-  /** 多文件相对路径列表，shareType='collection' 时必填 */
-  @ApiPropertyOptional({ description: '多文件相对路径列表' })
-  @IsOptional()
+  /** 分享文件的相对路径列表（长度 1..200，1 个即单文件分享） */
+  @ApiProperty({ description: '分享文件的相对路径列表', minItems: 1 })
   @IsArray()
+  @ArrayMinSize(1, { message: '请选择至少一个文件' })
   @ArrayMaxSize(200, { message: '一次最多分享 200 个文件' })
   @IsString({ each: true })
   @Matches(SAFE_REL_PATH_RE, {
     each: true,
     message: '文件路径不合法（禁止绝对路径与 ..）',
   })
-  filePaths?: string[];
+  filePaths!: string[];
 
   /** 后台备注 */
   @ApiPropertyOptional({ description: '后台备注（仅管理端可见）' })

@@ -8,21 +8,20 @@
  *   - 零依赖：只用 TypeORM DataSource.query() 执行原生 SQL，不引入任何迁移框架
  *   - 幂等：每次启动都跑一遍，已存在的列跳过，不会重复 ALTER 或覆盖数据
  *   - 安全：迁移失败时 throw Error，阻止服务带着错 schema 跑起来
- *   - 兼容全新空库：首次部署时 synchronize 已经建好表，列天然存在，迁移会跳过
- *   - 数据保留：ALTER TABLE ADD COLUMN 不会动已有行的任何数据，
- *     历史行的 offline_reason 自动为 NULL（SQLite 对 nullable 列的默认行为）
+ *   - 全新空库：首次部署时 synchronize 已按实体建好表，迁移会跳过
+ *   - 数据保留：ALTER TABLE ADD COLUMN 不会动已有行的任何数据
  *
  * 当前已知迁移项（每次新增需要 ALTER 的字段时追加到 MIGRATIONS 数组）：
- *   - 2026-11-02: app_versions 表新增 offline_reason 列
+ *   - 2026-11-02: app_versions 表新增 offlineReason 列
  *     语义：区分"被新全量 publish 自动挤掉"（auto，可 rollback 恢复）vs
  *            "管理员手动止血下架"（manual，不可 rollback 恢复）vs null（从未全量发布）
  *   - 2026-11-02: share_links 表新增 remark / enabled 列
  *     语义：后台备注（不外显）与启停开关（停用后公开访问返回“已停用”）
  *   - 2026-11-02: users 表新增 role 列
  *     语义：admin / user；老库升级后若没有任何 admin，会把最早创建的账号提升为 admin
- *   - 2026-11-03: share_links 表新增 shareType / filePaths 列
- *     语义：shareType 区分单文件(file)与多文件集合(collection)；
- *           filePaths 存多文件相对路径的 JSON 字符串（单文件为 NULL）
+ *   - 2026-11-03: share_links 收敛为 filePaths 单一形态
+ *     语义：filePaths 存 1..N 个相对路径的 JSON 数组，分享类型由长度派生；
+ *           物理删除废弃列 filePath / shareType（重建表，数据从旧列迁移）
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
@@ -85,16 +84,10 @@ const MIGRATIONS: Migration[] = [
   },
   {
     table: 'share_links',
-    column: 'shareType',
-    alterSql:
-      "ALTER TABLE share_links ADD COLUMN shareType varchar(32) NOT NULL DEFAULT 'file'",
-    description: '分享类型（file 单文件 / collection 多文件）',
-  },
-  {
-    table: 'share_links',
     column: 'filePaths',
     alterSql: 'ALTER TABLE share_links ADD COLUMN filePaths text',
-    description: '多文件分享的相对路径 JSON 数组',
+    description:
+      '分享文件相对路径的 JSON 数组（存量库补齐后由重建流程收紧为 NOT NULL）',
   },
 ];
 
@@ -139,9 +132,105 @@ export class SchemaMigrationService implements OnModuleInit {
 
     this.logger.log(`schema 检查完成：新增 ${migrated} 项，跳过 ${skipped} 项`);
 
+    // 数据迁移：share_links 收敛为 filePaths 单一形态（重建表，物理删除废弃列）
+    await this.migrateShareLinksToFilePaths();
+
     // 数据迁移：老库升级后若没有任何管理员，把最早创建的账号提升为 admin，
     // 保证「至少保留一个管理员」的后端校验有可用的初始管理员。
     await this.ensureAtLeastOneAdmin();
+  }
+
+  /**
+   * 把存量 share_links 升级为唯一形态：只有 filePaths（1..N 的 JSON 数组，NOT NULL）。
+   *
+   * 旧形态是「filePath 必填 + 可选 shareType/filePaths」，属于已废弃的兼容层。
+   * 迁移步骤：
+   *   1. 读取旧行，优先沿用已有 filePaths；否则用 filePath 包成长度 1 的数组
+   *   2. 重建表（与实体完全一致），物理删除 filePath / shareType
+   * 新库由 synchronize 直接按最终实体建表，本方法会直接跳过。
+   */
+  private async migrateShareLinksToFilePaths(): Promise<void> {
+    const hasFilePath = await this.columnExists('share_links', 'filePath');
+    const hasShareType = await this.columnExists('share_links', 'shareType');
+    if (!hasFilePath && !hasShareType) {
+      return;
+    }
+
+    // 理论上 shareType 必然与 filePath 同时出现；若只残留 shareType，直接物理删除
+    if (!hasFilePath) {
+      await this.dataSource.query(
+        'ALTER TABLE share_links DROP COLUMN shareType',
+      );
+      this.logger.log('share_links 已移除废弃列 shareType');
+      return;
+    }
+
+    const rows: {
+      id: number;
+      filePath: string | null;
+      filePaths: string | null;
+    }[] = await this.dataSource.query(
+      'SELECT id, filePath, filePaths FROM share_links',
+    );
+
+    for (const row of rows) {
+      const existing = this.readStoredPaths(row.filePaths);
+      const paths = existing ?? (row.filePath ? [row.filePath] : []);
+      if (paths.length === 0) {
+        throw new Error(`share_links.id=${row.id} 没有任何可迁移的文件路径`);
+      }
+      await this.dataSource.query(
+        'UPDATE share_links SET filePaths = ? WHERE id = ?',
+        [JSON.stringify(paths), row.id],
+      );
+    }
+
+    // 重建表：列顺序与实体一致，filePaths 收紧为 NOT NULL
+    await this.dataSource.query(`
+      CREATE TABLE "share_links_rebuild" (
+        "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+        "token" varchar(64) NOT NULL,
+        "rootId" varchar(64) NOT NULL,
+        "category" varchar(255) NOT NULL,
+        "filePaths" text NOT NULL,
+        "remark" varchar(255),
+        "enabled" integer NOT NULL DEFAULT (1),
+        "expiresAt" integer,
+        "maxAccesses" integer,
+        "passwordHash" varchar(255),
+        "accessCount" integer NOT NULL DEFAULT (0),
+        "createdAt" integer NOT NULL
+      )
+    `);
+    await this.dataSource.query(`
+      INSERT INTO "share_links_rebuild" (
+        "id", "token", "rootId", "category", "filePaths", "remark", "enabled",
+        "expiresAt", "maxAccesses", "passwordHash", "accessCount", "createdAt"
+      )
+      SELECT
+        "id", "token", "rootId", "category", "filePaths", "remark", "enabled",
+        "expiresAt", "maxAccesses", "passwordHash", "accessCount", "createdAt"
+      FROM "share_links"
+    `);
+    await this.dataSource.query('DROP TABLE "share_links"');
+    await this.dataSource.query(
+      'ALTER TABLE "share_links_rebuild" RENAME TO "share_links"',
+    );
+    await this.dataSource.query(
+      'CREATE UNIQUE INDEX "IDX_9bc1c27d683c427cda047f2320" ON "share_links" ("token")',
+    );
+    this.logger.log(
+      `share_links 已收敛为 filePaths 单一形态（${rows.length} 行），移除 filePath / shareType`,
+    );
+  }
+
+  /** 读取存量 filePaths：非空 JSON 数组才算有效，其余交给调用方回退到旧 filePath */
+  private readStoredPaths(raw: string | null): string[] | null {
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0
+      ? (parsed as string[])
+      : null;
   }
 
   /** 幂等保证 users 表至少有一个 admin；空表时留给 AuthService 播种管理员 */
@@ -173,15 +262,11 @@ export class SchemaMigrationService implements OnModuleInit {
     }
   }
 
-  /** 用 PRAGMA table_info 检查指定列是否存在（SQLite 标准 API） */
+  /** 用 PRAGMA table_info 检查指定列是否存在（列名为实体 @Column 的 camelCase 原名） */
   private async columnExists(table: string, column: string): Promise<boolean> {
     const rows: ColumnCheckResult[] = await this.dataSource.query(
       `PRAGMA table_info(${table})`,
     );
-    // PRAGMA 返回的列名大小写取决于当初建表时的写法——
-    // TypeORM sqljs 驱动 + synchronize 会用 entity 里 @Column 的列名
-    // 默认 camelCase，所以 offline_reason（snake_case）。
-    // 用大小写无关匹配，兼容不同历史版本
-    return rows.some((r) => r.name.toLowerCase() === column.toLowerCase());
+    return rows.some((r) => r.name === column);
   }
 }

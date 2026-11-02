@@ -500,28 +500,29 @@ cd /opt/vakao-static-hub
 
 生产模式下，NestJS 自动挂载 `deploy/web/` 下的前端静态资源并提供 SPA fallback，前后端同源部署，无需额外配置 CORS 反向代理。
 
-### 数据库升级（老库兼容）
+### 数据库升级（存量库迁移）
 
 项目**不使用 TypeORM migration 框架**，生产环境 `DB_SYNCHRONIZE=false`，表结构变更通过内置的 **启动期幂等迁移** 机制自动补齐。
 
 **迁移机制说明：**
 - 应用 bootstrap 时，`SchemaMigrationService`（位于 `packages/backend/src/infra/database/schema-migration.service.ts`）会对 `MIGRATIONS` 数组中的每一项执行检查
-- 用 `PRAGMA table_info(tbl)` 检测目标列是否存在（大小写无关匹配），不存在则执行 `ALTER TABLE ... ADD COLUMN`
+- 用 `PRAGMA table_info(tbl)` 检测目标列是否存在（按实体 `@Column` 的 camelCase 原名精确匹配），不存在则执行 `ALTER TABLE ... ADD COLUMN`
 - 已存在则跳过，**多次重启不会重复 ALTER，不会覆盖任何数据**
 - 迁移失败时直接 `throw Error`，阻止服务带着错 schema 启动（fail-fast）
-- 全新空库首次部署时，TypeORM `synchronize=true` 已经建好表，迁移会自动跳过全部项
+- 全新空库首次部署时，TypeORM `synchronize=true` 直接按当前实体建表，迁移会自动跳过全部项
 
 **当前已知迁移项：**
 
-| 日期 | 表 | 新增列 | 类型 | 说明 |
-|------|-----|--------|------|------|
-| 2026-11-02 | `app_versions` | `offlineReason` | varchar(8), nullable | 区分下架原因：`auto`（被新全量发布自动挤掉，可 rollback 恢复）/ `manual`（管理员手动止血下架，不可恢复）/ NULL（从未执行过全量发布） |
-| 2026-11-02 | `file_entries` | `contentHash` | varchar(64), nullable | 文件内容 SHA-256 哈希，支撑增量索引与重复文件检测 |
-| 2026-11-02 | `share_links` | `remark` | varchar(255), nullable | 分享备注（列表关键字搜索与编辑） |
-| 2026-11-02 | `share_links` | `enabled` | integer, default 1 | 启停开关；停用后公开访问返回 410「分享链接已停用」 |
-| 2026-11-02 | `users` | `role` | varchar(16), default `user` | 角色 `admin` / `user`；启动迁移时若无管理员，会把最早创建的用户提升为 `admin` |
-| 2026-11-03 | `share_links` | `shareType` | varchar(32), default `file` | 分享类型：`file` 单文件 / `collection` 多文件集合 |
-| 2026-11-03 | `share_links` | `filePaths` | text, nullable | 多文件分享的相对路径 JSON 数组；单文件分享为 NULL |
+| 日期 | 表 | 变更 | 说明 |
+|------|-----|--------|------|
+| 2026-11-02 | `app_versions` | 新增 `offlineReason` varchar(8), nullable | 区分下架原因：`auto`（被新全量发布自动挤掉，可 rollback 恢复）/ `manual`（管理员手动止血下架，不可恢复）/ NULL（从未执行过全量发布） |
+| 2026-11-02 | `file_entries` | 新增 `contentHash` varchar(64), nullable | 文件内容 SHA-256 哈希，支撑增量索引与重复文件检测 |
+| 2026-11-02 | `share_links` | 新增 `remark` varchar(255), nullable | 分享备注（列表关键字搜索与编辑） |
+| 2026-11-02 | `share_links` | 新增 `enabled` integer, default 1 | 启停开关；停用后公开访问返回 410「分享链接已停用」 |
+| 2026-11-02 | `users` | 新增 `role` varchar(16), default `user` | 角色 `admin` / `user`；启动迁移时若无管理员，会把最早创建的用户提升为 `admin` |
+| 2026-11-03 | `share_links` | 重建表：仅保留 `filePaths` text NOT NULL | 分享文件相对路径 JSON 数组（1..N），分享类型由长度派生；存量行从旧 `filePath` 迁移，物理删除废弃列 `filePath` / `shareType` |
+
+> `share_links` 的升级是**数据迁移 + 重建表**，不是兼容层：迁移完成后表结构只有一种形态，新库与老库升级后完全一致。
 
 **回滚候选过滤规则：** 只有 `status=PUBLISHED` 或 `status=OFFLINE AND offlineReason='auto'` 的版本可作为 rollback 恢复目标。**升级前的历史版本 `offlineReason` 为 NULL**（因为那时候还没有全量发布机制），这些版本**不作为回滚候选**——它们被下架后无法通过 rollback 恢复。**升级后首次发布起**的版本会被正确标记 `offlineReason`，rollback 链路完整可用。
 

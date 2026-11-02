@@ -28,11 +28,10 @@ export interface ShareLink {
   token: string;
   rootId: string;
   category: string;
-  filePath: string;
-  /** 分享类型：file 单文件 / collection 多文件 */
+  /** 分享类型，由 filePaths 长度派生：1 个为 file，多个为 collection */
   shareType: 'file' | 'collection';
-  /** 多文件相对路径列表，仅 shareType='collection' 时存在 */
-  filePaths: string[] | null;
+  /** 分享文件的相对路径列表，长度至少 1 */
+  filePaths: string[];
   /** 后台备注（不对外公开） */
   remark: string | null;
   /** 是否启用；停用后公开访问返回明确“已停用” */
@@ -94,9 +93,10 @@ export interface ShareInfo {
   token: string;
   rootId: string;
   category: string;
-  filePath: string;
+  /** 由 filePaths 长度派生 */
   shareType: 'file' | 'collection';
-  filePaths: string[] | null;
+  /** 分享文件的相对路径列表，长度至少 1 */
+  filePaths: string[];
   expiresAt: number | null;
   maxAccesses: number | null;
   hasPassword: boolean;
@@ -125,11 +125,8 @@ export interface ShareCollectionResult {
 export interface CreateShareLinkParams {
   rootId: string;
   category: string;
-  filePath: string;
-  /** 分享类型，默认 file */
-  shareType?: 'file' | 'collection';
-  /** 多文件相对路径列表，shareType='collection' 时必填 */
-  filePaths?: string[];
+  /** 分享文件的相对路径列表，长度 1..200；1 个即单文件分享 */
+  filePaths: string[];
   /** 后台备注 */
   remark?: string;
   expiresInMs?: number;

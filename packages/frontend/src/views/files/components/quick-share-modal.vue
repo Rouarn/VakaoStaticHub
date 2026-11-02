@@ -97,13 +97,10 @@ async function submit() {
   busy.value = true;
   error.value = '';
   try {
-    const collection = isCollection.value;
     const link = await createShare({
       rootId: props.rootId,
       category: props.category,
-      filePath: props.paths[0],
-      shareType: collection ? 'collection' : 'file',
-      ...(collection ? { filePaths: props.paths } : {}),
+      filePaths: props.paths,
       ...(remark.value.trim() ? { remark: remark.value.trim() } : {}),
       ...(expiresInMs ? { expiresInMs } : {}),
       ...(maxAccesses.value ? { maxAccesses: maxAccesses.value } : {}),

@@ -226,21 +226,20 @@ packages/frontend/
 | `/login`                 | 登录页         | 否       | 用户名/密码登录或注册，支持 redirect 参数回跳    |
 | `/file-preview`          | 文件预览       | 否       | 独立页面，输入 URL 预览文件（blank-layout）      |
 | `/share/:token`          | 分享访问页     | 否       | 公开页面，密码校验、单文件下载或聚合文件列表     |
-| `/`                      | 重定向         | -        | 自动跳转到 `/file-list`                          |
-| `/file-list`             | 文件列表       | 是       | 主页面，文件浏览/上传/删除/重命名/搜索/排序/分享 |
-| `/share-links`           | 分享链接管理   | 是       | 分享链接列表、复制、撤销、访问记录               |
+| `/`                      | 重定向         | -        | 自动跳转到 `/files`                              |
+| `/files`                 | 文件库         | 是       | 文件浏览/上传/删除/重命名/搜索/排序/分享         |
+| `/shares`                | 分享管理       | 是       | 分享链接列表、复制、撤销、访问记录               |
 | `/api-docs`              | API 文档       | 是       | iframe 嵌入 `/docs` Swagger UI                   |
-| `/placeholder-generator` | 占位图生成器   | 是       | 可视化占位图配置工具                             |
-| `/hitokoto`              | 一言           | 是       | 随机短句展示                                     |
+| `/tools/placeholder`     | 占位图生成器   | 是       | 可视化占位图配置工具                             |
+| `/tools/hitokoto`        | 一言           | 是       | 随机短句展示                                     |
 | `/app-update`            | APP 更新管理   | 是       | 应用与版本管理、发布、强更、下架、回滚           |
-| `/app-update-stats`      | 升级漏斗统计   | 是       | 各版本 check/download/install 数量与转化率       |
+| `/app-update/stats`      | 升级漏斗统计   | 是       | 各版本 check/download/install 数量与转化率       |
 | `/storage-stats`         | 存储统计       | 是       | 按根目录/分类聚合的存储用量可视化                |
 | `/duplicate-files`       | 重复文件检测   | 是       | 按内容哈希分组展示重复副本并手动清理             |
 | `/audit-logs`            | 操作审计日志   | 是       | 按动作/资源/用户/时间筛选，查看操作详情          |
 | `/system-status`         | 系统状态       | 是       | QPS、内存、存储、分享、版本、24h 升级事件指标    |
-| `/user-management`       | 用户管理       | 是       | 用户列表与删除（禁止删除自己）                   |
-| `/local-file-preview`    | 文件预览       | 是       | 布局内嵌的文件预览页（base-layout）              |
-| `/:pathMatch(.*)*`       | 404 兜底       | -        | 重定向到 `/file-list`                            |
+| `/users`                 | 用户管理       | 是       | 用户列表与删除（禁止删除自己）                   |
+| `/:pathMatch(.*)*`       | 404 兜底       | -        | 重定向到 `/files`                                |
 
 ---
 
