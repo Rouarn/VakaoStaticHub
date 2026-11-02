@@ -188,6 +188,7 @@ const form = ref({
   rootId: '',
   category: '',
   remark: '',
+  requirePassword: false,
   password: '',
   expiresPreset: 0,
   customHours: 24,
@@ -265,6 +266,7 @@ function resetForm() {
     rootId: appStore.activeRootId || roots.value[0]?.id || '',
     category: categoryStore.activeCategory ?? '',
     remark: '',
+    requirePassword: false,
     password: '',
     expiresPreset: 0,
     customHours: 24,
@@ -350,6 +352,10 @@ async function submitCreate() {
     message.warning('自定义有效期必须大于 0 小时');
     return;
   }
+  if (form.value.requirePassword && !form.value.password.trim()) {
+    message.warning('已勾选「需要密码」，请填写访问密码');
+    return;
+  }
   creating.value = true;
   try {
     const result = await createShare({
@@ -359,7 +365,9 @@ async function submitCreate() {
       ...(form.value.remark.trim() ? { remark: form.value.remark.trim() } : {}),
       ...(expiresInMs ? { expiresInMs } : {}),
       ...(form.value.maxAccesses ? { maxAccesses: form.value.maxAccesses } : {}),
-      ...(form.value.password.trim() ? { password: form.value.password.trim() } : {}),
+      ...(form.value.requirePassword && form.value.password.trim()
+        ? { password: form.value.password.trim() }
+        : {}),
     });
     createShow.value = false;
     message.success('分享链接已创建');
@@ -818,13 +826,17 @@ onMounted(async () => {
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">访问密码（可选）</span>
+            <span class="text-12px text-ink-sub">访问密码</span>
+            <NCheckbox v-model:checked="form.requirePassword" size="small">
+              需要密码
+            </NCheckbox>
             <NInput
+              v-if="form.requirePassword"
               v-model:value="form.password"
               size="small"
               type="password"
               show-password-on="click"
-              placeholder="留空则无需密码"
+              placeholder="请输入访问密码"
             />
           </label>
           <label class="flex flex-col gap-1">
@@ -875,7 +887,6 @@ onMounted(async () => {
             size="small"
             type="primary"
             :loading="creating"
-            :disabled="selectedCount === 0"
             @click="submitCreate"
           >
             创建分享

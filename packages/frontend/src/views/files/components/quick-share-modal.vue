@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import {
   NButton,
+  NCheckbox,
   NIcon,
   NInput,
   NInputNumber,
@@ -42,6 +43,7 @@ const remark = ref('');
 const expiresPreset = ref(0);
 const customHours = ref(24);
 const maxAccesses = ref<number | null>(null);
+const requirePassword = ref(false);
 const password = ref('');
 const busy = ref(false);
 const error = ref('');
@@ -61,6 +63,7 @@ function reset() {
   expiresPreset.value = 0;
   customHours.value = 24;
   maxAccesses.value = null;
+  requirePassword.value = false;
   password.value = '';
   busy.value = false;
   error.value = '';
@@ -94,6 +97,10 @@ async function submit() {
     error.value = '自定义有效期必须大于 0 小时';
     return;
   }
+  if (requirePassword.value && !password.value.trim()) {
+    error.value = '已勾选「需要密码」，请填写访问密码';
+    return;
+  }
   busy.value = true;
   error.value = '';
   try {
@@ -104,7 +111,9 @@ async function submit() {
       ...(remark.value.trim() ? { remark: remark.value.trim() } : {}),
       ...(expiresInMs ? { expiresInMs } : {}),
       ...(maxAccesses.value ? { maxAccesses: maxAccesses.value } : {}),
-      ...(password.value.trim() ? { password: password.value.trim() } : {}),
+      ...(requirePassword.value && password.value.trim()
+        ? { password: password.value.trim() }
+        : {}),
     });
     created.value = link;
   } catch (e) {
@@ -182,13 +191,16 @@ async function copyUrl() {
       </div>
 
       <div class="flex flex-col gap-1">
-        <label class="text-11px text-ink-sub">访问密码（可选）</label>
+        <NCheckbox v-model:checked="requirePassword" size="small">
+          需要密码
+        </NCheckbox>
         <NInput
+          v-if="requirePassword"
           v-model:value="password"
           size="small"
           type="password"
           show-password-on="click"
-          placeholder="不设置则无需密码"
+          placeholder="请输入访问密码"
         />
       </div>
 
@@ -214,7 +226,7 @@ async function copyUrl() {
           复制
         </NButton>
       </div>
-      <p v-if="password.trim()" class="m-0 text-11px text-ink-sub">
+      <p v-if="requirePassword && password.trim()" class="m-0 text-11px text-ink-sub">
         访问密码：{{ password }}
       </p>
       <p class="m-0 text-11px text-ink-sub">

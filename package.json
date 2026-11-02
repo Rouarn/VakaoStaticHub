@@ -10,6 +10,7 @@
     "build:shared": "pnpm --filter @vakao/shared build",
     "build:backend": "pnpm --filter @vakao/backend build",
     "build:frontend": "pnpm --filter @vakao/frontend build",
+    "db:sync": "pnpm --filter @vakao/backend db:sync",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"packages/**/*.{ts,vue}\"",

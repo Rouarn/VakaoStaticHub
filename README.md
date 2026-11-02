@@ -115,7 +115,7 @@ pnpm dev
 | 变量             | 默认值                   | 说明                                                                                                          |
 | ---------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `DB_PATH`        | `<cwd>/storage/vakao.db` | SQLite 文件路径                                                                                               |
-| `DB_SYNCHRONIZE` | `false`                  | 是否按实体自动同步表结构；库文件不存在（首次部署）时强制自动建表，已存在的库建议保持 `false` 防止意外 DROP 表 |
+| `DB_SYNCHRONIZE` | `false`                  | 仅开发环境生效：`true` 时启动自动按实体同步表结构并播种，`false` 时完全不碰结构。生产环境忽略该开关，结构变更走 `pnpm db:sync` |
 
 ### 文件
 
@@ -500,36 +500,38 @@ cd /opt/vakao-static-hub
 
 生产模式下，NestJS 自动挂载 `deploy/web/` 下的前端静态资源并提供 SPA fallback，前后端同源部署，无需额外配置 CORS 反向代理。
 
-### 数据库升级（存量库迁移）
+### 数据库初始化与同步
 
-项目**不使用 TypeORM migration 框架**，生产环境 `DB_SYNCHRONIZE=false`，表结构变更通过内置的 **启动期幂等迁移** 机制自动补齐。
+模板没有 TypeORM migration 框架，也没有版本化迁移文件。**schema 的唯一来源是实体定义**，唯一的数据库脚本是 `pnpm db:sync`。
 
-**迁移机制说明：**
-- 应用 bootstrap 时，`SchemaMigrationService`（位于 `packages/backend/src/infra/database/schema-migration.service.ts`）会对 `MIGRATIONS` 数组中的每一项执行检查
-- 用 `PRAGMA table_info(tbl)` 检测目标列是否存在（按实体 `@Column` 的 camelCase 原名精确匹配），不存在则执行 `ALTER TABLE ... ADD COLUMN`
-- 已存在则跳过，**多次重启不会重复 ALTER，不会覆盖任何数据**
-- 迁移失败时直接 `throw Error`，阻止服务带着错 schema 启动（fail-fast）
-- 全新空库首次部署时，TypeORM `synchronize=true` 直接按当前实体建表，迁移会自动跳过全部项
+**本地开发：`DB_SYNCHRONIZE` 控制启动时是否同步**
 
-**当前已知迁移项：**
+| 取值 | 行为 |
+|------|------|
+| `true`（推荐） | 启动时按实体自动建表/改表并播种默认管理员；改完实体直接重启即可生效 |
+| `false`（未配置时的默认值） | 启动完全不碰结构，只校验核心表可读；空库或结构不一致会启动失败并提示 `pnpm db:sync` |
 
-| 日期 | 表 | 变更 | 说明 |
-|------|-----|--------|------|
-| 2026-11-02 | `app_versions` | 新增 `offlineReason` varchar(8), nullable | 区分下架原因：`auto`（被新全量发布自动挤掉，可 rollback 恢复）/ `manual`（管理员手动止血下架，不可恢复）/ NULL（从未执行过全量发布） |
-| 2026-11-02 | `file_entries` | 新增 `contentHash` varchar(64), nullable | 文件内容 SHA-256 哈希，支撑增量索引与重复文件检测 |
-| 2026-11-02 | `share_links` | 新增 `remark` varchar(255), nullable | 分享备注（列表关键字搜索与编辑） |
-| 2026-11-02 | `share_links` | 新增 `enabled` integer, default 1 | 启停开关；停用后公开访问返回 410「分享链接已停用」 |
-| 2026-11-02 | `users` | 新增 `role` varchar(16), default `user` | 角色 `admin` / `user`；启动迁移时若无管理员，会把最早创建的用户提升为 `admin` |
-| 2026-11-03 | `share_links` | 重建表：仅保留 `filePaths` text NOT NULL | 分享文件相对路径 JSON 数组（1..N），分享类型由长度派生；存量行从旧 `filePath` 迁移，物理删除废弃列 `filePath` / `shareType` |
+**生产部署：只用 `pnpm db:sync` 建库与改库**
 
-> `share_links` 的升级是**数据迁移 + 重建表**，不是兼容层：迁移完成后表结构只有一种形态，新库与老库升级后完全一致。
+```bash
+# 首次部署：空库建表 + 播种管理员
+pnpm db:sync
 
-**回滚候选过滤规则：** 只有 `status=PUBLISHED` 或 `status=OFFLINE AND offlineReason='auto'` 的版本可作为 rollback 恢复目标。**升级前的历史版本 `offlineReason` 为 NULL**（因为那时候还没有全量发布机制），这些版本**不作为回滚候选**——它们被下架后无法通过 rollback 恢复。**升级后首次发布起**的版本会被正确标记 `offlineReason`，rollback 链路完整可用。
+# 后续实体变更：同一脚本对齐结构（加列/改列/建索引）
+pnpm db:sync
+```
 
-**运维提示：**
-- 升级前务必备份数据库文件（`storage/vakao.db`），虽然迁移是 ADD COLUMN（不删数据），但防一手启动即失败需要回滚
-- 升级后首次启动观察日志中 `SchemaMigrationService` 输出，确认「新增 N 项，跳过 M 项」符合预期
-- 新增 schema 变更时，在 `schema-migration.service.ts` 的 `MIGRATIONS` 数组末尾追加新条目即可，无需引入任何迁移框架
+- 空库：建出全部表与索引，打印表清单和管理员账号
+- 已有表但结构落后：按实体差异同步结构，打印「新建/变更/删除」摘要
+- 结构已一致：打印「无需变更」，不产生任何 DDL
+- 可重复执行；管理员播种仅在 `users` 表为空时进行
+- 生产启动会忽略 `DB_SYNCHRONIZE`（若显式设为 `true` 会打印警告），只做连接与核心表校验
+- 生产启动时数据库文件缺失或核心表不可用时，直接失败并提示执行 `pnpm db:sync`
+- 数据库文件路径可用 `DB_PATH` 覆盖，默认 `<cwd>/storage/vakao.db`
+
+> 模板不提供「数据库升级/迁移」概念：结构差异始终由同一个脚本按实体同步。使用方对数据库的后续改造自行负责。
+
+**回滚候选过滤规则：** 只有 `status=PUBLISHED` 或 `status=OFFLINE AND offlineReason='auto'` 的版本可作为 rollback 恢复目标。`offlineReason` 为 NULL 的历史版本不作为回滚候选——它们被下架后无法通过 rollback 恢复。
 
 ---
 
@@ -545,6 +547,7 @@ cd /opt/vakao-static-hub
 | `pnpm build:shared`   | 仅构建共享类型包                               |
 | `pnpm build:backend`  | 仅构建后端                                     |
 | `pnpm build:frontend` | 仅构建前端                                     |
+| `pnpm db:sync`        | 按实体同步数据库结构并播种（生产建库/改库唯一入口） |
 | `pnpm typecheck`      | 全仓类型检查（`pnpm -r typecheck`）            |
 | `pnpm lint`           | 全仓 ESLint 校验                               |
 | `pnpm format`         | Prettier 格式化                                |

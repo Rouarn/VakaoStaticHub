@@ -4,9 +4,9 @@
   <img src="./public/intro.svg" width="300" height="155" alt="Vakao Static Hub Logo" />
 </p>
 
-基于 **Vue 3** + **Vite** + **NaiveUI** 的静态资源管理系统前端，提供文件管理、随机图片浏览、占位图生成、一言服务、文件分享链接管理（含访问密码与访问记录）、APP 在线更新管理、存储统计、重复文件检测、用户管理等功能。
+基于 **Vue 3** + **Vite** + **NaiveUI** 的静态资源管理系统前端，提供文件库、分类与多根目录管理、上传、文件分享、随机图片、占位图生成、一言服务、APP 在线更新管理、存储统计、重复文件检测、审计日志、系统状态与用户管理。
 
-> 后端文档：参见 [../../README.md](../../README.md)
+> 后端说明：参见 [../../README.md](../../README.md)
 
 ---
 
@@ -15,81 +15,52 @@
 | 类别     | 技术                                           | 说明                                                                    |
 | -------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
 | 框架     | Vue 3.5 + Composition API                      | `<script setup>` 语法                                                   |
-| 构建     | Vite 8（Rolldown）                             | 极速 HMR，Rolldown 底层                                                 |
-| UI 组件  | NaiveUI 2                                      | 组件自动按需导入（unplugin-vue-components + NaiveUiResolver）           |
-| 状态管理 | Pinia 3 + pinia-plugin-persistedstate          | 认证状态持久化到 localStorage                                           |
-| 路由     | Vue Router 5                                   | 路由守卫 + 认证拦截                                                     |
-| HTTP     | @vakao/axios                                   | 拦截器自动附加 Token、401 自动跳转登录                                  |
-| CSS      | UnoCSS                                         | 原子化 CSS，通过 NaiveUI ConfigProvider 统一暗色模式切换                |
-| 图标     | @vicons/ionicons5（IonIcons）                  | @iconify 动态按需解析                                                   |
+| 构建     | Vite 8（Rolldown）                             | HMR + Rolldown 底层                                                     |
+| UI 组件  | NaiveUI 2                                      | 组件由 unplugin-vue-components + NaiveUiResolver 自动按需导入           |
+| 状态管理 | Pinia 3 + pinia-plugin-persistedstate          | 认证状态持久化到 localStorage（key `auth`）                             |
+| 路由     | Vue Router                                     | 路由守卫 + 认证拦截                                                     |
+| HTTP     | `@vakao-ui/axios`（封装于 `src/utils/http.ts`） | 自动附带 Token、解包 `{ code, message, data }`、401 跳登录               |
+| CSS      | UnoCSS + 设计令牌                              | 原子化 CSS，NaiveUI ConfigProvider 统一暗色模式                         |
+| 图标     | @vicons/ionicons5                              | 侧边栏与操作图标                                                        |
 | 日期工具 | dayjs                                          | 格式化时间戳                                                            |
-| 二维码   | qrcode                                         | 分享链接二维码生成                                                      |
-| 文件预览 | 多格式独立组件 + preview-registry.ts           | 见下方「文件预览架构」章节                                              |
-| 共享类型 | @vakao/shared                                  | monorepo 内部包，与后端共用模型（ApiResponse、实体 DTO）                |
-| 自动导入 | unplugin-auto-import + unplugin-vue-components | Vue / Vue Router / Pinia API 自动导入，NaiveUI 组件按需自动注册        |
-| 类型     | TypeScript 6 + vue-tsc                         | 全量类型覆盖                                                            |
-| 代码高亮 | highlight.js                                   | 代码/文本预览组件内联使用                                               |
-
----
-
-## 文件预览架构（2026-11-01 重构）
-
-2026-11-01 移除了原 jit-viewer（8MB）的统一预览方案，改为 **9 类独立预览组件**，统一收敛到 `src/utils/preview-registry.ts`：
-
-| 组件文件                                                     | 依赖库                      | 说明                              |
-| ------------------------------------------------------------ | --------------------------- | --------------------------------- |
-| `file-list/components/pdf-file-preview.vue`                 | pdfjs-dist                  | PDF 预览（public/cmaps 169 个 CJK 字符映射表按需加载） |
-| `file-list/components/docx-file-preview.vue`                | docx-preview                | Word 文档预览                     |
-| `file-list/components/xlsx-file-preview.vue`                | xlsx（SheetJS）             | Excel / CSV 预览                  |
-| `file-list/components/markdown-file-preview.vue`            | markdown-it + highlight.js  | Markdown 预览（禁用 HTML 渲染防 XSS） |
-| `file-list/components/text-file-preview.vue`                | highlight.js                | 纯文本 / 代码高亮预览             |
-| `file-list/components/html-file-preview.vue`                | 原生 iframe                 | HTML 文件预览（sandbox 属性源隔离） |
-| `file-list/components/image-file-preview.vue`                | —                           | 图片预览                          |
-| `file-list/components/video-file-preview.vue`                | video.js@^8                 | 视频流式预览（range 边下边播）    |
-| `file-list/components/audio-file-preview.vue`                | 原生 `<audio>`              | 音频流式预览                      |
-| `file-list/components/archive-file-preview.vue`             | —                           | 压缩包引导下载                     |
-| `file-list/components/default-file-preview.vue`             | —                           | 不支持格式统一引导下载             |
-
-**分发逻辑**：`preview-registry.ts` 内根据文件扩展名判断格式 → 懒加载对应组件（`() => import()` + requestIdleCallback 空闲预取）→ 卡片弹窗和独立预览页（file-viewer.vue）共用同一套分发。
-
-**分包策略**：所有预览库（video.js / pdfjs-dist / xlsx / docx-preview / highlight.js / markdown-it）**都不设固定 chunk 名**，交给 Vite 默认分包保持懒加载语义。manualChunks 只对入口静态依赖的库做固定分包：
-
-```ts
-manualChunks(id) {
-  // Rolldown 运行时助手必须固定，否则会把 Vite preload 函数合并进懒加载 chunk
-  if (id.includes('vite/preload-helper') || ...) return 'rolldown-runtime';
-  if (id.includes('naive-ui')) return 'naive-ui';
-  if (id.includes('vue') || id.includes('vue-router') || id.includes('pinia')) return 'vue-vendor';
-  if (id.includes('axios') || id.includes('dayjs')) return 'utils-vendor';
-  if (id.includes('@iconify') || id.includes('@vicons')) return 'icons-vendor';
-  // 其他（含全部预览库）→ 走默认分包，按需加载
-}
-```
-
-**首屏体积**：gzip 约 200KB（Vue + NaiveUI 运行时）；完整依赖按需加载的总 gzip 体积约 450KB（远小于原 jit-viewer 的 2.8MB）。
-
-**XSS 防护**：
-- 表格预览剥离 `<a>` 标签
-- Markdown 预览禁用 HTML 渲染
-- HTML 预览使用带 `sandbox` 属性的 iframe 做源隔离
+| 二维码   | qrcode                                         | 分享链接二维码                                                          |
+| 文件预览 | 独立预览组件 + `utils/preview-registry.ts`     | 见「文件预览架构」章节                                                  |
+| 共享类型 | @vakao/shared                                  | monorepo 内部包，前后端共用模型（`ApiResponse`、`ShareLink` 等）        |
+| 自动导入 | unplugin-auto-import + unplugin-vue-components | Vue / Router / Pinia API 自动导入                                       |
+| 类型     | TypeScript + vue-tsc                           | 全量类型覆盖                                                            |
+| 代码高亮 | highlight.js                                   | 文本 / Markdown 预览内联使用                                            |
 
 ---
 
 ## 快速开始
 
 ```bash
-# 在项目根目录（monorepo）
+# 1. 在 monorepo 根目录安装依赖
 pnpm install
 
-# 启动开发服务器（端口 9867，HMR）
+# 2. 启动后端（开发模式：默认自动建表并播种管理员）
+pnpm dev:backend
+
+# 3. 另开终端启动前端（端口 9867，HMR）
 pnpm dev:frontend
 
-# 或在 frontend 包目录下
-cd packages/frontend
+# 或一键同时启动
 pnpm dev
 ```
 
-开发服务器默认运行在 `http://localhost:9867`，Vite 代理 `/static`（业务接口）与 `/docs`（Swagger 文档）到后端 `http://localhost:9865`。API 基础地址通过环境变量 `VITE_API_BASE_URL` 配置，开发环境留空以走相对路径代理。
+开发服务器运行在 `http://localhost:9867`，Vite 把 `/static`（业务接口）与 `/docs`（Swagger）代理到后端 `http://localhost:9865`。开发环境 `VITE_API_BASE_URL` 留空，请求走相对路径代理，避免跨域。
+
+### 数据库准备
+
+| 场景         | 做法                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
+| 本地开发     | 默认 `DB_SYNCHRONIZE=true`：后端启动时按实体定义自动建表/改表并播种默认管理员，**无需手动执行任何脚本** |
+| 本地关闭同步 | `DB_SYNCHRONIZE=false`：启动完全不碰表结构；schema 缺失或落后时启动报错并提示执行 `pnpm db:sync`        |
+| 生产部署     | 环境变量开关一律不生效，启动不修改结构；先执行一次 `pnpm db:sync` 初始化/更新 schema，再启动服务        |
+
+`pnpm db:sync` 是模板唯一的数据结构脚本：以实体为唯一 schema 来源，空库建表、结构有差异时同步改表，并幂等播种默认管理员（`AUTH_USER` / `AUTH_PASS`）。重复执行时输出「无需变更」。模板不包含迁移文件、版本化迁移或 upgrade 概念；后续 schema 变更由使用方自行管理，仍可重复执行该脚本。
+
+生产模式未初始化时启动会直接失败，错误文本指向 `pnpm db:sync`；生产模式即使设置 `DB_SYNCHRONIZE=true` 也只会打印忽略警告，不会自动改表。
 
 ---
 
@@ -97,389 +68,278 @@ pnpm dev
 
 ```
 packages/frontend/
-├── index.html                     # HTML 入口
-├── vite.config.ts                 # Vite 配置（别名、分包、代理、自动导入）
-├── uno.config.ts                  # UnoCSS 预设
-├── tsconfig.json                  # TS 配置入口
-├── tsconfig.app.json              # 应用 TS 配置（extends @vue/tsconfig/tsconfig.dom.json）
-├── tsconfig.node.json             # Node 侧 TS 配置
-├── package.json
-├── .env.example
+├── index.html                      # HTML 入口
+├── vite.config.ts                  # 别名、代理、自动导入、构建分包
+├── uno.config.ts                   # UnoCSS 预设
+├── tsconfig.json / tsconfig.app.json / tsconfig.node.json
+├── .env.example / .env.development / .env.production
 ├── public/
-│   ├── intro.svg                  # Logo
+│   ├── intro.svg                   # Logo
 │   ├── favicon.ico
-│   └── cmaps/                     # PDF.js CJK 字符映射表（169 个 .bcmap 文件）
+│   └── cmaps/                      # PDF.js CJK 字符映射表（169 个 .bcmap）
 └── src/
-    ├── main.ts                    # 应用入口：Pinia + Router + NaiveUI ConfigProvider + NDialogProvider
-    ├── App.vue                    # 根组件：ConfigProvider + 暗色模式切换
+    ├── main.ts                     # 应用入口：Pinia + Router + ConfigProvider + providers
+    ├── App.vue                     # 根组件：NaiveUI ConfigProvider + 暗色模式
     ├── router/
-    │   ├── index.ts               # 路由实例创建 + 注册守卫
-    │   ├── routes.ts              # 路由表（builtinRoutes 公开页 + builtinChildren 主布局子路由）
-    │   └── guard.ts               # 路由守卫：requiresAuth 检查、登录重定向、redirect 参数回跳
+    │   ├── index.ts                # 路由实例 + 守卫注册
+    │   ├── routes.ts               # 路由表（public 路由 + DefaultLayout 子路由）
+    │   └── guard.ts                # 鉴权守卫、登录重定向、redirect 回跳
     ├── layouts/
-    │   ├── base-layout.vue        # 主布局：Header + Sidebar + Content + Footer
-    │   ├── blank-layout.vue       # 空白布局（独立预览页用）
-    │   └── modules/
-    │       ├── app-header.vue     # 顶部栏：Logo、刷新、上传、暗色切换、登出、用户菜单
-    │       ├── app-sidebar.vue    # 侧边栏：灰色 group 小标题 + 二级可展开菜单
-    │       ├── app-content.vue    # 内容区：RouterView 插槽 + NSpin 全局加载
-    │       └── app-footer.vue     # 底部栏：版本信息
+    │   ├── default-layout.vue      # 主布局：System Sidebar + Category Panel + Content
+    │   └── components/
+    │       ├── system-sidebar.vue  # 纯图标侧边栏 + Tooltip + tools 二级菜单
+    │       └── category-panel.vue  # 240px 分类面板：根目录/分类 CRUD、计数、目录管理弹窗
     ├── views/
-    │   ├── login/
-    │   │   └── index.vue          # 登录页：用户名/密码、redirect 参数回跳
-    │   ├── file-list/
-    │   │   ├── index.vue          # 文件列表页：网格/列表双视图、虚拟滚动、分页、搜索、排序
-    │   │   ├── file-card.vue      # 文件卡片：缩略图、文件名、大小、操作
-    │   │   └── components/        # 列表页子组件与弹窗
-    │   │       ├── file-preview.vue           # 卡片弹窗内预览：分发到独立组件
-    │   │       ├── default-file-preview.vue   # 不支持格式引导下载
-    │   │       ├── image-file-preview.vue     # 图片预览
-    │   │       ├── video-file-preview.vue     # video.js 视频流式预览
-    │   │       ├── audio-file-preview.vue     # 原生 audio 流式预览
-    │   │       ├── archive-file-preview.vue   # 压缩包引导下载
-    │   │       ├── html-file-preview.vue      # sandbox iframe 预览
-    │   │       ├── markdown-file-preview.vue  # markdown-it + highlight.js
-    │   │       ├── text-file-preview.vue      # highlight.js 代码/文本
-    │   │       ├── pdf-file-preview.vue       # pdfjs-dist
-    │   │       ├── docx-file-preview.vue      # docx-preview
-    │   │       ├── xlsx-file-preview.vue      # SheetJS
-    │   │       ├── rename-file-modal.vue      # 重命名文件弹窗
-    │   │       ├── rename-category-modal.vue  # 重命名分类弹窗
-    │   │       ├── create-share-modal.vue     # 创建分享链接弹窗
-    │   │       └── copy-link-modal.vue        # 复制分享链接弹窗
-    │   ├── file-preview/
-    │   │   ├── index.vue          # 文件预览独立页（/file-preview 和 /local-file-preview 共用）
+    │   ├── login/index.vue         # 登录页（用户名/密码，redirect 回跳）
+    │   ├── files/
+    │   │   ├── index.vue           # 文件库：网格/列表、搜索、排序、分页、多选批量
     │   │   └── components/
-    │   │       ├── url-input.vue       # URL 输入组件
-    │   │       ├── file-viewer.vue     # 独立预览页的文件渲染器（复用 preview-registry 分发逻辑）
-    │   │       ├── image-file-viewer.vue
-    │   │       └── status-display.vue  # 状态提示（空/错误/不支持）
-    │   ├── placeholder/
-    │   │   └── index.vue          # 占位图生成器：可视化配置 + 实时预览
-    │   ├── hitokoto/
-    │   │   └── index.vue          # 一言：随机短句展示
-    │   ├── api-docs/
-    │   │   └── index.vue          # API 文档：iframe 嵌入 Swagger UI
-    │   ├── share-links/
-    │   │   └── index.vue          # 分享链接管理：列表、复制、撤销、访问记录
-    │   ├── share-access/
-    │   │   └── index.vue          # 公开分享访问页：密码校验、单文件/聚合文件列表
+    │   │       ├── file-card.vue       # 文件卡片：缩略图、名称、大小、更多菜单
+    │   │       ├── upload-panel.vue    # 上传面板：先选后传队列 + 拖拽/文件夹 + 分片续传
+    │   │       ├── quick-share-modal.vue # 单文件/多选快速创建分享
+    │   │       ├── rename-file-modal.vue
+    │   │       └── move-file-modal.vue
+    │   ├── shares/
+    │   │   ├── index.vue           # 分享管理：筛选、列表、编辑、撤销、访问记录、二维码
+    │   │   └── components/share-qr-modal.vue
+    │   ├── share-access/index.vue  # 公开分享访问页：密码门、单文件/集合列表、逐项预览
+    │   ├── file-preview/index.vue  # 独立文件预览页（公开，URL 参数指定文件）
     │   ├── app-update/
-    │   │   ├── index.vue          # APP 更新管理：应用与版本列表
-    │   │   ├── stats.vue          # 升级漏斗统计：check/download/install 转化率
-    │   │   ├── publish-modal.vue  # 发布（全量/灰度/自动递增/定时）弹窗
-    │   │   ├── version-form-modal.vue # 上传 APK 新建版本弹窗
-    │   │   └── app-action-modal.vue    # 应用重命名/删除（需输入包含 appKey 的确认短语）
-    │   ├── storage-stats/
-    │   │   └── index.vue          # 存储用量统计：按根目录/分类聚合的存储用量可视化
-    │   ├── duplicate-files/
-    │   │   └── index.vue          # 重复文件检测：按内容哈希分组展示重复副本并手动清理
-    │   ├── audit-logs/
-    │   │   └── index.vue          # 操作审计日志：按动作/资源/用户/时间筛选，查看操作详情
-    │   ├── system-status/
-    │   │   └── index.vue          # 系统状态：QPS、内存、存储、分享、版本、24h 升级事件
-    │   └── user-management/
-    │       ├── index.vue          # 用户管理：列表、删除（禁止删除自己）
-    │       └── register.vue
+    │   │   ├── index.vue           # APP 更新管理：应用与版本列表、发布、回滚、强更、下架
+    │   │   └── stats.vue           # 升级漏斗统计
+    │   ├── storage-stats/index.vue # 按根目录/分类聚合的存储用量
+    │   ├── duplicate-files/index.vue # 内容哈希分组的重复文件清理
+    │   ├── audit-logs/index.vue    # 操作审计日志筛选与详情
+    │   ├── system-status/index.vue # QPS / 内存 / 存储 / 分享 / 版本 / 24h 升级事件
+    │   ├── users/index.vue         # 用户列表、创建、角色、重置密码、删除
+    │   ├── api-docs/index.vue      # iframe 嵌入 Swagger UI
+    │   └── tools/
+    │       ├── placeholder/index.vue # 占位图生成器
+    │       └── hitokoto/index.vue    # 一言
     ├── components/
-    │   ├── loading-screen.vue     # 全局加载屏
-    │   ├── upload-modal.vue       # 上传弹窗：拖拽、文件夹上传、大文件自动分片、断点续传
-    │   ├── root-management.vue    # 根目录管理：增删改、服务器目录浏览
-    │   └── copyable-code.vue      # 可复制代码块
+    │   ├── preview/
+    │   │   ├── preview-dialog.vue    # 通用预览弹窗（卡片与分享页共用）
+    │   │   ├── image-preview.vue / video-preview.vue / audio-preview.vue
+    │   │   ├── text-preview.vue / markdown-preview.vue / html-preview.vue
+    │   │   ├── pdf-preview.vue / word-preview.vue / excel-preview.vue
+    │   │   ├── archive-preview.vue / default-preview.vue
+    │   │   ├── fetch-text.ts         # 文本/Markdown 统一取文本（带鉴权/分享 accessToken）
+    │   │   └── types.ts              # PreviewRegistration / PreviewLoader 类型
+    │   ├── charts/
+    │   │   ├── bar-list.vue          # 横向条形图（漏斗/用量）
+    │   │   └── donut-chart.vue       # 环形图（占比）
+    │   └── common/
+    │       ├── confirm-modal.vue / page-header.vue
+    │       ├── empty-state.vue / error-state.vue / placeholder-view.vue
+    │       ├── public-page.vue       # 公开页外壳（分享访问/独立预览）
+    │       └── stat-card.vue         # 指标卡片
     ├── composables/
-    │   ├── use-file-preview.ts    # 预览状态管理（文件类型 → 组件映射）
-    │   ├── use-file-upload.ts     # 上传逻辑（含文件夹递归读取、大文件分片）
-    │   ├── use-modal.ts           # 弹窗状态封装
-    │   └── use-pagination.ts      # 分页逻辑
+    │   └── use-video-poster.ts       # 视频封面帧提取（预览占位）
+    ├── config/
+    │   ├── design-tokens.ts          # 颜色/圆角/间距令牌
+    │   └── naive-theme.ts            # NaiveUI 主题覆盖
     ├── api/
-    │   ├── auth.ts                # 认证 API：login / register / getProfile / logout / changePassword / listUsers / deleteUser
-    │   ├── files.ts               # 文件 API：CRUD、上传（单段 + 分片）、根目录管理、重命名、同步、用量统计、重复检测
-    │   ├── share.ts               # 分享链接 API
-    │   ├── system.ts              # 审计日志 / 系统监控指标 API
-    │   └── app-update.ts          # APP 更新 API：应用管理、版本管理、客户端检查/下载/上报、漏斗统计
+    │   ├── auth.ts                   # 登录/注册/资料/改密/登出
+    │   ├── files.ts                  # 文件 CRUD、分类、批量、分片上传、索引同步、统计、重复检测
+    │   ├── roots.ts                  # 根目录列表/新增/更新/删除
+    │   ├── shares.ts                 # 分享列表/创建/编辑/撤销/访问日志/公开信息/解锁/集合
+    │   ├── app-update.ts             # 应用/版本/发布/回滚/客户端检查下载上报/漏斗统计
+    │   ├── audit-logs.ts / metrics.ts / users.ts
+    │   ├── placeholder.ts / hitokoto.ts / docs.ts
+    ├── stores/modules/
+    │   ├── auth.ts                   # accessToken / user / 持久化 / clearAuth
+    │   ├── app.ts                    # activeRootId 等全局 UI 状态
+    │   └── category.ts               # 根目录列表、分类列表与计数缓存
     ├── utils/
-    │   ├── env.ts                 # 环境变量工具：getApiBaseUrl()、getBaseUrl()
-    │   ├── request.ts             # Axios 实例：baseURL、Token 注入、401 拦截自动清除 Token 并跳登录
-    │   ├── file-types.ts          # 文件类型映射：扩展名 → 预览支持判断（isVideo / isPreviewable 等）
-    │   ├── preview-registry.ts    # **预览组件统一分发点**：扩展名 → 懒加载组件 + requestIdleCallback 空闲预取
-    │   ├── video-player-loader.ts # video.js 懒加载器（缓存 promise + requestIdleCallback 空闲预取）
-    │   ├── hljs-theme.ts          # highlight.js 主题配置（适配暗色模式）
-    │   ├── text-decode.ts         # 文本解码工具
-    │   ├── format.ts              # 格式化工具（文件大小、时间戳）
-    │   └── url.ts                 # URL 工具
-    ├── stores/
-    │   └── modules/
-    │       ├── auth/index.ts      # 认证 Store：accessToken、isLoggedIn、持久化、clearAuth
-    │       └── file-list/index.ts # 文件列表 Store：分页、视图模式、根目录/分类选择、defaultCategory
+    │   ├── http.ts                   # 请求客户端：baseURL、Token、401 处理
+    │   ├── file-url.ts               # **URL 唯一构造函数**：直链/缩略图/预览页/分享页/分享文件
+    │   ├── preview-registry.ts       # **预览分发唯一配置点**
+    │   ├── file-types.ts             # 扩展名/类型判断与大小格式化
+    │   ├── format.ts / hljs.ts
+    │   └── (typings) env.d.ts / auto-imports.d.ts / components.d.ts / shims-vue.d.ts
     └── typings/
-        ├── auto-imports.d.ts      # unplugin-auto-import 自动生成
-        ├── components.d.ts        # unplugin-vue-components 自动生成
-        └── vite-env.d.ts          # Vite 环境变量类型
+        ├── auto-imports.d.ts         # unplugin-auto-import 生成
+        ├── components.d.ts           # unplugin-vue-components 生成
+        ├── env.d.ts / shims-vue.d.ts
 ```
 
 ---
 
 ## 路由表
 
-| 路径                     | 页面           | 需要认证 | 说明                                             |
-| ------------------------ | -------------- | -------- | ------------------------------------------------ |
-| `/login`                 | 登录页         | 否       | 用户名/密码登录或注册，支持 redirect 参数回跳    |
-| `/file-preview`          | 文件预览       | 否       | 独立页面，输入 URL 预览文件（blank-layout）      |
-| `/share/:token`          | 分享访问页     | 否       | 公开页面，密码校验、单文件下载或聚合文件列表     |
-| `/`                      | 重定向         | -        | 自动跳转到 `/files`                              |
-| `/files`                 | 文件库         | 是       | 文件浏览/上传/删除/重命名/搜索/排序/分享         |
-| `/shares`                | 分享管理       | 是       | 分享链接列表、复制、撤销、访问记录               |
-| `/api-docs`              | API 文档       | 是       | iframe 嵌入 `/docs` Swagger UI                   |
-| `/tools/placeholder`     | 占位图生成器   | 是       | 可视化占位图配置工具                             |
-| `/tools/hitokoto`        | 一言           | 是       | 随机短句展示                                     |
-| `/app-update`            | APP 更新管理   | 是       | 应用与版本管理、发布、强更、下架、回滚           |
-| `/app-update/stats`      | 升级漏斗统计   | 是       | 各版本 check/download/install 数量与转化率       |
-| `/storage-stats`         | 存储统计       | 是       | 按根目录/分类聚合的存储用量可视化                |
-| `/duplicate-files`       | 重复文件检测   | 是       | 按内容哈希分组展示重复副本并手动清理             |
-| `/audit-logs`            | 操作审计日志   | 是       | 按动作/资源/用户/时间筛选，查看操作详情          |
-| `/system-status`         | 系统状态       | 是       | QPS、内存、存储、分享、版本、24h 升级事件指标    |
-| `/users`                 | 用户管理       | 是       | 用户列表与删除（禁止删除自己）                   |
-| `/:pathMatch(.*)*`       | 404 兜底       | -        | 重定向到 `/files`                                |
+| 路径                  | 页面         | 需要认证 | 说明                                                      |
+| --------------------- | ------------ | -------- | --------------------------------------------------------- |
+| `/login`              | 登录         | 否       | 用户名/密码登录，支持 `redirect` 参数回跳                 |
+| `/share/:token`       | 分享访问     | 否       | 公开页：密码门、单文件访问或集合列表，支持逐项预览/下载   |
+| `/file-preview`       | 文件预览     | 否       | 通过 query（rootId/category/path）打开独立预览            |
+| `/`                   | 重定向       | -        | 跳转 `/files`                                             |
+| `/files`              | 文件库       | 是       | 网格/列表、上传、批量、重命名/移动、快速分享              |
+| `/shares`             | 分享管理     | 是       | 分享列表、筛选、编辑、撤销、访问记录、二维码              |
+| `/app-update`         | APP 版本     | 是       | 应用与版本管理、发布、灰度、回滚、强更、下架              |
+| `/app-update/stats`   | 升级漏斗     | 是       | check → download → install 转化率                         |
+| `/storage-stats`      | 存储统计     | 是       | 按根目录/分类聚合用量                                    |
+| `/duplicate-files`    | 重复文件     | 是       | 按内容哈希分组清理                                        |
+| `/users`              | 用户管理     | 是       | 列表、创建、角色、重置密码、删除                          |
+| `/audit-logs`         | 审计日志     | 是       | 动作/资源/用户/时间筛选                                   |
+| `/system-status`      | 系统状态     | 是       | QPS、内存、存储、分享、版本、24h 升级事件                 |
+| `/tools/placeholder`  | 占位图生成   | 是       | 可视化配置 + 实时预览                                     |
+| `/tools/hitokoto`     | 一言         | 是       | 随机短句展示                                              |
+| `/api-docs`           | API 文档     | 是       | iframe 嵌入 `/docs` Swagger UI                            |
+| `/:pathMatch(.*)*`    | 404 兜底     | -        | 重定向 `/files`                                           |
+
+侧边栏只展示 `meta.sidebar: true` 的路由（纯图标 + Tooltip）；`meta.categoryPanel: true` 的路由（当前为 `/files`）才会在布局中渲染第二个分类面板。
 
 ---
 
 ## 认证机制
 
-### 流程图
-
 ```
 用户访问 → router.beforeEach
                │
     ┌──────────┴──────────┐
-    │ 目标页 requiresAuth？ │
-    ├── false（或未设）→ 直接进入
+    │ 目标页 meta.public？ │
+    ├── true → 直接进入
     │
-    └── true → 已登录（authStore.isLoggedIn）？
+    └── false → authStore.isLoggedIn？
          ├── 是 → 正常进入
          └── 否 → 跳转 /login?redirect=原路径
 ```
 
-### 状态持久化
-
-- 使用 Pinia + `pinia-plugin-persistedstate` 将 `accessToken` 持久化到 `localStorage`
-- 页面刷新后自动恢复认证状态
-- 登出 / 401 时清除 Token（`authStore.clearAuth()`）
-
-### HTTP 拦截器（src/utils/request.ts）
-
-- **请求拦截器**：自动为已登录请求附加 `Authorization: Bearer {token}`
-- **响应拦截器**：捕获 `401` 状态码 → 调用 `authStore.clearAuth()` → 自动跳转 `/login?redirect=当前路径`
+- Token 与用户信息经 `pinia-plugin-persistedstate` 持久化到 `localStorage`（key `auth`），刷新后自动恢复。
+- `src/utils/http.ts` 请求时自动附 `Authorization: Bearer <token>`；业务 `401` 清空登录态并跳登录（修改密码接口的 401 视为表单错误，不踢出登录）。
 
 ---
 
 ## 核心功能
 
-### 1. 文件列表（主页面）
+### 1. 文件库与分类 / 多根目录
 
-- **双视图模式**：网格视图（useVirtualList 虚拟滚动）和列表视图（NaiveUI DataTable + virtual-scroll）
-- **分页浏览**：默认每页 100 条，支持页码跳转、每页数量切换
-- **搜索过滤**：关键词搜索匹配文件名和路径（前后端双重过滤）
-- **排序**：支持按名称、大小、修改时间排序，升序/降序切换
-- **批量操作**：列表视图支持多选，批量删除、批量移动分类、批量创建聚合分享
-- **文件操作**：
-  - 预览：点击直接打开独立预览组件（preview-registry.ts 分发）
-  - 下载：直接下载（带 Content-Disposition）
-  - 图片缩放：可指定 w/h/q/format 参数经 Sharp 处理后返回（Cache-Control 一天）
-  - 重命名：弹窗输入新文件名（validateBasename 只允许 basename，防路径穿越）
-  - 创建分享链接：设置有效期、最大访问次数与可选 scrypt 访问密码
+- **双视图**：网格（文件卡片）与列表；分页（默认 24 条/页）、关键词搜索、按名称/大小/修改时间排序。
+- **分类面板**（`layouts/components/category-panel.vue`）：根目录选择、分类列表与计数、新建/重命名/删除分类（非空删除需勾选递归）。
+- **根目录管理**：面板内「管理根目录」弹窗支持新增、编辑（名称/路径）、删除；数据接口：
+  - `GET /static/roots` 列表
+  - `POST /static/roots` 新增
+  - `PATCH /static/roots/:id` 更新
+  - `DELETE /static/roots/:id` 删除
+  - `GET /static/roots/system/directories` 服务器目录浏览（用于选择路径）
+- **文件操作**：预览、下载、图片缩放（w/h/q/format）、重命名、移动到其他分类、批量删除、批量移动、快速创建分享。
+- **URL 构造**：所有直链、缩略图、预览页、分享页地址统一经 `utils/file-url.ts`，保证 `/static` 只出现一次。
 
-### 2. 文件上传
+### 2. 上传（先选后传 + 拖拽）
 
-- **单段上传**：`POST /static/files/:rootId/upload`（ConfigurableFilesInterceptor，默认最多 20 文件）
-- **大文件分片上传**（upload-modal.vue）：
-  - `POST /static/files/upload/init` → 返回 uploadId（32 位十六进制 MD5）
-  - `POST /static/files/upload/chunk?uploadId=&index=` 逐片上传（multer fileSize 硬上限 100MB/片）
-  - `POST /static/files/upload/complete` → 合并 + SHA-256 校验 + 建立索引
-  - `POST /static/files/upload/cancel` → 清理临时目录
-  - 临时目录落在操作系统临时目录下的应用专属子目录（`os.tmpdir()/vakao-static-hub/uploads/{uploadId}/`）
-- **断点续传**：init 时返回已上传分片列表，网络中断后从断点继续
-- **文件夹上传**：自动递归读取、保留目录结构
+- **先选后传**：文件先进入待上传队列（`queued`），展示目标根目录/分类与大小；点击「开始上传」才真正发请求。可在队列中取消、失败重试。
+- **拖拽与文件夹**：上传面板支持拖拽多文件/文件夹，文件夹通过 `webkitGetAsEntry` 递归读取并保留目录结构。
+- **分片与续传**：单文件 > 5MB 自动切 5MB 分片，并发 3；`upload/init` 返回已上传分片列表用于断点续传；合并时校验 SHA-256。
+- **落点锁定**：任务入队时锁定目标根/分类，上传中途切换目录不会造成落点漂移。
+- **取消语义**：取消会中止在途请求并调用 `upload/cancel` 清理临时分片目录，不伪造成功。
 
-### 3. 文件索引同步
+接口：`POST /static/files/:rootId/upload`（单段）、`POST /static/files/upload/{init,chunk,complete,cancel}`（分片）。
 
-- 后端 `FileIndexService` 在启动时、每 5 分钟、资源根目录变更时全量重建索引
-- 重建流程：先在内存里准备好全部新记录 → 事务内 delete + 批量 upsert
-- 哈希缓存：文件大小与修改时间均未变化时保留已有 SHA-256 哈希
-- 并发安全：SQLite 写锁数据库级粒度，事务化保证 delete 和 insert 之间不会让并发查询看到空索引
+### 3. 文件分享
 
-### 4. 占位图生成器
+- **分享数据模型**：分享只存一个字段 `filePaths: string[]`（分类内相对路径，1~N 个）；`shareType` 不落库，由 `filePaths.length` 派生：`1` → `file`，`>1` → `collection`。
+- **创建入口**：
+  - 文件卡片「更多」→「新建分享」：弹窗预填目标分类与文件名，可设有效期、最大访问次数、是否「需要密码」。
+  - 文件库多选 → 批量条「创建分享（N 个文件）」：一次创建集合分享。
+  - 分享管理页「创建分享」：选择根目录/分类后勾选文件创建。
+- **校验**：未选文件、勾选「需要密码」但密码为空、自定义有效期为空/非正数都会被前端拦截并给出明确提示。
+- **访问**：公开页 `/share/:token`；设密码时先 `POST /static/share/:token/verify` 换取 30 分钟访问令牌，再 `GET /static/share/:token?accessToken=&index=N` 读取集合或文件；下载追加 `download=1`。
+- **管理**：列表筛选、复制链接/二维码、编辑（备注/有效期/密码/次数/启停）、撤销、访问记录。
 
-- SVG 占位图动态生成（服务端），支持尺寸、颜色、文字、字体、字重自定义
-- 多格式导出：URL、Markdown `![]()`、HTML `<img>`、MDX 代码片段
-- 一键复制（CopyableCode 组件）
+### 4. 文件预览
 
-### 5. 一言
+- 卡片弹窗与分享访问页共用 `components/preview/preview-dialog.vue`，分发逻辑统一在 `utils/preview-registry.ts`。
+- 支持格式：图片、视频、音频、文本/代码、Markdown、HTML（sandbox iframe）、PDF、Word、Excel、压缩包（引导下载）；未命中走 `default-preview.vue`。
+- 所有预览组件通过 `() => import()` 懒加载，并按需空闲预取。
 
-- 直接请求 `VITE_HITOKOTO_API_URL` 获取随机短句（不经过后端代理）
-- 展示句子内容、分类标签、出处、作者
-- 支持换一句刷新
+### 5. APP 在线更新管理
 
-### 6. 文件预览
+- 应用（appKey）创建/重命名/删除（重命名与删除需输入包含 appKey 的确认短语）。
+- 版本：上传 APK（ZIP 魔数校验 + 流式 SHA-256）→ DRAFT；发布门禁 versionCode 必须递增；全量/灰度（指定百分比或自动递增，到 100% 自动转全量）；定时发布；一键回滚只恢复被新全量挤掉的历史版本；远程强更；一键下架。
+- 客户端检查 `GET /static/app-updates/check`，下载 `GET /static/app-updates/download/:id` 支持 Range。
+- 升级漏斗看板：check / download / install_success / install_fail。
 
-- **双入口**：`/file-preview`（公开，blank-layout）和 `/local-file-preview`（需认证，base-layout）
-- **预览组件分发**：`src/utils/preview-registry.ts` 唯一配置点
-- **懒加载 + 空闲预取**：`() => import()` + requestIdleCallback
-- **支持格式**（共 9 类独立实现）：
+### 6. 其它页面
 
-  | 类别   | 格式                                                     | 依赖库          |
-  | ------ | -------------------------------------------------------- | --------------- |
-  | 文档   | PDF、Word（docx）、Excel（xlsx/csv）、Markdown、TXT/代码 | pdfjs-dist / docx-preview / xlsx / markdown-it / highlight.js |
-  | 图片   | 全部主流格式                                             | 原生 `<img>`    |
-  | 视频   | mp4 / mov / webm / avi / mkv / ogv                       | video.js        |
-  | 音频   | mp3 / wav / ogg 等                                       | 原生 `<audio>`  |
-  | HTML   | .html / .htm 文件                                        | sandbox iframe  |
-
-  PPT、OFD、DXF 等无内嵌实现的格式回退到下载引导。
-
-### 7. API 文档
-
-- 通过 `<iframe>` 嵌入后端 Swagger UI（`${baseURL}/docs`）
-- 全屏展示，左侧导航栏可折叠
-
-### 8. 分享链接管理
-
-- **创建**：单文件或聚合（collection）分享，可设有效期、最大访问次数、scrypt 访问密码
-- **解锁流程**：密码校验 → 通过后返回 30 分钟有效期的 HMAC 访问令牌 → 令牌过期或次数达上限后需重新解锁
-- **列表**：token、类型、目标文件、有效期、访问次数、是否设密码
-- **二维码**：分享页二维码一键生成（qrcode 库）
-- **复制链接**：一键复制公开访问 URL（`{origin}/share/{token}`）与后端下载 API 地址（带 accessToken）
-
-### 9. APP 在线更新管理
-
-- **应用管理**：
-  - `software-update` 根目录下每个 appKey 一个独立目录
-  - 创建 / 重命名 / 删除（重命名和删除都需弹窗输入包含 appKey 的确认短语）
-- **版本管理**：
-  - 上传 APK → 自动校验 ZIP 魔数 → 流式计算 SHA-256 → 入库为 DRAFT
-  - 发布门禁：versionCode 必须大于该应用当前全量版本；publishVersion 事务化 + SQLite 写锁防并发绕过门禁
-  - 发布模式：全量 / 灰度（指定百分比或自动递增时间表 + 到 100% 自动转全量）
-  - 定时发布：创建 DRAFT 时可设 `scheduledPublishAt`（后端每 10 分钟扫描到期）
-  - 一键回滚 → 恢复上一个全量版本
-  - 远程强更开关（逃生口）
-  - 一键下架（止血开关，物理文件保留）
-- **客户端检查**：`GET /static/app-updates/check?platform=&appKey=&versionCode=&deviceId=` 公开接口；灰度命中按 `sha256(deviceId)` 分桶（稳定）
-- **下载**：`GET /static/app-updates/download/:id` 支持 HTTP Range 断点续传
-- **漏斗统计**：check → download → install_success / install_fail 转化率看板
-
-### 10. 存储用量统计
-
-- 按根目录 / 分类聚合 file_entries 索引表
-- 进度条可视化占比
-
-### 11. 重复文件检测
-
-- 按 `contentHash`（SHA-256）分组
-- 大小相同才可能重复（先 `GROUP BY size HAVING COUNT(*) > 1` 缩小范围）
-- 对缺少哈希的记录惰性补算并回写索引
-- 支持手动选择保留哪个、删除其余
-
-### 12. 操作审计日志
-
-- 异步写入：登录 / 登出 / 注册 / 改密、文件 CRUD、分类重命名、分享链接操作、APP 管理/版本发布/下架/回滚/强更
-- 中文标签展示（动作、资源类型），原始英文值保留在悬浮 tooltip
-- 详情弹窗同时显示中文 + 原始值
-
-### 13. 系统状态
-
-- 进程运行时长、最近 60 秒 QPS、注册用户数
-- 进程内存（RSS / 堆已用 / 堆总量 / External）
-- 文件存储总量、各资源根用量、分享链接活跃情况、APP 版本状态分布
-- 最近 24 小时升级事件（检查 / 下载 / 安装成功 / 安装失败）
-- 30 秒自动刷新
-
-### 14. 用户管理
-
-- 查看所有注册用户（id、用户名、创建时间，不含密码哈希）
-- 删除用户（当前登录用户按钮置灰）
-- 修改密码：顶部用户菜单弹窗（后端校验 oldPassword）
+- **存储统计**：按根目录/分类聚合占用与文件数，进度条可视化。
+- **重复文件**：按 `contentHash`（SHA-256）分组，手动选择保留项并删除其余。
+- **审计日志**：登录/登出/改密、文件 CRUD、分享操作、APP 发布/回滚等异步落库，可按动作/资源/用户/时间筛选。
+- **系统状态**：运行时长、60s QPS、内存、存储、活跃分享、版本分布、24h 升级事件，30 秒自动刷新。
+- **用户管理**：列表、创建、角色、重置密码、删除（禁止删除自己且至少保留一个管理员）。
+- **工具**：占位图生成（SVG 参数 + 多格式导出/复制）、一言（经后端代理）。
+- **API 文档**：iframe 嵌入后端 Swagger UI；`ENABLE_SWAGGER=false` 时不挂载。
 
 ---
 
-## 暗色模式
+## 文件预览架构
 
-使用 `@vueuse/core` 的 `useDark()`，切换存储在 `localStorage`，全局共享状态：
+`src/utils/preview-registry.ts` 是唯一配置点：按扩展名注册「懒加载组件」，`resolvePreview(filename)` 未命中返回 `null` 时调用方降级到默认视图。
 
-- `App.vue`：NaiveUI `NConfigProvider` 根据 `isDark` 切换 `darkTheme`
-- `app-header.vue`：月亮/太阳图标切换按钮
-- UnoCSS `dark:` 变体与 NaiveUI 主题变量配合
+| 组件（`src/components/preview/`） | 依赖库                      | 说明                                      |
+| --------------------------------- | --------------------------- | ----------------------------------------- |
+| `image-preview.vue`               | —                           | 图片（含 SVG/ICO/TIFF 等）                |
+| `video-preview.vue`               | video.js                    | 视频流式预览（Range 边下边播）            |
+| `audio-preview.vue`               | 原生 `<audio>`              | 音频流式预览                              |
+| `text-preview.vue`                | highlight.js                | 纯文本 / 代码高亮                         |
+| `markdown-preview.vue`            | markdown-it + highlight.js  | Markdown（禁用 HTML 渲染防 XSS）          |
+| `html-preview.vue`                | 原生 iframe                 | HTML（sandbox 源隔离）                    |
+| `pdf-preview.vue`                 | pdfjs-dist                  | PDF（`public/cmaps` 按需加载 CJK 映射）   |
+| `word-preview.vue`                | docx-preview                | Word 文档                                 |
+| `excel-preview.vue`               | xlsx（SheetJS）             | Excel / CSV（剥离 `<a>` 防 XSS）          |
+| `archive-preview.vue`             | —                           | 压缩包引导下载                            |
+| `default-preview.vue`             | —                           | 不支持格式统一引导下载                    |
 
-主题色：`#18a058`（NaiveUI 绿色主题）
+**分发流程**：文件名 → 扩展名 → registry 命中 → `() => import()` 懒加载 → 渲染；卡片弹窗与 `/file-preview`、分享页复用同一套组件与 `fetch-text.ts`（统一处理鉴权 / 分享 accessToken）。
+
+---
+
+## 构建与分包策略
+
+```bash
+cd packages/frontend
+pnpm typecheck   # vue-tsc
+pnpm build       # vue-tsc + vite build
+pnpm preview
+```
+
+`vite.config.ts` 的 `manualChunks` 只对入口静态依赖做固定分包：
+
+| chunk 名          | 包含内容                                   | 说明                                                         |
+| ----------------- | ------------------------------------------ | ------------------------------------------------------------ |
+| `rolldown-runtime`| `vite/preload-helper` / modulepreload-polyfill / Vue export-helper | 必须固定，否则 preload 助手会被并入懒加载 chunk，导致首屏白屏 |
+| `naive-ui`        | NaiveUI                                    | 入口静态依赖                                                 |
+| `vue-vendor`      | Vue / Vue Router / Pinia                   | 入口静态依赖                                                 |
+| `utils-vendor`    | axios / dayjs                              | 入口静态依赖                                                 |
+| `icons-vendor`    | @iconify / @vicons                         | 入口静态依赖                                                 |
+| 默认分包          | 其余 node_modules 与业务源码                | 预览库（video.js / pdfjs-dist / xlsx / docx-preview / highlight.js / markdown-it）**不设固定名**，保持懒加载语义 |
+
+- 路由与预览组件均使用 `() => import()`，按页面/格式拆分 chunk。
+- `chunkSizeWarningLimit: 1500`（pdfjs-dist 懒加载 chunk 约 1MB）。
+- 产物命名：JS `assets/js/[name]-[hash].js`，其他资源 `assets/[ext]/[name]-[hash].[ext]`。
+
+### 一体化部署
+
+根目录 `pnpm deploy` 会依次构建 shared、后端、前端（`VITE_API_BASE_URL=origin`），把前端 `dist/` 放入 `deploy/web/`；后端启动时挂载该目录并提供 SPA fallback，前后端同源，无需独立前端服务器。
 
 ---
 
 ## 环境变量
 
-| 变量                    | 默认值 | 说明                                                                                |
-| ----------------------- | ------ | ----------------------------------------------------------------------------------- |
-| `VITE_API_BASE_URL`     | -      | 后端 API 地址（开发时通常是空字符串走相对路径代理；生产构建为 `"origin"` 即同源） |
-| `VITE_HITOKOTO_API_URL` | -      | 一言 API 地址（一言页面直接 fetch 该地址，不经过后端代理）                          |
+| 变量                    | 开发默认值            | 说明                                                        |
+| ----------------------- | --------------------- | ----------------------------------------------------------- |
+| `VITE_API_BASE_URL`     | 空                    | 空 → 相对路径走 Vite 代理；`origin` → 当前站点域名；也可填后端绝对地址 |
+| `VITE_HITOKOTO_API_URL` | `/static/hitokoto`    | 一言接口地址（开发走代理，生产为后端代理地址）              |
 
-前端通过 `src/utils/env.ts` 解析：
-
-- `getBaseUrl()`：返回 `VITE_API_BASE_URL`（`"origin"` 时替换为 `window.location.origin`）
-- `getApiBaseUrl()`：返回 `${getBaseUrl()}/static`（所有后端业务接口前缀为 `/static`）
-
----
-
-## 构建与部署
-
-### 开发
-
-```bash
-cd packages/frontend
-pnpm dev          # 启动 Vite 开发服务器 (端口 9867)
-pnpm typecheck    # vue-tsc 类型检查
-```
-
-### 生产构建
-
-```bash
-cd packages/frontend
-pnpm build        # vue-tsc 类型检查 + vite build
-pnpm preview      # 预览构建产物
-```
-
-Vite 构建配置（packages/frontend/vite.config.ts）：
-
-- **分包策略（manualChunks）**：
-  | chunk 名       | 包含内容                              | 说明                                                     |
-  | -------------- | ------------------------------------- | -------------------------------------------------------- |
-  | `rolldown-runtime` | Vite preload-helper / Vue export-helper | Rolldown 运行时助手必须固定，否则会把 preload 函数合并进懒加载 chunk 导致首屏白屏 |
-  | `vue-vendor`   | Vue / Vue Router / Pinia              | 入口静态依赖，固定分包                                    |
-  | `naive-ui`     | NaiveUI 组件库                        | 入口静态依赖，固定分包                                    |
-  | `utils-vendor` | axios / dayjs                         | 入口静态依赖，固定分包                                    |
-  | `icons-vendor` | @iconify / @vicons                    | 入口静态依赖，固定分包                                    |
-  | 默认分包        | 其他所有 node_modules + 项目源码      | 预览库（video.js / pdfjs-dist / xlsx / docx-preview / highlight.js / markdown-it 等）**不设固定 chunk 名**，交给 Rolldown 默认分包，保持懒加载语义 |
-- **chunk 阈值**：1500KB（pdfjs-dist 懒加载 chunk 约 1MB，调高避免误报）
-- **文件命名**：
-  - JS chunk：`assets/js/[name]-[hash].js`
-  - 其他资源：`assets/[ext]/[name]-[hash].[ext]`
-
-### 一体化部署
-
-参见根目录 [../../README.md](../../README.md) 部署章节。在根目录执行 `pnpm deploy` 会自动：
-
-1. 构建 `@vakao/shared` 与后端
-2. 以 `VITE_API_BASE_URL=origin` 构建前端
-3. 将 `dist/` 移动到 `deploy/web/`
-4. 后端 NestJS 启动时自动挂载为静态资源并提供 SPA fallback
-
-生产模式下前端无需独立服务器，与后端同源部署。
+`src/utils/file-url.ts` 是 URL 的唯一构造入口：`getApiOrigin()` 会剥离末尾 `/static` 后统一拼一次，避免出现 `/static/static/...`。
 
 ---
 
 ## 开发约定
 
-- **组件注册**：使用 `unplugin-vue-components` 自动按需导入 NaiveUI 组件，无需手动 `import`
-- **API 自动导入**：使用 `unplugin-auto-import` 自动导入 Vue / Vue Router / Pinia 的常用 API
-- **路由组件**：使用 `() => import()` 实现懒加载，按页面拆分 chunk
-- **TypeScript**：全量类型覆盖，`vue-tsc` 构建前类型检查；别名 `@` → `src/`、`@vakao/shared` → `../shared/src/`
-- **CSS**：UnoCSS 原子化类名 + NaiveUI 主题变量，不写独立样式文件
-- **状态管理**：跨组件共享状态使用 Pinia（认证状态走 `stores/modules/auth`，文件列表状态走 `stores/modules/file-list`）
-- **预览组件**：统一在 `file-list/components/` 目录，命名遵循 `*-file-preview.vue` 惯例，统一通过 `utils/preview-registry.ts` 分发
-- **XSS 防护**：表格预览剥离 `<a>` 标签、Markdown 禁用 HTML 渲染、HTML 预览使用 `sandbox` iframe
+- **组件/API 自动导入**：NaiveUI 组件按需自动注册；Vue / Router / Pinia API 自动导入。
+- **路由组件懒加载**：页面与预览组件均 `() => import()`。
+- **别名**：`@` → `src/`，`@vakao/shared` → `../shared/src/`。
+- **样式**：UnoCSS 原子类 + 设计令牌，不新增独立样式文件。
+- **状态**：认证 → `stores/modules/auth.ts`；根目录/分类缓存 → `stores/modules/category.ts`；全局 UI → `stores/modules/app.ts`。
+- **预览组件**：统一放 `components/preview/`，命名 `*-preview.vue`，只在 `utils/preview-registry.ts` 注册。
+- **XSS 防护**：表格剥离 `<a>`、Markdown 禁用 HTML、HTML 预览 sandbox iframe。

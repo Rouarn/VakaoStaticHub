@@ -5,7 +5,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -21,7 +20,7 @@ import { hashPassword, verifyPassword } from './utils/password.util.js';
  * 基于 users 表完成用户注册、凭证校验和 JWT 签发
  */
 @Injectable()
-export class AuthService implements OnModuleInit {
+export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
@@ -30,31 +29,6 @@ export class AuthService implements OnModuleInit {
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
   ) {}
-
-  /**
-   * 模块初始化时播种默认管理员
-   * 仅在 users 表为空时执行，账号密码取自 AUTH_USER/AUTH_PASS 配置
-   */
-  async onModuleInit() {
-    const count = await this.userRepo.count();
-    if (count > 0) {
-      return;
-    }
-
-    const username = this.configService.get<string>('auth.user') ?? 'admin';
-    const password = this.configService.get<string>('auth.pass') ?? 'admin';
-    const now = Date.now();
-
-    const user = this.userRepo.create({
-      username,
-      passwordHash: await hashPassword(password),
-      role: 'admin',
-      createdAt: now,
-      updatedAt: now,
-    });
-    await this.userRepo.save(user);
-    this.logger.log(`users 表为空，已初始化默认管理员账号: ${username}`);
-  }
 
   /**
    * 注册新用户（由已登录用户创建，不签发令牌，新用户需自行登录）

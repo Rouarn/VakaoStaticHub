@@ -7,6 +7,7 @@
     "dev": "cd ../.. && nest start --watch -c packages/backend/nest-cli.json",
     "build": "cd ../.. && nest build -c packages/backend/nest-cli.json",
     "start": "node dist/main.js",
+    "db:sync": "cd ../.. && nest build -c packages/backend/nest-cli.json && node packages/backend/dist/scripts/sync-db.js",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "lint": "eslint src --fix",
     "format": "prettier --write src"
