@@ -55,7 +55,7 @@ import { PublishVersionDto } from './dto/publish-version.dto.js';
 import { ReportEventDto } from './dto/report-event.dto.js';
 import { UpdateVersionDto } from './dto/update-version.dto.js';
 import { getApkTmpDir } from './apk-upload.interceptor.js';
-import type { RollbackResult } from '@vakao/shared';
+import type { RollbackCandidatesResult, RollbackResult } from '@vakao/shared';
 
 @Injectable()
 export class AppUpdateService implements OnModuleInit {
@@ -474,12 +474,15 @@ export class AppUpdateService implements OnModuleInit {
     }
   }
 
-  /** 分页版本列表（可按应用/状态筛选） */
+  /** 分页版本列表（可按应用 / 状态 / 平台筛选） */
   async listVersions(query: ListVersionsQueryDto) {
     const qb = this.versionRepo.createQueryBuilder('v');
 
     if (query.appKey) {
       qb.where('v.appKey = :appKey', { appKey: query.appKey });
+    }
+    if (query.platform) {
+      qb.andWhere('v.platform = :platform', { platform: query.platform });
     }
     if (query.status !== undefined) {
       qb.andWhere('v.status = :status', { status: query.status });
@@ -492,6 +495,40 @@ export class AppUpdateService implements OnModuleInit {
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * 回滚候选（服务端口径，与 rollback 事务内的候选规则一致）：
+   * 同应用同平台、versionCode 更小、PUBLISHED 或被 publish 自动挤下架（offlineReason=auto）；
+   * 管理员手动止血下架（manual）不返回，避免误恢复。
+   */
+  async listRollbackCandidates(id: number): Promise<RollbackCandidatesResult> {
+    const record = await this.getExisting(id);
+    const rows = await this.versionRepo
+      .createQueryBuilder('v')
+      .where('v.platform = :platform', { platform: record.platform })
+      .andWhere('v.appKey = :appKey', { appKey: record.appKey })
+      .andWhere('v.versionCode < :vc', { vc: record.versionCode })
+      .andWhere(
+        '(v.status = :pubStatus) OR (v.status = :offStatus AND v.offlineReason = :autoReason)',
+        {
+          pubStatus: VERSION_STATUS.PUBLISHED,
+          offStatus: VERSION_STATUS.OFFLINE,
+          autoReason: 'auto',
+        },
+      )
+      .orderBy('v.versionCode', 'DESC')
+      .getMany();
+
+    return {
+      candidates: rows.map((row) => ({
+        id: row.id,
+        versionCode: row.versionCode,
+        versionName: row.versionName,
+        status: row.status,
+        offlineReason: row.offlineReason ?? null,
+      })),
+    };
   }
 
   async getVersion(id: number) {

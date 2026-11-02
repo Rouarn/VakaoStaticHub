@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
   NButton,
   NIcon,
@@ -32,7 +32,7 @@ import ConfirmModal from '@/components/common/confirm-modal.vue';
 /**
  * 重复文件检测与清理
  *
- * 后端 /files/duplicates 一次性扫描全部（无分页参数），前端分页展示并显式标注。
+ * 后端 /files/duplicates 支持服务端分页（page/pageSize）。
  * 清理按组执行：每组必须保留 1 个文件，其余永久删除（二次确认里写明保留项）。
  */
 const message = useMessage();
@@ -54,10 +54,7 @@ const rootOptions = computed(() => [
 ]);
 
 const groups = computed(() => scan.value?.groups ?? []);
-
-const pagedGroups = computed(() =>
-  groups.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
-);
+const groupCount = computed(() => scan.value?.groupCount ?? 0);
 
 function rootName(id: string) {
   return roots.value.find((root) => root.id === id)?.name ?? id;
@@ -71,14 +68,25 @@ async function loadRoots() {
   }
 }
 
-async function load() {
+/** 加载当前页；页码超出末页时回退到末页（清理后总组数可能变少） */
+async function load(allowClamp = true) {
   loading.value = true;
   error.value = '';
   try {
-    scan.value = await getDuplicateFiles(rootId.value || undefined);
+    const result = await getDuplicateFiles({
+      ...(rootId.value ? { rootId: rootId.value } : {}),
+      page: page.value,
+      pageSize: pageSize.value,
+    });
+    scan.value = result;
     expanded.value = new Set();
     keepIndex.value = {};
-    page.value = 1;
+
+    const maxPage = Math.max(1, Math.ceil(result.groupCount / pageSize.value));
+    if (allowClamp && page.value > maxPage) {
+      page.value = maxPage;
+      await load(false);
+    }
   } catch (e) {
     error.value = getErrorMessage(e, '重复文件扫描失败');
     scan.value = null;
@@ -86,6 +94,20 @@ async function load() {
     loading.value = false;
   }
 }
+
+/** 切换根目录：回到第一页后重新扫描 */
+function changeFilter() {
+  if (page.value === 1) void load();
+  else page.value = 1;
+}
+
+function onPageSizeChange() {
+  // 页码从非 1 变成 1 时由 page 的 watch 触发加载，避免同一参数重复请求
+  if (page.value === 1) void load();
+  else page.value = 1;
+}
+
+watch(page, () => void load());
 
 function toggleExpand(hash: string) {
   const next = new Set(expanded.value);
@@ -115,6 +137,7 @@ function openCleanup(group: DuplicateGroup) {
 }
 
 function openCleanupAll() {
+  // 服务端分页后 groups 仅代表当前页，按钮文案为「批量清理本页」
   if (groups.value.length === 0) return;
   cleanupScope.value = 'all';
   cleanupGroup.value = null;
@@ -220,9 +243,9 @@ onMounted(async () => {
           size="small"
           class="w-36"
           :options="rootOptions"
-          @update:value="load"
+          @update:value="changeFilter"
         />
-        <NButton size="small" quaternary @click="load">
+        <NButton size="small" quaternary @click="() => load()">
           <template #icon><NIcon><RefreshOutline /></NIcon></template>
           重新扫描
         </NButton>
@@ -233,18 +256,18 @@ onMounted(async () => {
           @click="openCleanupAll"
         >
           <template #icon><NIcon><TrashOutline /></NIcon></template>
-          批量清理全部
+          批量清理本页
         </NButton>
       </template>
     </PageHeader>
 
     <div class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub">
       <NIcon :size="14"><InformationCircleOutline /></NIcon>
-      后端 /files/duplicates 一次性返回全部结果（无分页参数），本页为前端分页；扫描会惰性补算缺失的内容哈希
+      后端 /files/duplicates 服务端分页（page / pageSize），按内容哈希分组；扫描会惰性补算缺失的内容哈希
     </div>
 
     <NSpin :show="loading">
-      <ErrorState v-if="error" :message="error" @retry="load" />
+      <ErrorState v-if="error" :message="error" @retry="() => load()" />
 
       <EmptyState
         v-else-if="!loading && groups.length === 0"
@@ -256,7 +279,7 @@ onMounted(async () => {
             : '选择根目录后点击「重新扫描」开始检测。'
         "
       >
-        <NButton size="small" @click="load">重新扫描</NButton>
+        <NButton size="small" @click="() => load()">重新扫描</NButton>
       </EmptyState>
 
       <div v-else class="flex flex-col gap-4">
@@ -278,7 +301,7 @@ onMounted(async () => {
         </div>
 
         <section
-          v-for="group in pagedGroups"
+          v-for="group in groups"
           :key="group.contentHash"
           class="glass-panel px-4 py-3 flex flex-col gap-3"
         >
@@ -364,14 +387,15 @@ onMounted(async () => {
 
         <footer class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2">
           <span class="mr-auto text-11px text-ink-sub">
-            共 {{ groups.length }} 组 · 前端分页
+            共 {{ groupCount }} 组 · 服务端分页
           </span>
           <NPagination
             v-model:page="page"
             v-model:page-size="pageSize"
-            :item-count="groups.length"
+            :item-count="groupCount"
             :page-sizes="[5, 10, 20]"
             show-size-picker
+            @update:page-size="onPageSizeChange"
           />
         </footer>
       </div>

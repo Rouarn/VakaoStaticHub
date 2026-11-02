@@ -6,6 +6,7 @@ import {
   NInput,
   NModal,
   NPagination,
+  NSelect,
   NSpin,
   NTag,
   NTooltip,
@@ -19,12 +20,13 @@ import {
   RefreshOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type { UserInfo } from '@vakao/shared';
+import type { UserInfo, UserRole } from '@vakao/shared';
 import {
   changeMyPassword,
   createUser,
   deleteUser,
   listUsers,
+  resetUserPassword,
 } from '@/api/users';
 import { getErrorMessage } from '@/utils/http';
 import { formatDateTime } from '@/utils/format';
@@ -37,15 +39,23 @@ import ConfirmModal from '@/components/common/confirm-modal.vue';
 /**
  * 用户管理
  *
- * 后端现实：
- * - GET /auth/users 一次性返回全部用户（无分页参数）→ 前端分页并显式标注
- * - DELETE /auth/users/:id 仅禁止删除当前登录用户
- * - 无角色模型（没有「管理员」字段），因此「唯一管理员」无法判定；
- *   这里按「系统至少保留一个账号」兜底，并在 UI 写明原因
- * - PATCH /auth/password 只作用于当前登录用户，没有管理员重置他人密码的接口
+ * 服务端能力：
+ * - 角色 admin / user；创建 admin 仅管理员可操作
+ * - PATCH /auth/users/:id/password 管理员重置他人密码
+ * - 删除权威校验：不能删自己、至少保留一个管理员
  */
 const message = useMessage();
 const authStore = useAuthStore();
+
+const isAdmin = computed(() => authStore.user?.role === 'admin');
+const adminCount = computed(
+  () => users.value.filter((user) => user.role === 'admin').length,
+);
+
+const ROLE_META: Record<UserRole, { label: string; type: 'success' | 'default' }> = {
+  admin: { label: '管理员', type: 'success' },
+  user: { label: '普通用户', type: 'default' },
+};
 
 const users = ref<UserInfo[]>([]);
 const loading = ref(false);
@@ -87,12 +97,18 @@ watch(pageSize, () => {
 const createShow = ref(false);
 const creating = ref(false);
 const createError = ref('');
-const createForm = reactive({ username: '', password: '', confirm: '' });
+const createForm = reactive<{
+  username: string;
+  password: string;
+  confirm: string;
+  role: UserRole;
+}>({ username: '', password: '', confirm: '', role: 'user' });
 
 function openCreate() {
   createForm.username = '';
   createForm.password = '';
   createForm.confirm = '';
+  createForm.role = 'user';
   createError.value = '';
   createShow.value = true;
 }
@@ -126,6 +142,7 @@ async function submitCreate() {
     const created = await createUser(
       createForm.username.trim(),
       createForm.password,
+      createForm.role,
     );
     message.success(`账号 ${created.username} 已创建`);
     createShow.value = false;
@@ -142,13 +159,13 @@ async function submitCreate() {
 const deleteTarget = ref<UserInfo | null>(null);
 const deleting = ref(false);
 
-/** 删除拦截原因：为空表示允许删除 */
+/** 删除拦截原因：为空表示允许删除（后端仍会权威校验，这里只做提前提示） */
 function deleteBlockReason(user: UserInfo): string {
   if (user.id === currentUserId.value) {
     return '不能删除当前登录账号';
   }
-  if (users.value.length <= 1) {
-    return '系统至少保留一个账号（后端无角色模型，无法判定唯一管理员）';
+  if (user.role === 'admin' && adminCount.value <= 1) {
+    return '至少保留一个管理员账号';
   }
   return '';
 }
@@ -178,17 +195,35 @@ async function confirmDelete() {
 
 type PasswordMode = 'self' | 'other';
 const passwordMode = ref<PasswordMode>('self');
+const passwordTarget = ref<UserInfo | null>(null);
 const passwordShow = ref(false);
 const passwordBusy = ref(false);
 const passwordError = ref('');
 const passwordForm = reactive({ oldPassword: '', newPassword: '', confirm: '' });
 
 const passwordTitle = computed(() =>
-  passwordMode.value === 'self' ? '修改我的密码' : '重置密码',
+  passwordMode.value === 'self'
+    ? '修改我的密码'
+    : `重置「${passwordTarget.value?.username ?? ''}」的密码`,
 );
 
 function openChangeSelf() {
   passwordMode.value = 'self';
+  passwordTarget.value = null;
+  passwordForm.oldPassword = '';
+  passwordForm.newPassword = '';
+  passwordForm.confirm = '';
+  passwordError.value = '';
+  passwordShow.value = true;
+}
+
+function openResetOther(user: UserInfo) {
+  if (!isAdmin.value) {
+    message.warning('仅管理员可以重置他人密码');
+    return;
+  }
+  passwordMode.value = 'other';
+  passwordTarget.value = user;
   passwordForm.oldPassword = '';
   passwordForm.newPassword = '';
   passwordForm.confirm = '';
@@ -197,8 +232,7 @@ function openChangeSelf() {
 }
 
 async function submitPassword() {
-  if (passwordMode.value === 'other') return;
-  if (!passwordForm.oldPassword) {
+  if (passwordMode.value === 'self' && !passwordForm.oldPassword) {
     passwordError.value = '请输入当前密码';
     return;
   }
@@ -216,11 +250,18 @@ async function submitPassword() {
   passwordBusy.value = true;
   passwordError.value = '';
   try {
-    await changeMyPassword(passwordForm.oldPassword, passwordForm.newPassword);
-    message.success('密码已修改');
+    if (passwordMode.value === 'self') {
+      await changeMyPassword(passwordForm.oldPassword, passwordForm.newPassword);
+      message.success('密码已修改');
+    } else {
+      const target = passwordTarget.value;
+      if (!target) return;
+      await resetUserPassword(target.id, passwordForm.newPassword);
+      message.success(`已重置「${target.username}」的密码`);
+    }
     passwordShow.value = false;
   } catch (e) {
-    passwordError.value = getErrorMessage(e, '修改密码失败');
+    passwordError.value = getErrorMessage(e, '密码操作失败');
   } finally {
     passwordBusy.value = false;
   }
@@ -233,7 +274,7 @@ onMounted(() => void load());
   <div class="flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="用户管理"
-      description="登录账号的创建与删除；当前后端没有角色模型，所有登录账号权限相同"
+      description="管理登录账号与角色；管理员可重置他人密码，删除由后端校验「不能删自己 / 至少保留一个管理员」"
       :icon="PeopleOutline"
     >
       <template #actions>
@@ -269,13 +310,14 @@ onMounted(() => void load());
             <span>共 {{ users.length }} 个账号</span>
             <span class="opacity-40">·</span>
             <span>当前登录：{{ authStore.user?.username ?? '—' }}</span>
-            <span class="ml-auto">后端 /auth/users 无分页参数，此处为客户端分页</span>
+            <span class="ml-auto">管理员 {{ adminCount }} 个</span>
           </div>
           <div class="overflow-x-auto mt-2">
-            <table class="w-full min-w-640px border-collapse text-12px">
+            <table class="w-full min-w-720px border-collapse text-12px">
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500">用户</th>
+                  <th class="py-2 px-2 font-500 w-24">角色</th>
                   <th class="py-2 px-2 font-500 w-20">ID</th>
                   <th class="py-2 px-2 font-500 w-44">创建时间</th>
                   <th class="py-2 pl-2 font-500 text-right w-64">操作</th>
@@ -307,6 +349,11 @@ onMounted(() => void load());
                       </NTag>
                     </div>
                   </td>
+                  <td class="py-2.5 px-2">
+                    <NTag size="tiny" :bordered="false" :type="ROLE_META[user.role].type">
+                      {{ ROLE_META[user.role].label }}
+                    </NTag>
+                  </td>
                   <td class="py-2.5 px-2 text-ink-sub tabular-nums">#{{ user.id }}</td>
                   <td class="py-2.5 px-2 text-ink-sub tabular-nums whitespace-nowrap">
                     {{ formatDateTime(user.createdAt) }}
@@ -322,6 +369,15 @@ onMounted(() => void load());
                         <template #icon><NIcon><KeyOutline /></NIcon></template>
                         修改我的密码
                       </NButton>
+                      <NButton
+                        v-else-if="isAdmin"
+                        size="tiny"
+                        quaternary
+                        @click="openResetOther(user)"
+                      >
+                        <template #icon><NIcon><KeyOutline /></NIcon></template>
+                        重置密码
+                      </NButton>
                       <NTooltip v-else trigger="hover">
                         <template #trigger>
                           <span>
@@ -331,8 +387,7 @@ onMounted(() => void load());
                             </NButton>
                           </span>
                         </template>
-                        后端 PATCH /auth/password 只作用于当前登录用户，
-                        未提供管理员重置他人密码的接口
+                        仅管理员可以重置他人密码
                       </NTooltip>
 
                       <NTooltip v-if="deleteBlockReason(user)" trigger="hover">
@@ -378,8 +433,8 @@ onMounted(() => void load());
         </footer>
 
         <p class="m-0 text-10px text-ink-sub">
-          说明：后端当前没有角色/管理员字段，无法在 UI 侧判定「唯一管理员」；
-          删除拦截以「不能删自己 + 至少保留一个账号」为准。
+          说明：删除规则由后端权威校验（不能删除当前登录账号、至少保留一个管理员），
+          页面上的禁用提示只是提前告知。
         </p>
       </div>
     </NSpin>
@@ -425,6 +480,20 @@ onMounted(() => void load());
             @keyup.enter="submitCreate"
           />
         </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-12px text-ink-sub">角色</label>
+          <NSelect
+            v-model:value="createForm.role"
+            :options="[
+              { label: '普通用户（user）', value: 'user' },
+              { label: '管理员（admin）', value: 'admin' },
+            ]"
+            :disabled="!isAdmin"
+          />
+          <p v-if="!isAdmin" class="m-0 text-11px text-ink-sub">
+            仅管理员可以创建管理员账号，后端会拒绝提权请求
+          </p>
+        </div>
         <p v-if="createError" class="m-0 text-12px text-red-500">{{ createError }}</p>
       </div>
       <template #footer>
@@ -449,7 +518,7 @@ onMounted(() => void load());
       :closable="!passwordBusy"
     >
       <div class="flex flex-col gap-3">
-        <div class="flex flex-col gap-1">
+        <div v-if="passwordMode === 'self'" class="flex flex-col gap-1">
           <label class="text-12px text-ink-sub">当前密码</label>
           <NInput
             v-model:value="passwordForm.oldPassword"

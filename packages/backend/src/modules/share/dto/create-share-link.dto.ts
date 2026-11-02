@@ -12,6 +12,7 @@ import {
   IsPositive,
   IsString,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -47,6 +48,13 @@ export class CreateShareLinkDto {
   @IsArray()
   @IsString({ each: true })
   filePaths?: string[];
+
+  /** 后台备注 */
+  @ApiPropertyOptional({ description: '后台备注（仅管理端可见）' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255, { message: '备注最长 255 个字符' })
+  remark?: string;
 
   /** 有效期（毫秒），不传则永不过期 */
   @ApiPropertyOptional({ description: '有效期（毫秒），不传则永不过期' })

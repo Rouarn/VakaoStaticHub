@@ -35,7 +35,7 @@ import {
   TimeOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type { GrayIncrementStep, ListVersionsQuery } from '@vakao/shared';
+import type { GrayIncrementStep, ListVersionsQuery, RollbackCandidate } from '@vakao/shared';
 import {
   APP_VERSION_STATUS,
   STATUS_META,
@@ -44,6 +44,7 @@ import {
   deleteApp,
   deleteVersion,
   getApkDownloadUrl,
+  getRollbackCandidates,
   listApps,
   listVersions,
   offlineVersion,
@@ -65,16 +66,16 @@ import ConfirmModal from '@/components/common/confirm-modal.vue';
 /**
  * APP 版本管理
  *
- * 后端能力边界（UI 如实标注，不改后端）：
- * - GET /app-updates/versions 无 platform 参数，当前仅 android
- * - 回滚候选没有专用接口，前端按 versionCode 拉同应用历史后筛选（PUBLISHED / OFFLINE+auto）
- * - offlineReason 未在 shared 契约声明，前端用本地扩展类型承接
+ * 服务端能力：
+ * - GET /app-updates/versions 支持 platform / appKey / status 过滤 + 分页
+ * - GET /app-updates/versions/:id/rollback-candidates 由后端直接返回可回滚版本
  */
 const message = useMessage();
 
 const apps = ref<string[]>([]);
 const activeApp = ref<string>('');
 const statusFilter = ref<number>(-1);
+const platformFilter = ref<string>('');
 const versions = ref<AppVersionRecord[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -86,6 +87,11 @@ const appOptions = computed(() => [
   { label: '全部应用', value: '' },
   ...apps.value.map((key) => ({ label: key, value: key })),
 ]);
+
+const platformOptions = [
+  { label: '全部平台', value: '' },
+  { label: 'Android', value: 'android' },
+];
 
 const statusOptions = [
   { label: '全部状态', value: -1 },
@@ -114,6 +120,7 @@ async function loadVersions() {
     page: page.value,
     pageSize: pageSize.value,
     ...(statusFilter.value >= 0 ? { status: statusFilter.value } : {}),
+    ...(platformFilter.value ? { platform: platformFilter.value } : {}),
     ...(activeApp.value ? { appKey: activeApp.value } : {}),
   };
   try {
@@ -601,7 +608,7 @@ async function confirmOffline() {
 const rollbackShow = ref(false);
 const rollingBack = ref(false);
 const rollbackTarget = ref<AppVersionRecord | null>(null);
-const rollbackCandidates = ref<AppVersionRecord[]>([]);
+const rollbackCandidates = ref<RollbackCandidate[]>([]);
 const rollbackLoading = ref(false);
 const rollbackError = ref('');
 
@@ -612,20 +619,8 @@ async function openRollback(version: AppVersionRecord) {
   rollbackShow.value = true;
   rollbackLoading.value = true;
   try {
-    // 后端无候选接口，这里按应用拉取历史后按回滚口径筛选（VC 更小 + PUBLISHED/OFFLINE auto）
-    const result = await listVersions({
-      appKey: version.appKey,
-      page: 1,
-      pageSize: 100,
-    });
-    rollbackCandidates.value = result.items
-      .filter(
-        (item) =>
-          item.versionCode < version.versionCode &&
-          (item.status === APP_VERSION_STATUS.PUBLISHED ||
-            (item.status === APP_VERSION_STATUS.OFFLINE && item.offlineReason === 'auto')),
-      )
-      .sort((a, b) => b.versionCode - a.versionCode);
+    const result = await getRollbackCandidates(version.id);
+    rollbackCandidates.value = result.candidates;
   } catch (e) {
     rollbackError.value = getErrorMessage(e, '回滚候选加载失败');
   } finally {
@@ -798,18 +793,13 @@ onMounted(async () => {
           class="w-32"
           @update:value="changeFilter"
         />
-        <NTooltip :delay="300">
-          <template #trigger>
-            <NSelect
-              size="small"
-              value="android"
-              disabled
-              :options="[{ label: 'Android', value: 'android' }]"
-              class="w-28"
-            />
-          </template>
-          后端版本列表接口无 platform 过滤参数，当前仅 android
-        </NTooltip>
+        <NSelect
+          v-model:value="platformFilter"
+          size="small"
+          :options="platformOptions"
+          class="w-32"
+          @update:value="changeFilter"
+        />
         <NButton size="small" quaternary @click="loadVersions">
           <template #icon><NIcon><RefreshOutline /></NIcon></template>
           刷新

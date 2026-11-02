@@ -184,6 +184,109 @@ export class FilesService {
   }
 
   /**
+   * 新建空分类（根目录下的一级子目录）
+   * software-update 根下的分类即应用，必须走 APP 版本管理的应用创建接口
+   */
+  async createCategory(rootId: string, name: string) {
+    if (rootId === SOFTWARE_UPDATE_ROOT_ID) {
+      throw new BadRequestException(
+        'software-update 根下的分类即应用，请在 APP 版本管理中创建应用',
+      );
+    }
+    const root = this.resourceRoots.getRoot(rootId);
+    if (!root) {
+      throw new NotFoundException('资源根目录不存在');
+    }
+
+    const category = this.validateBasename(name);
+    if (category.startsWith('.')) {
+      throw new BadRequestException('分类名不能以 . 开头');
+    }
+    if (category === this.getDefaultCategory()) {
+      throw new BadRequestException('默认分类名为系统保留，不可使用');
+    }
+
+    const rootPath = this.resourceRoots.resolveRootPath(rootId);
+    await mkdir(rootPath, { recursive: true });
+    const fullPath = safeJoin(rootPath, [category]);
+
+    try {
+      await access(fullPath, constants.F_OK);
+      throw new ConflictException('同名分类已存在');
+    } catch (e) {
+      if (e instanceof ConflictException) throw e;
+    }
+
+    try {
+      await mkdir(fullPath);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+        throw new ConflictException('同名分类已存在');
+      }
+      throw e;
+    }
+
+    return { category };
+  }
+
+  /**
+   * 删除分类（根目录下的一级子目录）
+   * - 默认只允许删除空分类；recursive=true 时连同文件索引/分享链接/磁盘文件一起删除
+   * - 拒绝默认分类与受保护根目录（software-update）
+   */
+  async deleteCategory(rootId: string, category: string, recursive = false) {
+    if (rootId === SOFTWARE_UPDATE_ROOT_ID) {
+      throw new BadRequestException(
+        'software-update 为受保护根目录，请通过 APP 版本管理删除应用',
+      );
+    }
+    const root = this.resourceRoots.getRoot(rootId);
+    if (!root) {
+      throw new NotFoundException('资源根目录不存在');
+    }
+
+    const { dbCategory, relPathSuffix } = normalizeCategoryPath(category);
+    if (!dbCategory) {
+      throw new BadRequestException('分类名不合法');
+    }
+    if (relPathSuffix) {
+      throw new BadRequestException('仅支持删除一级分类目录');
+    }
+    if (dbCategory === this.getDefaultCategory()) {
+      throw new BadRequestException('默认分类不可删除');
+    }
+
+    const fullPath = safeJoin(this.resourceRoots.resolveRootPath(rootId), [
+      dbCategory,
+    ]);
+
+    let sourceStat;
+    try {
+      sourceStat = await stat(fullPath);
+    } catch {
+      throw new NotFoundException('分类不存在');
+    }
+    if (!sourceStat.isDirectory()) {
+      throw new BadRequestException('目标不是分类目录');
+    }
+
+    const entries = await readdir(fullPath);
+    if (entries.length > 0 && !recursive) {
+      throw new ConflictException(
+        `分类非空（${entries.length} 项）；如需连同文件一并删除，请显式传 recursive=true`,
+      );
+    }
+
+    await this.repo.manager.transaction(async (manager) => {
+      await manager.delete(FileEntryEntity, { rootId, category: dbCategory });
+      await manager.delete(ShareLinkEntity, { rootId, category: dbCategory });
+    });
+    await rm(fullPath, { recursive: true, force: true });
+
+    return { success: true, removedEntries: entries.length };
+  }
+
+  /**
    * 存储用量统计：按资源根/分类聚合 file_entries 索引表
    * 数据与文件索引实时一致（索引本身由文件操作事件驱动同步）
    */
@@ -268,7 +371,11 @@ export class FilesService {
    * 存量索引记录可能没有 contentHash——先按文件大小分组（大小相同才可能重复），
    * 仅对大小重复且尚未计算哈希的记录惰性补算并回写索引，避免全量扫盘
    */
-  async getDuplicateFiles(rootId?: string): Promise<DuplicateScanResult> {
+  async getDuplicateFiles(
+    rootId?: string,
+    page = 1,
+    pageSize = 20,
+  ): Promise<DuplicateScanResult> {
     // 1. 找出存在重复的文件大小（忽略 0 字节文件，空文件无去重意义）
     const sizeQb = this.repo
       .createQueryBuilder('f')
@@ -351,11 +458,16 @@ export class FilesService {
     }
     groups.sort((a, b) => b.size * b.count - a.size * a.count);
 
+    const groupCount = groups.length;
+    const start = (page - 1) * pageSize;
+
     return {
-      groups,
-      groupCount: groups.length,
+      groups: groups.slice(start, start + pageSize),
+      groupCount,
       duplicateFileCount: groups.reduce((sum, g) => sum + g.count, 0),
       hashedCount,
+      page,
+      pageSize,
     };
   }
 

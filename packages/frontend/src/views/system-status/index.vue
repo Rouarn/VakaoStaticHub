@@ -37,9 +37,9 @@ import BarList from '@/components/charts/bar-list.vue';
 /**
  * 系统状态
  *
- * 后端只有 GET /metrics，没有独立 health 接口：
- * - 「健康」以 /metrics 请求成功作为判据（失败即视为服务不可达）
- * - 数据库连接状态通过该请求间接确认；数据库文件大小未被接口暴露
+ * 数据来自 GET /metrics：
+ * - health 段独立返回数据库可达性与数据库文件大小（未落盘/不可读时为 null）
+ * - storage / roots 的 totalSize 在无索引数据时为 null，界面显示「—」而不是 0 B
  */
 const data = ref<SystemMetrics | null>(null);
 const loading = ref(false);
@@ -89,7 +89,14 @@ onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
 });
 
-const healthy = computed(() => Boolean(data.value) && !error.value);
+const healthy = computed(
+  () => data.value?.health.status === 'ok' && !error.value,
+);
+
+/** 无数据（null）时展示「—」，避免把“未采集”误读成 0 字节 */
+function formatBytesOrDash(bytes: number | null | undefined): string {
+  return bytes === null || bytes === undefined ? '—' : formatBytes(bytes);
+}
 
 const memoryItems = computed(() => {
   const memory = data.value?.memory;
@@ -122,11 +129,20 @@ const EVENT_LABELS: Record<string, string> = {
 
 const upgradeEventItems = computed(() =>
   Object.entries(data.value?.upgradeEvents24h ?? {})
+    .filter(([, value]) => value !== null)
     .map(([key, value]) => ({
       label: EVENT_LABELS[key] ?? key,
-      value,
+      value: value as number,
     }))
     .sort((a, b) => b.value - a.value),
+);
+
+/** 最近 24 小时没有任何数据的事件类型数量（后端返回 null） */
+const upgradeEventMissingCount = computed(
+  () =>
+    Object.values(data.value?.upgradeEvents24h ?? {}).filter(
+      (value) => value === null,
+    ).length,
 );
 
 const upgradeEventTotal = computed(() =>
@@ -136,9 +152,25 @@ const upgradeEventTotal = computed(() =>
 const rootItems = computed(() => data.value?.roots ?? []);
 
 const largestRoot = computed(() => {
-  const sorted = [...rootItems.value].sort((a, b) => b.totalSize - a.totalSize);
+  const sorted = [...rootItems.value].sort(
+    (a, b) => (b.totalSize ?? -1) - (a.totalSize ?? -1),
+  );
   return sorted[0];
 });
+
+/** 根目录占总存储的百分比；任一侧无数据时返回 null（界面显示「—」） */
+function rootShare(totalSize: number | null): number | null {
+  const grandTotal = data.value?.storage.totalSize;
+  if (totalSize === null || grandTotal === null || grandTotal === undefined) {
+    return null;
+  }
+  return percentOf(totalSize, grandTotal);
+}
+
+function rootShareLabel(totalSize: number | null): string {
+  const share = rootShare(totalSize);
+  return share === null ? '—' : `${share}%`;
+}
 </script>
 
 <template>
@@ -214,7 +246,11 @@ const largestRoot = computed(() => {
           <StatCard
             label="健康状态"
             :value="healthy ? '正常' : '异常'"
-            :hint="healthy ? '以 /metrics 请求成功为判据' : '最近一次刷新失败'"
+            :hint="
+              data.health.database.ok
+                ? 'health 段：数据库探测正常'
+                : 'health 段：数据库探测失败'
+            "
             :icon="healthy ? CheckmarkCircleOutline : AlertCircleOutline"
           />
           <StatCard
@@ -237,14 +273,14 @@ const largestRoot = computed(() => {
           />
           <StatCard
             label="存储用量"
-            :value="formatBytes(data.storage.totalSize)"
+            :value="formatBytesOrDash(data.storage.totalSize)"
             :hint="`${data.storage.fileCount.toLocaleString()} 个文件 · ${rootItems.length} 个根目录`"
             :icon="SaveOutline"
           />
           <StatCard
             label="数据库"
-            value="已连接"
-            hint="后端未暴露数据库文件大小"
+            :value="data.health.database.ok ? '已连接' : '不可用'"
+            :hint="`数据库文件 ${formatBytesOrDash(data.health.database.sizeBytes)}`"
             :icon="ServerOutline"
           />
           <StatCard
@@ -292,6 +328,9 @@ const largestRoot = computed(() => {
               <h2 class="m-0 text-13px font-600 text-ink">最近 24 小时升级事件</h2>
               <span class="ml-auto text-11px text-ink-sub">
                 共 {{ upgradeEventTotal.toLocaleString() }} 次
+                <template v-if="upgradeEventMissingCount > 0">
+                  · {{ upgradeEventMissingCount }} 类无数据
+                </template>
               </span>
             </div>
             <BarList v-if="upgradeEventItems.length > 0" :items="upgradeEventItems" />
@@ -299,7 +338,7 @@ const largestRoot = computed(() => {
               v-else
               class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-6 text-center text-12px text-ink-sub"
             >
-              最近 24 小时没有客户端上报升级事件
+              最近 24 小时没有客户端上报升级事件（无数据的事件类型由后端返回 null）
             </div>
           </section>
         </div>
@@ -309,7 +348,7 @@ const largestRoot = computed(() => {
           <div class="flex items-center gap-2 flex-wrap">
             <h2 class="m-0 text-13px font-600 text-ink">资源根目录用量</h2>
             <span class="ml-auto text-11px text-ink-sub">
-              最大：{{ largestRoot ? `${largestRoot.name} · ${formatBytes(largestRoot.totalSize)}` : '—' }}
+              最大：{{ largestRoot ? `${largestRoot.name} · ${formatBytesOrDash(largestRoot.totalSize)}` : '—' }}
             </span>
           </div>
           <div v-if="rootItems.length === 0" class="py-6 text-center text-12px text-ink-sub">
@@ -340,18 +379,18 @@ const largestRoot = computed(() => {
                     {{ root.fileCount.toLocaleString() }}
                   </td>
                   <td class="py-2 px-2 text-right tabular-nums">
-                    {{ formatBytes(root.totalSize) }}
+                    {{ formatBytesOrDash(root.totalSize) }}
                   </td>
                   <td class="py-2 pl-2">
                     <div class="flex items-center gap-2">
                       <div class="flex-1 h-1.5 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden">
                         <div
                           class="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
-                          :style="{ width: `${percentOf(root.totalSize, data.storage.totalSize)}%` }"
+                          :style="{ width: `${rootShare(root.totalSize) ?? 0}%` }"
                         />
                       </div>
                       <span class="text-11px text-ink-sub tabular-nums w-12 text-right">
-                        {{ percentOf(root.totalSize, data.storage.totalSize) }}%
+                        {{ rootShareLabel(root.totalSize) }}
                       </span>
                     </div>
                   </td>
@@ -386,8 +425,8 @@ const largestRoot = computed(() => {
         </div>
 
         <p class="m-0 text-10px text-ink-sub">
-          说明：后端没有独立 health 接口与数据库文件大小接口。「健康状态」以 /metrics
-          成功返回为判据；「数据库」展示连接可用性。存储用量只统计文件库索引内的文件。
+          说明：health 段由后端独立返回数据库可达性与数据库文件大小（未落盘或不可读时为
+          null）；存储用量只统计文件库索引内的文件，无索引数据时显示「—」。
         </p>
       </div>
     </NSpin>

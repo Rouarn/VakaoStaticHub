@@ -4,10 +4,12 @@ import {
   Controller,
   Delete,
   Get,
+  GoneException,
   Headers,
   Ip,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -29,6 +31,8 @@ import { getRequestMeta } from '#/utils/request-meta.util.js';
 import { ShareService } from './share.service.js';
 import { FilesService } from '../files/files.service.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
+import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
+import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
 import { getMimeType, isPreviewable } from '../files/utils/mime-types.js';
 
 @ApiTags('分享链接')
@@ -68,9 +72,42 @@ export class ShareController {
   }
 
   @Get('list')
-  @ApiOperation({ summary: '获取分享链接列表' })
-  async listShareLinks() {
-    return await this.shareService.listShareLinks();
+  @ApiOperation({
+    summary: '获取分享链接列表（服务端分页 / 关键字 / 状态筛选）',
+  })
+  async listShareLinks(@Query() query: ListShareLinksQueryDto) {
+    return await this.shareService.listShareLinks(query);
+  }
+
+  @Patch(':token')
+  @ApiOperation({
+    summary: '编辑分享链接（备注 / 有效期 / 密码 / 次数上限 / 启停）',
+  })
+  @ApiParam({ name: 'token', description: '分享 token' })
+  async updateShareLink(
+    @Param('token') token: string,
+    @Body() dto: UpdateShareLinkDto,
+    @CurrentUser() currentUser: { userId: number; username: string },
+    @Req() req: Request,
+  ) {
+    const result = await this.shareService.updateShareLink(token, dto);
+    // 审计：编辑分享链接
+    this.auditLogService.log({
+      userId: currentUser.userId,
+      username: currentUser.username,
+      action: 'share.update',
+      resourceType: 'share',
+      resourceId: token,
+      details: {
+        remark: dto.remark !== undefined,
+        expiresAt: dto.expiresAt !== undefined,
+        passwordChanged: dto.password !== undefined,
+        maxAccesses: dto.maxAccesses !== undefined,
+        enabled: dto.enabled,
+      },
+      ...getRequestMeta(req),
+    });
+    return result;
   }
 
   @Get(':token/access-logs')
@@ -213,6 +250,9 @@ export class ShareController {
         res.status(404).json({ message: '分享链接不存在' });
       } else if (error instanceof BadRequestException) {
         res.status(400).json({ message: error.message });
+      } else if (error instanceof GoneException) {
+        // 已停用：与「不存在」区分，明确告知链接已停用
+        res.status(410).json({ message: error.message });
       } else if (error instanceof UnauthorizedException) {
         res.status(401).json({ message: error.message });
       } else {

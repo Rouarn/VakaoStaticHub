@@ -3,6 +3,7 @@ import type {
   BatchMoveResult,
   ChunkUploadCompleteResult,
   ChunkUploadInitResult,
+  DuplicateFilesQuery,
   DuplicateScanResult,
   FileConfig,
   FileItem,
@@ -49,6 +50,30 @@ export function getFileConfig() {
 
 export function listCategories(rootId: string) {
   return http.get<string[]>(`/files/${encodeURIComponent(rootId)}/categories`);
+}
+
+/** 新建空分类（根目录下的一级子目录） */
+export function createCategory(rootId: string, name: string) {
+  return http.post<{ category: string }>(
+    `/files/${encodeURIComponent(rootId)}/categories`,
+    { name },
+  );
+}
+
+/**
+ * 删除分类
+ * - 默认仅允许删除空分类，非空会返回 409
+ * - recursive=true 时连同分类内文件索引、分享链接与磁盘文件一并删除
+ */
+export function deleteCategory(
+  rootId: string,
+  category: string,
+  recursive = false,
+) {
+  return http.delete<{ success: boolean; removedEntries: number }>(
+    `/files/${encodeURIComponent(rootId)}/categories/${encodedPath(category)}`,
+    recursive ? { recursive: true } : undefined,
+  );
 }
 
 /** 重命名分类（目录改名，索引与分享链接同事务迁移） */
@@ -102,12 +127,13 @@ export function getUsageStats() {
   return task;
 }
 
-/** 重复文件检测（按内容 SHA-256 分组；可选限定资源根） */
-export function getDuplicateFiles(rootId?: string) {
-  return http.get<DuplicateScanResult>(
-    '/files/duplicates',
-    rootId ? { rootId } : undefined,
-  );
+/** 重复文件检测（按内容 SHA-256 分组；服务端分页） */
+export function getDuplicateFiles(params: DuplicateFilesQuery = {}) {
+  return http.get<DuplicateScanResult>('/files/duplicates', {
+    ...(params.rootId ? { rootId: params.rootId } : {}),
+    ...(params.page ? { page: params.page } : {}),
+    ...(params.pageSize ? { pageSize: params.pageSize } : {}),
+  });
 }
 
 /** 普通上传（多文件一次请求，受后端上传数量与大小限制约束） */

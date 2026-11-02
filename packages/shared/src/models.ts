@@ -33,6 +33,10 @@ export interface ShareLink {
   shareType: 'file' | 'collection';
   /** 多文件相对路径列表，仅 shareType='collection' 时存在 */
   filePaths: string[] | null;
+  /** 后台备注（不对外公开） */
+  remark: string | null;
+  /** 是否启用；停用后公开访问返回明确“已停用” */
+  enabled: boolean;
   expiresAt: number | null;
   /** 最大打开次数，null 表示不限制；打开后下载文件不再计数 */
   maxAccesses: number | null;
@@ -41,6 +45,48 @@ export interface ShareLink {
   createdAt: number;
   /** 是否设置了访问密码（不会返回密码哈希本身） */
   hasPassword?: boolean;
+}
+
+/** 分享链接状态（管理端列表筛选与展示口径） */
+export type ShareLinkStatus = 'active' | 'expired' | 'exhausted' | 'disabled';
+
+/** 分享链接列表查询参数（GET /share/list） */
+export interface ShareListQuery {
+  page?: number;
+  pageSize?: number;
+  /** 关键字：命中 token / 文件路径 / 分类 / 备注 */
+  q?: string;
+  status?: ShareLinkStatus;
+}
+
+/** 分享链接服务端分页结果（GET /share/list） */
+export interface ShareListResult {
+  items: ShareLink[];
+  total: number;
+  page: number;
+  pageSize: number;
+  /** 各状态数量（服务端统计，不受当前页影响） */
+  counts: {
+    all: number;
+    active: number;
+    expired: number;
+    exhausted: number;
+    disabled: number;
+  };
+}
+
+/** 分享链接编辑参数（PATCH /share/:token） */
+export interface UpdateShareLinkParams {
+  /** 备注；null 表示清空 */
+  remark?: string | null;
+  /** 绝对过期时间戳；null 表示永久有效 */
+  expiresAt?: number | null;
+  /** 新密码；null 表示清除密码，不传表示保持不变 */
+  password?: string | null;
+  /** 最大打开次数；null 表示不限制 */
+  maxAccesses?: number | null;
+  /** 启停开关 */
+  enabled?: boolean;
 }
 
 /** 分享链接的公开信息（用于访问前判断是否需要密码） */
@@ -64,6 +110,8 @@ export interface CreateShareLinkParams {
   shareType?: 'file' | 'collection';
   /** 多文件相对路径列表，shareType='collection' 时必填 */
   filePaths?: string[];
+  /** 后台备注 */
+  remark?: string;
   expiresInMs?: number;
   /** 最大打开次数；链接每被成功解锁一次计 1 次，打开后下载文件不计数 */
   maxAccesses?: number;
@@ -80,10 +128,14 @@ export interface ShareAccessLog {
   accessedAt: number;
 }
 
+/** 用户角色：admin 管理员 / user 普通用户 */
+export type UserRole = 'admin' | 'user';
+
 /** 登录用户基础信息（不含密码等敏感字段） */
 export interface UserInfo {
   id: number;
   username: string;
+  role: UserRole;
   createdAt: number;
 }
 
@@ -135,6 +187,8 @@ export interface AppVersion {
   /** 定时灰度发布的灰度百分比 */
   scheduledGrayPercent: number;
   status: AppVersionStatus;
+  /** 下架原因：auto 被新全量自动挤掉 / manual 管理员手动下架 / null 未下架 */
+  offlineReason: 'auto' | 'manual' | null;
   publishTime: number | null;
   remark: string | null;
   createdAt: number;

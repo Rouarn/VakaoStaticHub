@@ -40,6 +40,14 @@ export class ShareLinkEntity {
   @Column({ type: 'text', nullable: true })
   filePaths!: string | null;
 
+  /** 后台备注（仅管理端可见，不对外公开） */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  remark!: string | null;
+
+  /** 是否启用：1 启用 / 0 停用（停用后公开访问返回“已停用”） */
+  @Column({ type: 'integer', default: 1 })
+  enabled!: number;
+
   /** 过期时间戳（毫秒），null 表示永不过期 */
   @Column({ type: 'integer', nullable: true })
   expiresAt!: number | null;

@@ -105,7 +105,13 @@ export class HitokotoProxyMiddleware implements NestMiddleware, OnModuleInit {
 
   use(req: Request, res: Response, next: NextFunction) {
     if (!this.proxy) {
-      next();
+      // 未配置代理目标时返回明确的错误码与文案，便于前端提示“代理未启用”，
+      // 而不是 404（容易被误判成路由不存在）
+      res.status(503).json({
+        statusCode: 503,
+        code: 'HITOKOTO_PROXY_DISABLED',
+        message: '一言代理未启用：未配置 HITOKOTO_API_URL',
+      });
       return;
     }
 

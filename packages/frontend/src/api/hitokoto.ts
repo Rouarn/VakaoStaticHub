@@ -34,12 +34,23 @@ export async function requestHitokoto(req: HitokotoRequest) {
   const res = await fetch(url, { headers: { Accept: '*/*' } });
   const text = await res.text();
   if (!res.ok) {
+    // 后端 503 会带 { code: 'HITOKOTO_PROXY_DISABLED', message }，
+    // 优先展示服务端文案（明确说明“代理未启用”）
+    let serverMessage = '';
+    try {
+      const body = JSON.parse(text) as { message?: unknown };
+      if (typeof body.message === 'string') serverMessage = body.message;
+    } catch {
+      // 上游错误页可能不是 JSON，忽略解析失败
+    }
     throw new Error(
-      res.status === 502
-        ? '一言上游暂不可用（后端代理返回 502）'
-        : res.status === 404
-          ? '一言代理未启用：后端未配置 HITOKOTO_API_URL（或未匹配 /static/hitokoto）'
-          : `一言请求失败（HTTP ${res.status}）`,
+      res.status === 503
+        ? serverMessage || '一言代理未启用：后端未配置 HITOKOTO_API_URL'
+        : res.status === 502
+          ? '一言上游暂不可用（后端代理返回 502）'
+          : res.status === 404
+            ? '一言代理未启用：后端未配置 HITOKOTO_API_URL（或未匹配 /static/hitokoto）'
+            : `一言请求失败（HTTP ${res.status}）`,
     );
   }
   if (req.encode === 'text')

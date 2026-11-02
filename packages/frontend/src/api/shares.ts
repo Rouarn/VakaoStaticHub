@@ -3,21 +3,35 @@ import type {
   ShareAccessLog,
   ShareInfo,
   ShareLink,
+  ShareListQuery,
+  ShareListResult,
+  UpdateShareLinkParams,
 } from '@vakao/shared';
 import { getApiBaseUrl, http, publicHttp } from '@/utils/http';
 
 /** 分享 token 为 32 位小写 hex（后端 randomBytes(16).toString('hex')） */
 export const SHARE_TOKEN_RE = /^[0-9a-f]{32}$/;
 
-export function listShares() {
-  return http.get<ShareLink[]>('/share/list');
+/** 分享链接列表：服务端分页 / 关键字 / 状态筛选 */
+export function listShares(query: ShareListQuery = {}) {
+  return http.get<ShareListResult>('/share/list', {
+    ...(query.page ? { page: query.page } : {}),
+    ...(query.pageSize ? { pageSize: query.pageSize } : {}),
+    ...(query.q ? { q: query.q } : {}),
+    ...(query.status ? { status: query.status } : {}),
+  });
+}
+
+/** 编辑分享链接：备注 / 有效期 / 密码 / 次数上限 / 启停 */
+export function updateShare(token: string, body: UpdateShareLinkParams) {
+  return http.patch<ShareLink>(`/share/${encodeURIComponent(token)}`, body);
 }
 
 export function createShare(body: CreateShareLinkParams) {
   return http.post<ShareLink>('/share', body);
 }
 
-/** 撤销分享链接（后端无「停用」状态，撤销即删除记录，不可恢复） */
+/** 撤销分享链接：物理删除记录与访问记录，不可恢复（停用请用 updateShare） */
 export function revokeShare(token: string) {
   return http.delete<{ success: boolean }>(
     `/share/${encodeURIComponent(token)}`,

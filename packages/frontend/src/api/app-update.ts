@@ -4,18 +4,14 @@ import type {
   GrayIncrementStep,
   ListVersionsQuery,
   PagedResult,
+  RollbackCandidatesResult,
   RollbackResult,
 } from '@vakao/shared';
 import type { RequestOptions } from '@vakao-ui/axios';
 import { getApiBaseUrl, http } from '@/utils/http';
 
-/**
- * 后端 AppVersionEntity 额外下发 offlineReason，但 shared 契约未声明该字段；
- * 本轮不改 shared，这里以本地扩展类型承接。
- */
-export interface AppVersionRecord extends AppVersion {
-  offlineReason: 'auto' | 'manual' | null;
-}
+/** 后端 AppVersionEntity 与 shared AppVersion 字段一致 */
+export type AppVersionRecord = AppVersion;
 
 export const APP_VERSION_STATUS = {
   DRAFT: 0,
@@ -105,6 +101,13 @@ export function offlineVersion(id: number) {
 
 export function rollbackVersion(id: number) {
   return http.post<RollbackResult>(`/app-updates/versions/${id}/rollback`);
+}
+
+/** 回滚候选：由后端按同应用同平台口径计算（排除手动下架） */
+export function getRollbackCandidates(id: number) {
+  return http.get<RollbackCandidatesResult>(
+    `/app-updates/versions/${id}/rollback-candidates`,
+  );
 }
 
 export function deleteVersion(id: number) {

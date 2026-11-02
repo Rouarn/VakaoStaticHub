@@ -3,8 +3,9 @@
  * 定义新用户注册请求的参数结构与校验规则
  */
 
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, Length, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
+import type { UserRole } from '@vakao/shared';
 
 /**
  * 注册 DTO 类
@@ -25,4 +26,13 @@ export class RegisterDto {
   @IsString()
   @Length(6, 64, { message: '密码长度需在 6~64 个字符之间' })
   password!: string;
+
+  /** 角色：默认 user；仅管理员可以创建 admin */
+  @ApiPropertyOptional({
+    description: '角色：admin 管理员 / user 普通用户，默认 user',
+    enum: ['admin', 'user'],
+  })
+  @IsOptional()
+  @IsIn(['admin', 'user'], { message: '角色仅支持 admin / user' })
+  role?: UserRole;
 }

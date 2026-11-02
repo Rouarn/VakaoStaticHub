@@ -10,6 +10,8 @@ export interface ListVersionsQuery {
   pageSize?: number;
   status?: number;
   appKey?: string;
+  /** 平台筛选，如 android；不传则不过滤 */
+  platform?: string;
 }
 
 /** 灰度递增步骤：发布后 hours 小时将灰度比例扩大到 percent */
@@ -23,6 +25,20 @@ export interface RollbackResult {
   success: true;
   rolledBack: { id: number; versionCode: number };
   restored: { id: number; versionCode: number; versionName: string };
+}
+
+/** 服务端计算出的单个回滚候选（GET /app-updates/versions/:id/rollback-candidates） */
+export interface RollbackCandidate {
+  id: number;
+  versionCode: number;
+  versionName: string;
+  status: number;
+  offlineReason: 'auto' | 'manual' | null;
+}
+
+/** 回滚候选列表响应 */
+export interface RollbackCandidatesResult {
+  candidates: RollbackCandidate[];
 }
 
 /** 单个版本的升级漏斗统计项 */

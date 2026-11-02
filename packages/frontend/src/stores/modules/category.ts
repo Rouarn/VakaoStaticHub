@@ -2,7 +2,13 @@ import { defineStore } from 'pinia';
 import { RequestError } from '@vakao-ui/axios';
 import type { ResourceRoot } from '@vakao/shared';
 import { listRoots } from '@/api/roots';
-import { getUsageStats, listCategories, renameCategory } from '@/api/files';
+import {
+  getUsageStats,
+  listCategories,
+  renameCategory,
+  createCategory,
+  deleteCategory,
+} from '@/api/files';
 import { getErrorMessage } from '@/utils/http';
 
 /**
@@ -10,8 +16,7 @@ import { getErrorMessage } from '@/utils/http';
  *
  * - roots / categories 均来自后端真实接口
  * - 计数来自 GET /files/stats/usage 的分类聚合（后端 categories 接口只返回目录名）
- * - 后端没有「新建/删除空分类」接口：分类目录由上传文件时隐式创建，
- *   删除分类需先清空文件且后端未提供 rmdir 接口 —— store 如实抛错，UI 不做假成功
+ * - 新建 / 删除走后端 POST/DELETE /files/:rootId/categories，删除非空分类需显式 recursive
  */
 
 export interface CategoryEntry {
@@ -132,15 +137,19 @@ export const useCategoryStore = defineStore('category', {
       if (this.activeCategory === category) this.activeCategory = newCategory;
     },
 
-    /**
-     * 删除分类：后端没有独立接口。
-     * 分类目录随上传隐式创建，且服务端未提供删除空目录的 API，
-     * 因此这里明确拒绝并给出可执行路径，而不是伪造成功。
-     */
-    delete(): never {
-      throw new Error(
-        '后端未提供删除分类接口：分类目录随上传隐式创建，删除需先清空该分类文件且服务端未提供删除空目录 API，请在服务器侧处理。',
-      );
+    /** 新建空分类，成功后刷新列表 */
+    async create(rootId: string, name: string) {
+      await createCategory(rootId, name);
+      await this.loadCategories(rootId, { silent: true });
+      return name;
+    },
+
+    /** 删除分类（recursive 时连同文件一起删除），成功后刷新列表 */
+    async delete(rootId: string, category: string, recursive = false) {
+      const result = await deleteCategory(rootId, category, recursive);
+      await this.loadCategories(rootId, { silent: true });
+      if (this.activeCategory === category) this.activeCategory = null;
+      return result;
     },
   },
 });

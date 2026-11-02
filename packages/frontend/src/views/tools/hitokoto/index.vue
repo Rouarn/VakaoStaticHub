@@ -29,7 +29,8 @@ import EmptyState from '@/components/common/empty-state.vue';
  * 一言调试工具
  *
  * 后端反向代理 GET /static/hitokoto → HITOKOTO_API_URL，响应原样透传（不走信封）。
- * 未配置上游时后端返回 404 或 502，这里给出明确原因而不是「请求失败」。
+ * 未配置上游时后端返回 503 + HITOKOTO_PROXY_DISABLED，这里给出「代理未启用」的明确原因；
+ * 上游不可达时返回 502，同样展示具体原因而不是「请求失败」。
  */
 const message = useMessage();
 

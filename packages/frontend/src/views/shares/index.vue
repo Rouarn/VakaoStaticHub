@@ -4,6 +4,7 @@ import { useDebounceFn } from '@vueuse/core';
 import {
   NButton,
   NCheckbox,
+  NDatePicker,
   NIcon,
   NInput,
   NInputNumber,
@@ -11,6 +12,7 @@ import {
   NPagination,
   NSelect,
   NSpin,
+  NSwitch,
   NTag,
   NTooltip,
   useMessage,
@@ -20,17 +22,27 @@ import {
   ChevronBackOutline,
   ChevronForwardOutline,
   CopyOutline,
+  CreateOutline,
   DocumentTextOutline,
   EyeOutline,
   InformationCircleOutline,
   LinkOutline,
+  PauseCircleOutline,
+  PlayCircleOutline,
   QrCodeOutline,
   RefreshOutline,
   SearchOutline,
   ShareSocialOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type { FileItem, ShareAccessLog, ShareLink } from '@vakao/shared';
+import type {
+  FileItem,
+  ShareAccessLog,
+  ShareLink,
+  ShareLinkStatus,
+  ShareListResult,
+  UpdateShareLinkParams,
+} from '@vakao/shared';
 import { RequestError } from '@vakao-ui/axios';
 import {
   createShare,
@@ -39,6 +51,7 @@ import {
   listShares,
   revokeShare,
   SHARE_TOKEN_RE,
+  updateShare,
 } from '@/api/shares';
 import { listFiles } from '@/api/files';
 import { getErrorMessage } from '@/utils/http';
@@ -55,95 +68,110 @@ import ShareQrModal from './components/share-qr-modal.vue';
 /**
  * 分享链接管理
  *
- * 后端能力边界（本轮不改后端，UI 如实呈现）：
- * - GET /share/list 无分页参数 → 前端分页，页面显式标注
- * - 无编辑 / 停用接口，DELETE 即物理删除（含访问记录）
- * - 不支持目录分享，仅单文件或文件集合（collection）
- * - 分享记录无备注字段
+ * 服务端能力：
+ * - GET /share/list 服务端分页 + 关键字 + 状态 counts
+ * - PATCH /share/:token 编辑备注 / 有效期 / 密码 / 次数上限 / 启停
+ * - DELETE /share/:token 物理删除（含访问记录）
+ * - 仅支持单文件与文件集合；整目录分享暂不支持
  */
 const appStore = useAppStore();
 const categoryStore = useCategoryStore();
 const message = useMessage();
 
-const links = ref<ShareLink[]>([]);
+const result = ref<ShareListResult | null>(null);
 const loading = ref(false);
 const error = ref('');
 const now = ref(Date.now());
 
 const keyword = ref('');
-const statusFilter = ref<'all' | 'active' | 'expired' | 'exhausted'>('all');
+const statusFilter = ref<'all' | ShareLinkStatus>('all');
 const page = ref(1);
 const pageSize = ref(8);
 
-function statusOf(link: ShareLink): 'active' | 'expired' | 'exhausted' {
+const links = computed(() => result.value?.items ?? []);
+const total = computed(() => result.value?.total ?? 0);
+const counts = computed(
+  () =>
+    result.value?.counts ?? {
+      all: 0,
+      active: 0,
+      expired: 0,
+      exhausted: 0,
+      disabled: 0,
+    },
+);
+
+function statusOf(link: ShareLink): ShareLinkStatus {
+  if (!link.enabled) return 'disabled';
   if (link.expiresAt !== null && link.expiresAt <= now.value) return 'expired';
   if (link.maxAccesses !== null && link.accessCount >= link.maxAccesses)
     return 'exhausted';
   return 'active';
 }
 
-const STATUS_TAG: Record<string, { label: string; type: 'success' | 'warning' | 'default' }> = {
+const STATUS_TAG: Record<
+  ShareLinkStatus,
+  { label: string; type: 'success' | 'warning' | 'default' | 'error' }
+> = {
   active: { label: '活跃', type: 'success' },
   expired: { label: '已过期', type: 'default' },
   exhausted: { label: '次数用尽', type: 'warning' },
+  disabled: { label: '已停用', type: 'error' },
 };
-
-const filtered = computed(() => {
-  const kw = keyword.value.trim().toLowerCase();
-  return links.value.filter((link) => {
-    if (statusFilter.value !== 'all' && statusOf(link) !== statusFilter.value)
-      return false;
-    if (!kw) return true;
-    const target =
-      link.shareType === 'collection'
-        ? (link.filePaths ?? []).join(' ')
-        : link.filePath;
-    return (
-      link.token.toLowerCase().includes(kw) ||
-      target.toLowerCase().includes(kw) ||
-      link.category.toLowerCase().includes(kw)
-    );
-  });
-});
-
-const pagedLinks = computed(() =>
-  filtered.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
-);
-
-const counts = computed(() => {
-  const result = { all: links.value.length, active: 0, expired: 0, exhausted: 0 };
-  for (const link of links.value) result[statusOf(link)] += 1;
-  return result;
-});
 
 const statusTabs = computed(() => [
   { key: 'all' as const, label: '全部', count: counts.value.all },
   { key: 'active' as const, label: '活跃', count: counts.value.active },
   { key: 'expired' as const, label: '已过期', count: counts.value.expired },
   { key: 'exhausted' as const, label: '次数用尽', count: counts.value.exhausted },
+  { key: 'disabled' as const, label: '已停用', count: counts.value.disabled },
 ]);
 
-async function load() {
+/** 请求序号：分页 / 筛选可能并发触发同一 key 请求，用序号丢弃过期与取消结果 */
+let shareSeq = 0;
+
+async function load(allowClamp = true) {
+  const seq = ++shareSeq;
   loading.value = true;
   error.value = '';
   now.value = Date.now();
   try {
-    links.value = await listShares();
-    page.value = Math.min(page.value, Math.max(1, Math.ceil(filtered.value.length / pageSize.value)));
+    const data = await listShares({
+      page: page.value,
+      pageSize: pageSize.value,
+      ...(keyword.value.trim() ? { q: keyword.value.trim() } : {}),
+      ...(statusFilter.value !== 'all' ? { status: statusFilter.value } : {}),
+    });
+    if (seq !== shareSeq) return;
+    result.value = data;
+    const maxPage = Math.max(1, Math.ceil(data.total / pageSize.value));
+    if (allowClamp && page.value > maxPage) {
+      page.value = maxPage;
+      await load(false);
+    }
   } catch (e) {
+    if (seq !== shareSeq) return;
+    if (e instanceof RequestError && e.type === 'cancel') return;
     error.value = getErrorMessage(e, '分享列表加载失败');
-    links.value = [];
+    result.value = null;
   } finally {
-    loading.value = false;
+    if (seq === shareSeq) loading.value = false;
   }
 }
 
-watch(statusFilter, () => {
-  page.value = 1;
-});
-watch(keyword, () => {
-  page.value = 1;
-});
+/** 筛选变化后回到第一页并重新拉取（已在第一页时直接请求，避免 page watcher 不触发） */
+function resetAndReload() {
+  if (page.value === 1) void load();
+  else page.value = 1;
+}
+
+watch(page, () => void load());
+watch(pageSize, resetAndReload);
+watch(statusFilter, resetAndReload);
+watch(
+  keyword,
+  useDebounceFn(resetAndReload, 300),
+);
 
 function targetLabel(link: ShareLink) {
   if (link.shareType === 'collection') {
@@ -158,6 +186,7 @@ const creating = ref(false);
 const form = ref({
   rootId: '',
   category: '',
+  remark: '',
   password: '',
   expiresPreset: 0,
   customHours: 24,
@@ -234,6 +263,7 @@ function resetForm() {
   form.value = {
     rootId: appStore.activeRootId || roots.value[0]?.id || '',
     category: categoryStore.activeCategory ?? '',
+    remark: '',
     password: '',
     expiresPreset: 0,
     customHours: 24,
@@ -328,6 +358,7 @@ async function submitCreate() {
       filePath: selectedPaths.value[0],
       shareType: isCollection ? 'collection' : 'file',
       ...(isCollection ? { filePaths: selectedPaths.value } : {}),
+      ...(form.value.remark.trim() ? { remark: form.value.remark.trim() } : {}),
       ...(expiresInMs ? { expiresInMs } : {}),
       ...(form.value.maxAccesses ? { maxAccesses: form.value.maxAccesses } : {}),
       ...(form.value.password.trim() ? { password: form.value.password.trim() } : {}),
@@ -416,6 +447,76 @@ function isTokenValid(token: string) {
   return SHARE_TOKEN_RE.test(token);
 }
 
+// ===================== 编辑 / 启停 =====================
+const editShow = ref(false);
+const editSaving = ref(false);
+const editTarget = ref<ShareLink | null>(null);
+const editForm = ref({
+  remark: '',
+  expiresAt: null as number | null,
+  password: '',
+  clearPassword: false,
+  maxAccesses: null as number | null,
+  enabled: true,
+});
+
+function openEdit(link: ShareLink) {
+  editTarget.value = link;
+  editForm.value = {
+    remark: link.remark ?? '',
+    expiresAt: link.expiresAt,
+    password: '',
+    clearPassword: false,
+    maxAccesses: link.maxAccesses,
+    enabled: link.enabled,
+  };
+  editShow.value = true;
+}
+
+async function submitEdit() {
+  const target = editTarget.value;
+  if (!target) return;
+  const next = editForm.value;
+  const body: UpdateShareLinkParams = {};
+
+  const remark = next.remark.trim() || null;
+  if (remark !== (target.remark ?? null)) body.remark = remark;
+  // 仅在发生变化时提交，避免把已过期的历史时间原样回传被后端拒绝
+  if (next.expiresAt !== target.expiresAt) body.expiresAt = next.expiresAt;
+  if (next.maxAccesses !== target.maxAccesses) body.maxAccesses = next.maxAccesses;
+  if (next.enabled !== target.enabled) body.enabled = next.enabled;
+  if (next.clearPassword) body.password = null;
+  else if (next.password.trim()) body.password = next.password.trim();
+
+  if (Object.keys(body).length === 0) {
+    message.info('没有修改内容');
+    editShow.value = false;
+    return;
+  }
+
+  editSaving.value = true;
+  try {
+    await updateShare(target.token, body);
+    message.success('分享链接已更新');
+    editShow.value = false;
+    await load(false);
+  } catch (e) {
+    message.error(getErrorMessage(e, '更新分享链接失败'));
+  } finally {
+    editSaving.value = false;
+  }
+}
+
+async function toggleEnabled(link: ShareLink) {
+  try {
+    await updateShare(link.token, { enabled: !link.enabled });
+    message.success(link.enabled ? '分享链接已停用' : '分享链接已启用');
+    await load(false);
+  } catch (e) {
+    message.error(getErrorMessage(e, '切换启停状态失败'));
+  }
+}
+
 onMounted(async () => {
   if (categoryStore.roots.length === 0) await categoryStore.loadRoots();
   await load();
@@ -432,7 +533,7 @@ onMounted(async () => {
       <template #actions>
         <NTooltip :delay="300">
           <template #trigger>
-            <NButton size="small" quaternary circle @click="load">
+            <NButton size="small" quaternary circle @click="() => load()">
               <template #icon><NIcon><RefreshOutline /></NIcon></template>
             </NButton>
           </template>
@@ -447,7 +548,7 @@ onMounted(async () => {
 
     <div class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub">
       <NIcon :size="14"><InformationCircleOutline /></NIcon>
-      后端 /share/list 无分页参数，本页为前端分页；撤销即删除记录（无停用/编辑接口）
+      列表由服务端分页与检索（token / 文件 / 分类 / 备注）；停用后访问返回「已停用」，撤销会物理删除链接与访问记录
     </div>
 
     <!-- 工具条 -->
@@ -484,16 +585,16 @@ onMounted(async () => {
       <ErrorState v-if="error" :message="error" @retry="load" />
 
       <EmptyState
-        v-else-if="!loading && filtered.length === 0"
+        v-else-if="!loading && links.length === 0"
         :icon="LinkOutline"
-        :title="links.length === 0 ? '还没有分享链接' : '没有符合条件的分享'"
+        :title="counts.all === 0 ? '还没有分享链接' : '没有符合条件的分享'"
         :description="
-          links.length === 0
+          counts.all === 0
             ? '把文件库里的文件生成公开链接，发给同事或外部协作者即可直接访问与下载。'
             : '调整状态筛选或清空搜索关键词后再试。'
         "
       >
-        <NButton v-if="links.length === 0" type="primary" size="small" @click="openCreate">
+        <NButton v-if="counts.all === 0" type="primary" size="small" @click="openCreate">
           创建第一个分享
         </NButton>
         <NButton v-else size="small" @click="keyword = ''; statusFilter = 'all'">
@@ -503,7 +604,7 @@ onMounted(async () => {
 
       <div v-else class="flex flex-col gap-3">
         <article
-          v-for="link in pagedLinks"
+          v-for="link in links"
           :key="link.token"
           class="glass-panel px-4 py-3 flex flex-col gap-3"
         >
@@ -520,6 +621,9 @@ onMounted(async () => {
               </p>
               <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
                 {{ link.category }} · 创建于 {{ formatDateTime(link.createdAt) }}
+              </p>
+              <p v-if="link.remark" class="m-0 mt-0.5 text-11px text-ink-sub truncate">
+                备注：{{ link.remark }}
               </p>
             </div>
 
@@ -560,6 +664,19 @@ onMounted(async () => {
               访问记录
               <span class="ml-1 tabular-nums text-ink-sub">{{ link.accessCount }}</span>
             </NButton>
+            <NButton size="tiny" @click="openEdit(link)">
+              <template #icon><NIcon><CreateOutline /></NIcon></template>
+              编辑
+            </NButton>
+            <NButton size="tiny" quaternary @click="toggleEnabled(link)">
+              <template #icon>
+                <NIcon>
+                  <PlayCircleOutline v-if="!link.enabled" />
+                  <PauseCircleOutline v-else />
+                </NIcon>
+              </template>
+              {{ link.enabled ? '停用' : '启用' }}
+            </NButton>
             <NButton size="tiny" quaternary type="error" class="ml-auto" @click="openRevoke(link)">
               <template #icon><NIcon><TrashOutline /></NIcon></template>
               撤销
@@ -569,12 +686,12 @@ onMounted(async () => {
 
         <footer class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2">
           <span class="mr-auto text-11px text-ink-sub">
-            共 {{ filtered.length }} 条 · 前端分页
+            共 {{ total }} 条 · 服务端分页
           </span>
           <NPagination
             v-model:page="page"
             v-model:page-size="pageSize"
-            :item-count="filtered.length"
+            :item-count="total"
             :page-sizes="[8, 16, 32, 64]"
             show-size-picker
           />
@@ -609,6 +726,17 @@ onMounted(async () => {
             />
           </label>
         </div>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-12px text-ink-sub">备注（可选，仅后台可见）</span>
+          <NInput
+            v-model:value="form.remark"
+            size="small"
+            maxlength="255"
+            clearable
+            placeholder="例如：发给市场部的新版物料"
+          />
+        </label>
 
         <!-- 文件选择 -->
         <section class="flex flex-col gap-2">
@@ -736,8 +864,8 @@ onMounted(async () => {
         >
           <NIcon :size="13" class="mt-0.5 shrink-0"><InformationCircleOutline /></NIcon>
           <span>
-            打开次数按「成功解锁」计数，解锁后下载文件不重复计数；后端暂不支持目录分享与备注字段，
-            多文件请在这里多选（生成文件集合），备注需求需后端扩展。
+            打开次数按「成功解锁」计数，解锁后下载文件不重复计数。
+            暂不支持整目录分享：服务端未提供目录打包下载能力，多文件请在此多选生成文件集合。
           </span>
         </p>
       </div>
@@ -753,6 +881,94 @@ onMounted(async () => {
             @click="submitCreate"
           >
             创建分享
+          </NButton>
+        </div>
+      </template>
+    </NModal>
+
+    <!-- 编辑分享 -->
+    <NModal
+      v-model:show="editShow"
+      preset="card"
+      title="编辑分享链接"
+      class="w-620px! max-w-[94vw]"
+      :bordered="false"
+    >
+      <div class="flex flex-col gap-4">
+        <p class="m-0 text-11px text-ink-sub font-mono break-all">
+          {{ editTarget?.token }}
+        </p>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-12px text-ink-sub">备注（仅后台可见）</span>
+          <NInput
+            v-model:value="editForm.remark"
+            size="small"
+            maxlength="255"
+            clearable
+            placeholder="留空则清除备注"
+          />
+        </label>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-12px text-ink-sub">有效期（清空为永久）</span>
+            <NDatePicker
+              v-model:value="editForm.expiresAt"
+              size="small"
+              type="datetime"
+              clearable
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-12px text-ink-sub">最大打开次数（留空不限制）</span>
+            <NInputNumber
+              v-model:value="editForm.maxAccesses"
+              size="small"
+              :min="1"
+              :max="1000000"
+              clearable
+              placeholder="不限制"
+            />
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-12px text-ink-sub">
+              新访问密码{{ editTarget?.hasPassword ? '（留空则保留原密码）' : '（可选）' }}
+            </span>
+            <NInput
+              v-model:value="editForm.password"
+              size="small"
+              type="password"
+              show-password-on="click"
+              :disabled="editForm.clearPassword"
+              placeholder="输入新密码"
+            />
+          </label>
+          <div class="flex flex-col gap-2 justify-center">
+            <div class="flex items-center gap-2">
+              <NSwitch v-model:value="editForm.clearPassword" size="small" />
+              <span class="text-12px text-ink-sub">清除访问密码</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <NSwitch v-model:value="editForm.enabled" size="small" />
+              <span class="text-12px text-ink-sub">启用链接</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="m-0 text-11px text-ink-sub">
+          停用后公开访问返回「分享链接已停用」（HTTP 410），不会误报为不存在；重新启用即可恢复。
+        </p>
+      </div>
+
+      <template #footer>
+        <div class="flex items-center justify-end gap-2">
+          <NButton size="small" @click="editShow = false">取消</NButton>
+          <NButton size="small" type="primary" :loading="editSaving" @click="submitEdit">
+            保存
           </NButton>
         </div>
       </template>

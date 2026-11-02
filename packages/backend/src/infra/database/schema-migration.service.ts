@@ -16,6 +16,10 @@
  *   - 2026-11-02: app_versions 表新增 offline_reason 列
  *     语义：区分"被新全量 publish 自动挤掉"（auto，可 rollback 恢复）vs
  *            "管理员手动止血下架"（manual，不可 rollback 恢复）vs null（从未全量发布）
+ *   - 2026-11-02: share_links 表新增 remark / enabled 列
+ *     语义：后台备注（不外显）与启停开关（停用后公开访问返回“已停用”）
+ *   - 2026-11-02: users 表新增 role 列
+ *     语义：admin / user；老库升级后若没有任何 admin，会把最早创建的账号提升为 admin
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
@@ -55,6 +59,26 @@ const MIGRATIONS: Migration[] = [
     column: 'contentHash',
     alterSql: 'ALTER TABLE file_entries ADD COLUMN contentHash varchar(64)',
     description: '文件内容哈希（SHA-256），支撑增量索引与重复文件检测',
+  },
+  {
+    table: 'share_links',
+    column: 'remark',
+    alterSql: 'ALTER TABLE share_links ADD COLUMN remark varchar(255)',
+    description: '分享链接后台备注',
+  },
+  {
+    table: 'share_links',
+    column: 'enabled',
+    alterSql:
+      'ALTER TABLE share_links ADD COLUMN enabled integer NOT NULL DEFAULT 1',
+    description: '分享链接启停开关（1 启用 / 0 停用）',
+  },
+  {
+    table: 'users',
+    column: 'role',
+    alterSql:
+      "ALTER TABLE users ADD COLUMN role varchar(16) NOT NULL DEFAULT 'user'",
+    description: '用户角色（admin / user）',
   },
 ];
 
@@ -98,6 +122,39 @@ export class SchemaMigrationService implements OnModuleInit {
     }
 
     this.logger.log(`schema 检查完成：新增 ${migrated} 项，跳过 ${skipped} 项`);
+
+    // 数据迁移：老库升级后若没有任何管理员，把最早创建的账号提升为 admin，
+    // 保证「至少保留一个管理员」的后端校验有可用的初始管理员。
+    await this.ensureAtLeastOneAdmin();
+  }
+
+  /** 幂等保证 users 表至少有一个 admin；空表时留给 AuthService 播种管理员 */
+  private async ensureAtLeastOneAdmin(): Promise<void> {
+    try {
+      const rows: { c: string | number }[] = await this.dataSource.query(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'admin'",
+      );
+      if (Number(rows[0]?.c ?? 0) > 0) {
+        return;
+      }
+      const first: { id: number }[] = await this.dataSource.query(
+        'SELECT id FROM users ORDER BY id ASC LIMIT 1',
+      );
+      if (!first[0]) {
+        return;
+      }
+      await this.dataSource.query(
+        "UPDATE users SET role = 'admin' WHERE id = ?",
+        [first[0].id],
+      );
+      this.logger.log(
+        `users 表没有管理员，已将最早创建的账号 (id=${first[0].id}) 提升为 admin`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`保证管理员存在的数据迁移失败：${msg}`);
+      throw new Error(`users 管理员数据迁移失败: ${msg}`);
+    }
   }
 
   /** 用 PRAGMA table_info 检查指定列是否存在（SQLite 标准 API） */

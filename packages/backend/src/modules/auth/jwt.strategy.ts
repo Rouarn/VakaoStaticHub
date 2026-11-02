@@ -79,6 +79,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     ) {
       throw new UnauthorizedException('密码已修改，请重新登录');
     }
-    return { userId: user.id, username: user.username };
+    return {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    };
   }
 }

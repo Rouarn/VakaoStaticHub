@@ -9,6 +9,7 @@ import {
   NModal,
   NSelect,
   NSpin,
+  NSwitch,
   NTooltip,
   useMessage,
 } from 'naive-ui';
@@ -21,6 +22,7 @@ import {
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
+import { getErrorMessage } from '@/utils/http';
 import { formatBytes } from '@/utils/file-types';
 
 /**
@@ -30,10 +32,8 @@ import { formatBytes } from '@/utils/file-types';
  * - 根目录 GET /roots
  * - 分类名 GET /files/:rootId/categories
  * - 分类计数 GET /files/stats/usage
- *
- * 后端没有「新建空分类 / 删除空分类」接口：
- * 新建通过上传文件时输入新分类名隐式创建（上传面板已支持），
- * 删除在该面板中如实提示不可用，不做假成功。
+ * - 新建 POST /files/:rootId/categories
+ * - 删除 DELETE /files/:rootId/categories/:category（非空需 recursive=true）
  */
 const route = useRoute();
 const router = useRouter();
@@ -104,22 +104,33 @@ async function submitRename() {
 const deleteShow = ref(false);
 const deleteTarget = ref('');
 const deleteLoading = ref(false);
+const deleteRecursive = ref(false);
 
 function openDelete(name: string) {
   deleteTarget.value = name;
+  deleteRecursive.value = false;
   deleteShow.value = true;
 }
 
-/** 后端无删除接口：确认后给出如实提示，不伪造成功 */
-function confirmDeleteCategory() {
+async function confirmDeleteCategory() {
+  const target = deleteTarget.value;
   deleteLoading.value = true;
   try {
-    categoryStore.delete();
+    const result = await categoryStore.delete(
+      appStore.activeRootId,
+      target,
+      deleteRecursive.value,
+    );
+    message.success(
+      result.removedEntries > 0
+        ? `分类「${target}」已删除，连同 ${result.removedEntries} 项文件`
+        : `分类「${target}」已删除`,
+    );
+    deleteShow.value = false;
   } catch (e) {
-    message.warning(e instanceof Error ? e.message : '该操作暂不可用');
+    message.error(getErrorMessage(e, '删除分类失败'));
   } finally {
     deleteLoading.value = false;
-    deleteShow.value = false;
   }
 }
 
@@ -128,13 +139,36 @@ function onRowAction(key: string, name: string) {
   else if (key === 'delete') openDelete(name);
 }
 
-// —— 新建分类说明 ——
+// —— 新建分类 ——
 const createShow = ref(false);
+const createValue = ref('');
+const createLoading = ref(false);
 
-function goUpload() {
-  createShow.value = false;
-  if (route.name !== 'files') void router.push({ name: 'files' });
-  message.info('在文件库点击「上传文件」，在目标分类处直接输入新名称即可创建');
+function openCreate() {
+  createValue.value = '';
+  createShow.value = true;
+}
+
+async function submitCreate() {
+  const name = createValue.value.trim();
+  if (!name) {
+    message.warning('请输入分类名');
+    return;
+  }
+  if (name.includes('/') || name.includes('\\')) {
+    message.warning('分类名不能包含路径分隔符');
+    return;
+  }
+  createLoading.value = true;
+  try {
+    await categoryStore.create(appStore.activeRootId, name);
+    message.success(`分类「${name}」已创建`);
+    createShow.value = false;
+  } catch (e) {
+    message.error(getErrorMessage(e, '新建分类失败'));
+  } finally {
+    createLoading.value = false;
+  }
 }
 </script>
 
@@ -160,7 +194,7 @@ function goUpload() {
           </NTooltip>
           <NTooltip placement="bottom" :delay="300">
             <template #trigger>
-              <NButton size="tiny" quaternary circle @click="createShow = true">
+              <NButton size="tiny" quaternary circle @click="openCreate">
                 <template #icon><NIcon :size="16"><AddOutline /></NIcon></template>
               </NButton>
             </template>
@@ -198,7 +232,7 @@ function goUpload() {
         >
           <NIcon :size="26" class="text-ink-sub opacity-60"><FolderOutline /></NIcon>
           <p class="m-0 mt-2 text-12px text-ink-sub">该根目录下还没有分类</p>
-          <p class="m-0 mt-1 text-11px text-ink-sub">上传文件时输入新分类名即可创建</p>
+          <p class="m-0 mt-1 text-11px text-ink-sub">点击上方「+」即可新建空分类</p>
         </div>
 
         <ul v-else class="m-0 p-0 list-none flex flex-col gap-1">
@@ -277,30 +311,45 @@ function goUpload() {
       </p>
     </NModal>
 
-    <!-- 删除分类（后端能力缺失，如实提示） -->
+    <!-- 删除分类 -->
     <ConfirmModal
       v-model:show="deleteShow"
       title="删除分类"
-      :content="`即将删除分类「${deleteTarget}」。\n注意：后端未提供删除分类接口 —— 分类目录随上传隐式创建，服务端也没有删除空目录的 API。确认后将提示具体原因，不会伪造删除成功。`"
-      positive-text="我已知晓"
+      :content="`即将删除分类「${deleteTarget}」。\n默认仅允许删除空分类；若分类内仍有文件，需开启下方选项连同文件一并删除。`"
+      positive-text="确认删除"
       :loading="deleteLoading"
       @confirm="confirmDeleteCategory"
-    />
+    >
+      <div class="mt-3 flex items-center gap-2">
+        <NSwitch v-model:value="deleteRecursive" size="small" />
+        <span class="text-12px text-ink-sub">
+          同时删除分类内所有文件（含分享链接，不可恢复）
+        </span>
+      </div>
+    </ConfirmModal>
 
-    <!-- 新建分类说明 -->
+    <!-- 新建分类 -->
     <NModal
       v-model:show="createShow"
       preset="dialog"
       title="新建分类"
-      positive-text="去上传"
-      negative-text="知道了"
-      @positive-click="goUpload"
-      @negative-click="createShow = false"
+      positive-text="创建"
+      negative-text="取消"
+      :positive-button-props="{
+        loading: createLoading,
+        disabled: !createValue.trim(),
+      }"
+      @positive-click="submitCreate"
     >
-      <p class="m-0 text-13px text-ink-sub leading-relaxed">
-        静态资源服务以「上传文件时所在的分类目录」为准创建分类：
-        在文件库点击「上传文件」，把目标分类改成新名称，上传成功该目录即被创建。
-        当前后端未提供直接创建空目录的接口。
+      <NInput
+        v-model:value="createValue"
+        class="mt-4"
+        maxlength="255"
+        placeholder="输入分类名"
+        @keyup.enter="submitCreate"
+      />
+      <p class="m-0 mt-2 text-11px text-ink-sub">
+        分类名不能包含路径分隔符，且不能与已有分类或默认分类重名
       </p>
     </NModal>
   </section>

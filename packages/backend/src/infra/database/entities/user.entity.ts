@@ -20,6 +20,10 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 255 })
   passwordHash!: string;
 
+  /** 角色：admin 管理员 / user 普通用户 */
+  @Column({ type: 'varchar', length: 16, default: 'user' })
+  role!: 'admin' | 'user';
+
   /** 创建时间戳（毫秒） */
   @Column({ type: 'integer' })
   createdAt!: number;

@@ -44,4 +44,10 @@ export class ListVersionsQueryDto implements ListVersionsQuery {
     message: 'appKey 仅允许字母数字与 _ -',
   })
   appKey?: string;
+
+  @ApiPropertyOptional({ description: '平台筛选，如 android' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 16)
+  platform?: string;
 }
