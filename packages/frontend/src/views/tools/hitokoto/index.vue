@@ -19,8 +19,16 @@ import {
   TimeOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type { HitokotoRequest, HitokotoResult } from '@/api/hitokoto';
-import { buildHitokotoUrl, requestHitokoto } from '@/api/hitokoto';
+import type {
+  HitokotoErrorKind,
+  HitokotoRequest,
+  HitokotoResult,
+} from '@/api/hitokoto';
+import {
+  HitokotoError,
+  buildHitokotoUrl,
+  requestHitokoto,
+} from '@/api/hitokoto';
 import { formatDateTime } from '@/utils/format';
 import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -75,6 +83,7 @@ const categories = ref<string[]>([]);
 const encode = ref<'json' | 'text'>('json');
 const loading = ref(false);
 const error = ref('');
+const errorKind = ref<HitokotoErrorKind | null>(null);
 const result = ref<HitokotoResult | null>(null);
 const rawText = ref('');
 const history = ref<HistoryItem[]>(loadHistory());
@@ -97,9 +106,18 @@ const displayFrom = computed(() => {
   return from ?? fromWho ?? '';
 });
 
+const ERROR_LABEL: Record<HitokotoErrorKind, string> = {
+  'proxy-disabled': '代理未启用（503）',
+  upstream: '上游服务不可用',
+  network: '网络连接失败',
+  format: '响应格式异常',
+  http: '请求失败',
+};
+
 async function send() {
   loading.value = true;
   error.value = '';
+  errorKind.value = null;
   try {
     const response = await requestHitokoto({
       categories: categories.value,
@@ -126,6 +144,7 @@ async function send() {
     message.success('一言获取成功');
   } catch (e) {
     error.value = e instanceof Error ? e.message : '一言请求失败';
+    errorKind.value = e instanceof HitokotoError ? e.kind : null;
     result.value = null;
     rawText.value = '';
   } finally {
@@ -241,12 +260,20 @@ const jsonPreview = computed(() => {
               v-if="error"
               class="rounded-xl border border-red-400/40 bg-red-500/5 px-4 py-4 flex flex-col gap-2"
             >
-              <p class="m-0 text-13px font-600 text-ink">请求失败</p>
+              <p class="m-0 text-13px font-600 text-ink">
+                {{ errorKind ? ERROR_LABEL[errorKind] : '请求失败' }}
+              </p>
               <p class="m-0 text-12px text-ink-sub whitespace-pre-line">{{ error }}</p>
               <div class="flex items-center gap-2">
                 <NButton size="tiny" @click="send">重试</NButton>
                 <span class="text-10px text-ink-sub">
-                  若持续失败，请确认后端已配置 HITOKOTO_API_URL 且上游可达
+                  {{
+                    errorKind === 'proxy-disabled'
+                      ? '后端未启用一言代理（503）：检查 HITOKOTO_API_URL 是否为空或被显式禁用'
+                      : errorKind === 'network'
+                        ? '网络问题：确认后端服务与网络连通，而非代理配置问题'
+                        : '若持续失败，请确认后端代理目标可达'
+                  }}
                 </span>
               </div>
             </div>

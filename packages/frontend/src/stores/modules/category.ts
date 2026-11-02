@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { RequestError } from '@vakao-ui/axios';
 import type { ResourceRoot } from '@vakao/shared';
-import { listRoots } from '@/api/roots';
+import { listRoots, createRoot, updateRoot, deleteRoot } from '@/api/roots';
 import {
   getUsageStats,
   listCategories,
@@ -129,6 +129,25 @@ export const useCategoryStore = defineStore('category', {
 
     setActiveCategory(name: string | null) {
       this.activeCategory = name;
+    },
+
+    /** 新增资源根目录 */
+    async addRoot(root: { id: string; name: string; path: string }) {
+      await createRoot(root);
+      await this.loadRoots();
+    },
+
+    /** 更新根目录名称或路径 */
+    async editRoot(id: string, patch: { name?: string; path?: string }) {
+      await updateRoot(id, patch);
+      await this.loadRoots();
+    },
+
+    /** 删除根目录 */
+    async removeRoot(id: string) {
+      await deleteRoot(id);
+      this.entries = this.entries.filter((entry) => entry.rootId !== id);
+      await this.loadRoots();
     },
 
     async rename(rootId: string, category: string, newCategory: string) {

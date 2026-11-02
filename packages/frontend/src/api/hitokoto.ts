@@ -1,5 +1,19 @@
 import { getApiBaseUrl } from '@/utils/http';
 
+/** 一言失败类型：用于把「代理未启用」与「网络不可达」明确区分开 */
+export type HitokotoErrorKind =
+  'proxy-disabled' | 'upstream' | 'network' | 'format' | 'http';
+
+export class HitokotoError extends Error {
+  readonly kind: HitokotoErrorKind;
+
+  constructor(kind: HitokotoErrorKind, message: string) {
+    super(message);
+    this.name = 'HitokotoError';
+    this.kind = kind;
+  }
+}
+
 export interface HitokotoResult {
   id?: number;
   hitokoto: string;
@@ -31,8 +45,28 @@ export function buildHitokotoUrl(req: HitokotoRequest) {
  */
 export async function requestHitokoto(req: HitokotoRequest) {
   const url = buildHitokotoUrl(req);
-  const res = await fetch(url, { headers: { Accept: '*/*' } });
-  const text = await res.text();
+  let res: Response;
+  try {
+    // AbortSignal.timeout 避免后端/上游挂起时页面一直转圈
+    res = await fetch(url, {
+      headers: { Accept: '*/*' },
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (e) {
+    const timeout = e instanceof Error && e.name === 'TimeoutError';
+    throw new HitokotoError(
+      'network',
+      timeout
+        ? '一言请求超时：15 秒内未收到后端响应'
+        : '网络连接失败：无法访问后端（请确认服务已启动、网络连通）',
+    );
+  }
+  let text: string;
+  try {
+    text = await res.text();
+  } catch {
+    throw new HitokotoError('network', '网络连接中断：读取一言响应失败');
+  }
   if (!res.ok) {
     // 后端 503 会带 { code: 'HITOKOTO_PROXY_DISABLED', message }，
     // 优先展示服务端文案（明确说明“代理未启用”）
@@ -43,13 +77,14 @@ export async function requestHitokoto(req: HitokotoRequest) {
     } catch {
       // 上游错误页可能不是 JSON，忽略解析失败
     }
-    throw new Error(
+    throw new HitokotoError(
+      res.status === 503 ? 'proxy-disabled' : 'upstream',
       res.status === 503
-        ? serverMessage || '一言代理未启用：后端未配置 HITOKOTO_API_URL'
+        ? serverMessage || '一言代理未启用（后端返回 503）'
         : res.status === 502
           ? '一言上游暂不可用（后端代理返回 502）'
           : res.status === 404
-            ? '一言代理未启用：后端未配置 HITOKOTO_API_URL（或未匹配 /static/hitokoto）'
+            ? '一言代理未启用：后端未匹配 /static/hitokoto 路由（返回 404）'
             : `一言请求失败（HTTP ${res.status}）`,
     );
   }
@@ -59,10 +94,13 @@ export async function requestHitokoto(req: HitokotoRequest) {
   try {
     data = JSON.parse(text) as HitokotoResult;
   } catch {
-    throw new Error('一言响应不是合法 JSON（上游可能返回了错误页）');
+    throw new HitokotoError(
+      'format',
+      '一言响应不是合法 JSON（上游可能返回了错误页）',
+    );
   }
   if (typeof data.hitokoto !== 'string') {
-    throw new Error('一言响应缺少 hitokoto 字段');
+    throw new HitokotoError('format', '一言响应缺少 hitokoto 字段');
   }
   return { url, text, data };
 }

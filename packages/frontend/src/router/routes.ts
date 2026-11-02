@@ -1,4 +1,6 @@
+import { RouterView } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
+import { h } from 'vue';
 import type { Component } from 'vue';
 import {
   FolderOpenOutline,
@@ -102,23 +104,27 @@ const protectedChildren: RouteRecordRaw[] = [
     meta: { title: '系统状态', sidebar: true, icon: SpeedometerOutline },
   },
   {
-    // 侧边栏入口（无独立页面），默认进占位图；两个工具页平级注册，激活态按 /tools 前缀判定
+    // 侧边栏入口（带子路由：占位图 / 一言）；默认进占位图，激活态按 /tools 前缀判定
     path: 'tools',
     name: 'tools',
     redirect: { name: 'tools-placeholder' },
     meta: { title: '实用工具', sidebar: true, icon: ConstructOutline },
-  },
-  {
-    path: 'tools/placeholder',
-    name: 'tools-placeholder',
-    component: () => import('@/views/tools/placeholder/index.vue'),
-    meta: { title: '占位图生成' },
-  },
-  {
-    path: 'tools/hitokoto',
-    name: 'tools-hitokoto',
-    component: () => import('@/views/tools/hitokoto/index.vue'),
-    meta: { title: '一言' },
+    // 组件化父路由：仅渲染子路由出口，侧边栏据此展开二级菜单
+    component: { render: () => h(RouterView) },
+    children: [
+      {
+        path: 'placeholder',
+        name: 'tools-placeholder',
+        component: () => import('@/views/tools/placeholder/index.vue'),
+        meta: { title: '占位图生成' },
+      },
+      {
+        path: 'hitokoto',
+        name: 'tools-hitokoto',
+        component: () => import('@/views/tools/hitokoto/index.vue'),
+        meta: { title: '一言' },
+      },
+    ],
   },
   {
     path: 'api-docs',

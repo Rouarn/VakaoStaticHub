@@ -10,6 +10,12 @@ import type { RequestHandler } from 'express';
 import type { ClientRequest } from 'http';
 import type { Socket } from 'net';
 
+/**
+ * 默认一言代理地址（真实开发 / 生产环境使用）
+ * 本地开发可用 HITOKOTO_API_URL 覆盖为本地服务，见根目录 .env.example
+ */
+const DEFAULT_HITOKOTO_API_URL = 'https://static.shixian.xyz/static/hitokoto';
+
 @Injectable()
 export class HitokotoProxyMiddleware implements NestMiddleware, OnModuleInit {
   private readonly logger = new Logger(HitokotoProxyMiddleware.name);
@@ -21,11 +27,19 @@ export class HitokotoProxyMiddleware implements NestMiddleware, OnModuleInit {
     const target =
       this.configService.get<string>('HITOKOTO_API_URL') ||
       process.env.HITOKOTO_API_URL ||
-      '';
+      DEFAULT_HITOKOTO_API_URL;
 
-    if (!target) {
-      this.logger.warn('Hitokoto 代理目标未配置，代理已禁用');
-      return;
+    // 配置值可能带路径（如 .../static/hitokoto）。http-proxy-middleware 的
+    // target 带路径时会与重写后的 path 拼接，故拆成 origin + basePath，
+    // 保证上游最终路径恰好是 `${basePath}${剩余部分}`，不出现重复或尾斜杠。
+    let targetOrigin = target;
+    let basePath = '';
+    try {
+      const parsed = new URL(target);
+      targetOrigin = parsed.origin;
+      basePath = parsed.pathname.replace(/\/+$/, '');
+    } catch {
+      this.logger.warn(`HITOKOTO_API_URL 不是合法 URL，按原值直连: ${target}`);
     }
 
     this.logger.log(`Hitokoto 代理中间件初始化，目标: ${target}`);
@@ -33,13 +47,14 @@ export class HitokotoProxyMiddleware implements NestMiddleware, OnModuleInit {
     const { createProxyMiddleware } = await import('http-proxy-middleware');
 
     this.proxy = createProxyMiddleware({
-      target,
+      target: targetOrigin,
       changeOrigin: true,
       // 上游 10 秒无响应则断开，交由 error 回调返回 502，
       // 避免上游不可达时前端请求一直挂起
       timeout: 10_000,
-      pathRewrite: {
-        '^/static/hitokoto': '',
+      pathRewrite: (path: string) => {
+        const suffix = path.replace(/^\/static\/hitokoto/, '');
+        return `${basePath}${suffix}` || '/';
       },
       on: {
         proxyReq: (proxyReq: ClientRequest, req: Request) => {
