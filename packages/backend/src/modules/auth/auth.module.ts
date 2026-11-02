@@ -1,27 +1,23 @@
-/**
- * 认证模块
- * 提供 JWT 认证、登录与注册功能的模块定义
- */
-
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserEntity } from '#/infra/database/entities/user.entity.js';
+import { AuditLogModule } from '../audit-log/audit-log.module.js';
+import { UsersModule } from '../users/users.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { TokenBlacklistService } from './token-blacklist.service.js';
 
 /**
- * 认证模块类
- * 配置 Passport 和 JWT 模块，注册认证相关的控制器和服务
+ * 认证模块
+ * 提供 JWT 认证、登录、注册与用户管理接口；用户数据访问委托 UsersModule
  */
 @Module({
   imports: [
     PassportModule,
-    TypeOrmModule.forFeature([UserEntity]),
+    UsersModule,
+    AuditLogModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

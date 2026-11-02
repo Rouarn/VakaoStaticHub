@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { Request } from 'express';
-import { AuthService } from './auth.service.js';
+import { UserService } from '../users/user.service.js';
 import { TokenBlacklistService } from './token-blacklist.service.js';
 
 /** JWT 载荷：sub 为用户 ID 字符串，username 为用户名，iat 为签发时间（秒） */
@@ -21,7 +21,7 @@ interface JwtPayload {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     configService: ConfigService,
-    private readonly authService: AuthService,
+    private readonly userService: UserService,
     private readonly tokenBlacklist: TokenBlacklistService,
   ) {
     super({
@@ -69,7 +69,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!Number.isInteger(userId)) {
       throw new UnauthorizedException();
     }
-    const user = await this.authService.findAuthInfo(userId);
+    const user = await this.userService.findAuthInfo(userId);
     if (!user) {
       throw new UnauthorizedException('用户不存在或已被删除');
     }

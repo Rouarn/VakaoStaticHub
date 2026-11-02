@@ -30,12 +30,13 @@ import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import { Public } from '#/common/decorators/public.decorator.js';
 import { CurrentUser } from '#/common/decorators/current-user.decorator.js';
-import { AuditLogService } from '../audit-log/audit-log.service.js';
 import { getRequestMeta } from '#/common/utils/request-meta.util.js';
+import { AuditLogService } from '../audit-log/audit-log.service.js';
+import { UserService } from '../users/user.service.js';
 
 /**
  * 认证控制器
- * 处理用户注册、登录、令牌生成与当前用户信息
+ * 处理用户注册、登录、令牌生成与当前用户信息；用户管理委托 UserService
  */
 @ApiTags('认证')
 @Controller('auth')
@@ -43,6 +44,7 @@ import { getRequestMeta } from '#/common/utils/request-meta.util.js';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly userService: UserService,
     private readonly tokenBlacklist: TokenBlacklistService,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -203,7 +205,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取全部用户列表（不含密码哈希）' })
   async listUsers() {
-    return await this.authService.listUsers();
+    return await this.userService.listUsers();
   }
 
   /**
@@ -219,7 +221,7 @@ export class AuthController {
     @CurrentUser() currentUser: { userId: number; username: string },
     @Req() req: Request,
   ) {
-    const result = await this.authService.resetPassword(
+    const result = await this.userService.resetPassword(
       currentUser.userId,
       id,
       dto.newPassword,
@@ -248,7 +250,7 @@ export class AuthController {
     @CurrentUser() currentUser: { userId: number; username: string },
     @Req() req: Request,
   ) {
-    const result = await this.authService.deleteUser(id, currentUser.userId);
+    const result = await this.userService.deleteUser(id, currentUser.userId);
     // 审计：删除用户
     this.auditLogService.log({
       userId: currentUser.userId,
