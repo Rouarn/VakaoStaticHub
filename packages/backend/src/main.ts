@@ -54,9 +54,29 @@ async function bootstrap() {
 
   app.use(
     helmet({
-      contentSecurityPolicy: false, // SPA 内联脚本与 Swagger 需要，先关闭 CSP
-      crossOriginEmbedderPolicy: false, // 关闭 COEP，允许跨源嵌入
-      crossOriginResourcePolicy: { policy: 'cross-origin' }, // 静态资源服务需要允许跨源嵌入，放开 CORP
+      // 保守开启 CSP：只对 HTML/SPA 响应生效（浏览器对非 HTML 会忽略 CSP header），
+      // 覆盖 Vite SPA 内联脚本、Swagger UI eval、文件预览 iframe（PDF blob:、HTML 跨源嵌入）
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "'data:'", "'blob:'", 'https:', 'http:'],
+          mediaSrc: ["'self'", "'data:'", "'blob:'", 'https:', 'http:'],
+          frameSrc: ["'self'", "'data:'", "'blob:'", 'https:'],
+          connectSrc: ["'self'", 'ws:', 'wss:', 'https:', 'http:'],
+          fontSrc: ["'self'", "'data:'"],
+          workerSrc: ["'self'", "'blob:'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+      // 以下三项保持关闭 / 放开，是 4e54035、e8cf756 两次提交专门修好的行为，不可回退：
+      // - COEP 关闭：允许 document 跨源嵌入第三方（iframe）
+      // - CORP cross-origin：允许静态资源图片/视频/APK 被任何跨源站点嵌入
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
 

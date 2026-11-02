@@ -30,6 +30,7 @@ import {
   safeJoin,
   normalizeCategoryPath,
   getFileExtension,
+  UPLOAD_ID_REGEX,
 } from './utils/path-utils.js';
 import { SOFTWARE_UPDATE_ROOT_ID } from '../app-update/app-update.constants.js';
 import type {
@@ -687,17 +688,19 @@ export class FilesService {
 
   // ==================== 大文件分片上传 ====================
 
-  /** 分片临时目录：storage/.cache/uploads/{uploadId}/ */
+  /** 分片临时目录：操作系统临时目录下的应用专属子目录
+   *  配置收敛到 files.uploadTempDir（默认 os.tmpdir()/vakao-static-hub/uploads，
+   *  可通过 UPLOAD_TEMP_DIR 环境变量覆盖） */
   private get chunkUploadDir(): string {
-    return resolve(
-      this.configService.get<string>('files.root') ?? 'storage',
-      '.cache',
-      'uploads',
-    );
+    const dir = this.configService.get<string>('files.uploadTempDir');
+    if (!dir) {
+      throw new Error('files.uploadTempDir 未配置');
+    }
+    return dir;
   }
 
   private sanitizeUploadId(id: string): string {
-    if (!/^[a-f0-9]{32}$/.test(id)) {
+    if (!UPLOAD_ID_REGEX.test(id)) {
       throw new BadRequestException('uploadId 不合法');
     }
     return id;
@@ -717,15 +720,21 @@ export class FilesService {
     filename: string,
     size: number,
     chunkSize: number,
+    userId: number,
   ): Promise<ChunkUploadInitResult> {
+    // uploadId 必须用稳定标识（不含时间戳），否则相同文件重复 init 会得到不同 id，
+    // 导致断点续传失效——前端无法拿到已上传分片列表
+    // 同时必须带上 userId：两个用户同时上传同名同大小文件如果命中同一个 uploadId
+    // 会互相覆盖分片目录（saveChunk 会互相覆写同一个 index 文件），
+    // 加 userId 把同一 uploadId 限制在单个用户的会话空间内。
     const uploadId = createHash('md5')
-      .update(`${rootId}:${category}:${filename}:${size}:${Date.now()}`)
+      .update(`${userId}:${rootId}:${category}:${filename}:${size}`)
       .digest('hex');
 
     const uploadDir = this.getChunkUploadPath(uploadId);
     await mkdir(uploadDir, { recursive: true });
 
-    // 检查是否有已上传的分片（断点续传场景）
+    // 检查是否有已上传的分片（断点续传场景：相同文件第二次 init 时复用已有 uploadId）
     let uploadedChunks: number[] = [];
     try {
       const files = await readdir(uploadDir);
@@ -835,6 +844,7 @@ export class FilesService {
       path: filename,
       size: s.size,
       mtime: s.mtimeMs,
+      contentHash,
     };
   }
 

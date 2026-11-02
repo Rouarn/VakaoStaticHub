@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
 import { ShareAccessLogEntity } from '#/infra/database/entities/share-access-log.entity.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
@@ -71,6 +71,9 @@ export class ShareService {
   /**
    * 解锁分享链接（一次"打开"）：校验过期/次数/密码，通过后计数 +1 并签发访问令牌
    * 计数语义为"链接打开次数"：解锁成功才计数，解锁后凭令牌下载文件不再计数
+   *
+   * 执行顺序：先做轻量的过期/次数探测（纯数字比较，不涉及哈希计算），
+   * 次数已用尽的请求在这里就直接返回，避免白白消耗昂贵的 scrypt 密码校验
    */
   async unlock(token: string, password?: string) {
     const link = await this.repo.findOne({ where: { token } });
@@ -80,6 +83,15 @@ export class ShareService {
 
     if (link.expiresAt && Date.now() > link.expiresAt) {
       throw new BadRequestException('分享链接已过期');
+    }
+
+    // 轻量次数探测：未达上限才继续，已用尽直接返回（不做密码哈希计算）
+    if (
+      link.maxAccesses !== null &&
+      link.maxAccesses !== undefined &&
+      link.accessCount >= link.maxAccesses
+    ) {
+      throw new BadRequestException('分享链接打开次数已达上限');
     }
 
     if (link.passwordHash) {
@@ -243,9 +255,8 @@ export class ShareService {
   }
 
   private generateToken(): string {
-    return 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, () =>
-      Math.floor(Math.random() * 16).toString(16),
-    );
+    // CSPRNG：16 字节 = 32 个十六进制字符，与前端现有解析约定兼容
+    return randomBytes(16).toString('hex');
   }
 
   /**

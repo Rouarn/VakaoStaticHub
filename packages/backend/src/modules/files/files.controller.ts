@@ -16,7 +16,6 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
   ApiConsumes,
@@ -38,6 +37,7 @@ import { Public } from '../auth/decorators/public.decorator.js';
 import { ImageProcessorService } from './image-processor.service.js';
 import { getMimeType } from './utils/mime-types.js';
 import { ConfigurableFilesInterceptor } from '#/common/interceptors/configurable-files.interceptor.js';
+import { ConfigurableChunkFileInterceptor } from '#/common/interceptors/configurable-chunk-file.interceptor.js';
 import { serveStaticFile } from '#/utils/file-serve.util.js';
 import { FileIndexService } from './file-index.service.js';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -238,6 +238,7 @@ export class FilesController {
       size: number;
       chunkSize: number;
     },
+    @CurrentUser() currentUser: { userId: number; username: string },
   ) {
     return await this.service.initChunkUpload(
       body.rootId,
@@ -245,13 +246,14 @@ export class FilesController {
       body.filename,
       body.size,
       body.chunkSize,
+      currentUser.userId,
     );
   }
 
   @Post('upload/chunk')
   @ApiOperation({ summary: '上传分片' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('chunk'))
+  @UseInterceptors(ConfigurableChunkFileInterceptor)
   async uploadChunk(
     @Query('uploadId') uploadId: string,
     @Query('index') index: string,

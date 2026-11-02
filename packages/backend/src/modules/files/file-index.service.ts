@@ -94,8 +94,10 @@ export class FileIndexService implements OnApplicationBootstrap {
       }
     }
 
-    await this.repo.delete({ rootId });
-
+    // 先在内存里准备好全部新记录，再一次性在事务里 delete + 批量 upsert。
+    // SQLite 写锁是数据库级粒度，串行化保证 delete 和 insert 之间不会让并发查询看到空索引，
+    // 进程崩溃也只会丢失本轮同步的数据（重启前会保留上一轮完整索引）。
+    const allRecords: FileRecord[] = [];
     for (const category of categories) {
       const categoryPath = resolve(rootPath, category);
       const records = await this.walkCategory(rootId, category, categoryPath);
@@ -107,18 +109,21 @@ export class FileIndexService implements OnApplicationBootstrap {
           );
         }
       }
-      await this.insertInBatches(records);
+      allRecords.push(...records);
     }
-  }
 
-  private async insertInBatches(records: FileRecord[]) {
-    const batchSize = 500;
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
-      if (batch.length > 0) {
-        await this.repo.upsert(batch, ['rootId', 'category', 'relPath']);
+    await this.repo.manager.transaction(async (manager) => {
+      await manager.delete(FileEntryEntity, { rootId });
+      const batchSize = 500;
+      for (let i = 0; i < allRecords.length; i += batchSize) {
+        const batch = allRecords.slice(i, i + batchSize);
+        if (batch.length > 0) {
+          await manager
+            .getRepository(FileEntryEntity)
+            .upsert(batch, ['rootId', 'category', 'relPath']);
+        }
       }
-    }
+    });
   }
 
   /** 权限不足 / 目标已消失等可恢复错误：跳过该项，不中断整次同步 */

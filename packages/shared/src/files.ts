@@ -61,6 +61,16 @@ export interface ChunkUploadInitResult {
   uploadedChunks: number[];
 }
 
+/** 分片上传完成返回值（POST /files/upload/complete） */
+export interface ChunkUploadCompleteResult {
+  name: string;
+  path: string;
+  size: number;
+  mtime: number;
+  /** 合并后文件的 SHA-256 摘要（hex，64 小写字符），供前端与本地哈希做完整性校验 */
+  contentHash: string;
+}
+
 /** 批量删除返回值 */
 export interface BatchDeleteResult {
   deletedCount: number;

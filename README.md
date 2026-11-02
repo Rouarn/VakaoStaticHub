@@ -23,7 +23,7 @@
 - **占位图生成**：SVG 占位图动态生成，支持尺寸、颜色、文字、字体、字重自定义，带 ETag 协商缓存
 - **一言代理**：反向代理 `hitokoto` 服务，支持任意方法转发并记录请求日志
 - **文件分享链接**：单文件 / 多文件聚合分享，可设有效期、最大访问次数与访问密码（scrypt 哈希 + HMAC 短期访问令牌），访问记录持久化（IP / UA / 时间），支持撤销
-- **APP 在线更新中心**：多应用（appKey）独立版本管理，APK 上传自动计算 SHA-256，草稿/灰度/全量/下架四态，灰度按设备哈希稳定分桶，灰度自动递增与定时发布，一键回滚到上一个全量版本，强更开关与最低兼容版本，APK 下载支持 HTTP Range 断点续传，升级事件上报 + 漏斗统计看板
+- **APP 在线更新中心**：多应用（appKey）独立版本管理，APK 上传自动计算 SHA-256，草稿/灰度/全量/下架四态 + `offlineReason` 区分自动下架 vs 手动止血，灰度按设备哈希稳定分桶，灰度自动递增与定时发布，一键回滚只恢复被新全量自动挤掉的历史版本（不会误恢复手动下架的），强更开关与最低兼容版本，APK 下载支持 HTTP Range 断点续传，升级事件上报 + 漏斗统计看板，全量发布事务内前置 OFFLINE 保证并发安全（同一时刻只有 1 个 PUBLISHED）
 - **操作审计日志**：关键操作（登录、上传、删除、发布、分享等）持久化到 `audit_logs` 表，支持按用户 / 操作 / 资源类型筛选查询
 - **监控指标**：`GET /static/metrics` 提供 QPS、内存占用、存储总量、活跃分享数、应用 / 版本数、24h 升级事件量
 - **安全加固**：Helmet 安全响应头、全局速率限制、JWT 登出吊销（内存黑名单）、修改密码、用户管理（列表 / 删除，禁止删除自己）
@@ -119,11 +119,13 @@ pnpm dev
 
 ### 文件
 
-| 变量               | 默认值          | 说明               |
-| ------------------ | --------------- | ------------------ |
-| `FILE_ROOT`        | `<cwd>/storage` | 文件存储根目录     |
-| `UPLOAD_MAX_COUNT` | `20`            | 单次上传最大文件数 |
-| `DEFAULT_CATEGORY` | `TemporaryFile` | 默认分类目录名     |
+| 变量                     | 默认值                                       | 说明                                                                                                              |
+| ------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `FILE_ROOT`              | `<cwd>/storage`                              | 文件存储根目录                                                                                                     |
+| `UPLOAD_MAX_COUNT`       | `20`                                         | 单次上传最大文件数                                                                                                 |
+| `DEFAULT_CATEGORY`       | `TemporaryFile`                             | 默认分类目录名                                                                                                     |
+| `UPLOAD_TEMP_DIR`        | `<os.tmpdir()>/vakao-static-hub/uploads`     | 分片上传临时目录；默认落在操作系统临时目录下的应用专属子目录。线上如 `/tmp` 挂 tmpfs 且内存吃紧，可指回磁盘目录（如 `/var/vakao-uploads`） |
+| `CHUNK_FILE_SIZE_LIMIT`  | `104857600`（100MB）                         | 单个分片文件硬上限（字节），防超大 buffer 打垮进程内存                                                            |
 
 ### 定时任务
 
@@ -342,6 +344,16 @@ vakao-static-hub/
 
 版本状态：`0` 草稿 / `1` 灰度 / `2` 全量 / `3` 已下架；`(platform, appKey, versionCode)` 唯一。
 
+下架版本额外带 `offlineReason` 字段（仅 `status=3` 时有意义）：
+
+| `offlineReason` | 来源                                   | rollback 可恢复？ |
+| --------------- | -------------------------------------- | ----------------- |
+| `null`          | 从未全量发布过的版本被下架（非正常态） | ❌                |
+| `'auto'`        | 被新全量 publish 自动挤掉              | ✅                |
+| `'manual'`      | 管理员手动止血下架 / rollback 自身下架 | ❌                |
+
+**回滚候选口径**：同应用同平台、`versionCode < 目标版本`、且满足 `(status=PUBLISHED) OR (status=OFFLINE AND offlineReason='auto')`。从未发布过的草稿/灰度（`status=0/1`）、手动止血下架的版本（`offlineReason='manual'`）、版本号 ≥ 目标的都不会被误当成回滚目标。
+
 ### 审计日志
 
 | 方法 | 路径                                                   | 说明                 | 认证 |
@@ -475,6 +487,31 @@ cd /opt/vakao-static-hub
 ```
 
 生产模式下，NestJS 自动挂载 `deploy/web/` 下的前端静态资源并提供 SPA fallback，前后端同源部署，无需额外配置 CORS 反向代理。
+
+### 数据库升级（老库兼容）
+
+项目**不使用 TypeORM migration 框架**，生产环境 `DB_SYNCHRONIZE=false`，表结构变更通过内置的 **启动期幂等迁移** 机制自动补齐。
+
+**迁移机制说明：**
+- 应用 bootstrap 时，`SchemaMigrationService`（位于 `packages/backend/src/infra/database/schema-migration.service.ts`）会对 `MIGRATIONS` 数组中的每一项执行检查
+- 用 `PRAGMA table_info(tbl)` 检测目标列是否存在（大小写无关匹配），不存在则执行 `ALTER TABLE ... ADD COLUMN`
+- 已存在则跳过，**多次重启不会重复 ALTER，不会覆盖任何数据**
+- 迁移失败时直接 `throw Error`，阻止服务带着错 schema 启动（fail-fast）
+- 全新空库首次部署时，TypeORM `synchronize=true` 已经建好表，迁移会自动跳过全部项
+
+**当前已知迁移项：**
+
+| 日期 | 表 | 新增列 | 类型 | 说明 |
+|------|-----|--------|------|------|
+| 2026-11-02 | `app_versions` | `offlineReason` | varchar(8), nullable | 区分下架原因：`auto`（被新全量发布自动挤掉，可 rollback 恢复）/ `manual`（管理员手动止血下架，不可恢复）/ NULL（从未执行过全量发布） |
+| 2026-11-02 | `file_entries` | `contentHash` | varchar(64), nullable | 文件内容 SHA-256 哈希，支撑增量索引与重复文件检测 |
+
+**回滚候选过滤规则：** 只有 `status=PUBLISHED` 或 `status=OFFLINE AND offlineReason='auto'` 的版本可作为 rollback 恢复目标。**升级前的历史版本 `offlineReason` 为 NULL**（因为那时候还没有全量发布机制），这些版本**不作为回滚候选**——它们被下架后无法通过 rollback 恢复。**升级后首次发布起**的版本会被正确标记 `offlineReason`，rollback 链路完整可用。
+
+**运维提示：**
+- 升级前务必备份数据库文件（`storage/vakao.db`），虽然迁移是 ADD COLUMN（不删数据），但防一手启动即失败需要回滚
+- 升级后首次启动观察日志中 `SchemaMigrationService` 输出，确认「新增 N 项，跳过 M 项」符合预期
+- 新增 schema 变更时，在 `schema-migration.service.ts` 的 `MIGRATIONS` 数组末尾追加新条目即可，无需引入任何迁移框架
 
 ---
 

@@ -8,6 +8,7 @@ import type {
   UsageStatsResult,
   DuplicateScanResult,
   ChunkUploadInitResult,
+  ChunkUploadCompleteResult,
   BatchDeleteResult,
   BatchMoveResult,
 } from '@vakao/shared';
@@ -133,12 +134,13 @@ export function completeChunkUpload(
   filename: string,
   size: number,
 ) {
-  return request.post<{
-    name: string;
-    path: string;
-    size: number;
-    mtime: number;
-  }>('/files/upload/complete', { uploadId, rootId, category, filename, size });
+  return request.post<ChunkUploadCompleteResult>('/files/upload/complete', {
+    uploadId,
+    rootId,
+    category,
+    filename,
+    size,
+  });
 }
 
 export function cancelChunkUpload(uploadId: string) {

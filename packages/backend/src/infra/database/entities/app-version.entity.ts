@@ -104,6 +104,16 @@ export class AppVersionEntity {
   @Column({ type: 'integer', default: 0 })
   status!: number;
 
+  /**
+   * 下架原因（仅 status=3 OFFLINE 时有效）：
+   *   null    从未全量发布过的版本被下架（非正常状态，仅防御）
+   *   auto    被新全量 publish 自动挤掉的历史版本（可作为 rollback 候选恢复）
+   *   manual  管理员手动止血下架（不可被 rollback 自动恢复）
+   * 这个字段让 rollback 能区分"应该能回滚的自动下架"和"不应该恢复的人工止血"。
+   */
+  @Column({ type: 'varchar', length: 8, nullable: true })
+  offlineReason!: 'auto' | 'manual' | null;
+
   /** 发布时间戳（毫秒） */
   @Column({ type: 'integer', nullable: true })
   publishTime!: number | null;

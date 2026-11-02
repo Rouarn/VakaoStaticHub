@@ -11,6 +11,7 @@ import { AppVersionEntity } from './entities/app-version.entity.js';
 import { AppUpgradeEventEntity } from './entities/app-upgrade-event.entity.js';
 import { UserEntity } from './entities/user.entity.js';
 import { AuditLogEntity } from './entities/audit-log.entity.js';
+import { SchemaMigrationService } from './schema-migration.service.js';
 
 @Module({
   imports: [
@@ -51,5 +52,6 @@ import { AuditLogEntity } from './entities/audit-log.entity.js';
       },
     }),
   ],
+  providers: [SchemaMigrationService],
 })
 export class DatabaseModule {}

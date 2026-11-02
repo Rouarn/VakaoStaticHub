@@ -16,6 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
@@ -109,6 +110,7 @@ export class ShareController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post(':token/verify')
   @ApiOperation({ summary: '解锁分享链接（校验密码，无密码链接直接解锁）' })
   @ApiParam({ name: 'token', description: '分享 token' })

@@ -98,3 +98,10 @@ export function getFileExtension(filename: string): string {
     : '';
   return ext;
 }
+
+/**
+ * 分片上传 uploadId 合法格式正则
+ * 收敛为唯一权威常量：files.service.ts 生成校验、cleanup.service.ts 清理识别
+ * 都引用这同一个正则，避免以后改生成策略时三处漂移。
+ */
+export const UPLOAD_ID_REGEX = /^[a-f0-9]{32}$/;
