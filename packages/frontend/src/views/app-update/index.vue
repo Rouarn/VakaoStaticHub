@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 import {
   NButton,
   NDatePicker,
+  NDrawer,
+  NDrawerContent,
   NIcon,
   NInput,
   NInputNumber,
@@ -48,6 +50,7 @@ import {
   deleteApp,
   deleteVersion,
   getApkDownloadUrl,
+  getVersion,
   getRollbackCandidates,
   listApps,
   listVersions,
@@ -86,6 +89,26 @@ const page = ref(1);
 const pageSize = ref(10);
 const loading = ref(false);
 const error = ref('');
+
+// 版本详情抽屉
+const detailShow = ref(false);
+const detailLoading = ref(false);
+const detailError = ref('');
+const detail = ref<AppVersionRecord | null>(null);
+
+async function openDetail(version: AppVersionRecord) {
+  detailShow.value = true;
+  detailLoading.value = true;
+  detailError.value = '';
+  detail.value = version;
+  try {
+    detail.value = await getVersion(version.id);
+  } catch (e) {
+    detailError.value = getErrorMessage(e, '版本详情加载失败');
+  } finally {
+    detailLoading.value = false;
+  }
+}
 
 const appOptions = computed(() => [
   { label: '全部应用', value: '' },
@@ -728,7 +751,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-3 animate-fade-up">
     <PageHeader
       title="APP 版本管理"
       description="上传 APK、全量/灰度发布、强更与一键回滚；下架原因区分自动与手动"
@@ -751,7 +774,7 @@ onMounted(async () => {
     </PageHeader>
 
     <!-- 应用栏 -->
-    <section class="glass-panel px-4 py-3 flex flex-col gap-2">
+    <section class="glass-panel shrink-0 px-4 py-3 flex flex-col gap-2">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="text-12px text-ink-sub shrink-0">应用</span>
         <button
@@ -845,6 +868,7 @@ onMounted(async () => {
       </div>
     </section>
 
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
     <NSpin :show="loading">
       <ErrorState v-if="error" :message="error" @retry="loadVersions" />
 
@@ -991,6 +1015,12 @@ onMounted(async () => {
               ></template>
               编辑
             </NButton>
+            <NButton size="tiny" quaternary @click="openDetail(version)">
+              <template #icon
+                ><NIcon><InformationCircleOutline /></NIcon
+              ></template>
+              详情
+            </NButton>
             <NButton size="tiny" @click="openForce(version)">
               <template #icon
                 ><NIcon><KeyOutline /></NIcon
@@ -1035,8 +1065,9 @@ onMounted(async () => {
           </div>
         </article>
 
-        <footer class="glass-panel px-4 py-2 flex items-center justify-end">
+        <footer class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end">
           <NPagination
+        :page-slot="5"
             v-model:page="page"
             v-model:page-size="pageSize"
             :item-count="total"
@@ -1048,6 +1079,150 @@ onMounted(async () => {
         </footer>
       </div>
     </NSpin>
+    </div>
+
+    <NDrawer
+      v-model:show="detailShow"
+      width="min(440px, 92vw)"
+      placement="right"
+    >
+      <NDrawerContent title="版本详情" closable>
+        <NSpin :show="detailLoading">
+          <p v-if="detailError" class="m-0 text-12px text-red-500">
+            {{ detailError }}
+          </p>
+          <div v-else-if="detail" class="flex flex-col gap-4">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-14px font-600 text-ink">
+                {{ detail.appKey }} · v{{ detail.versionName }}
+              </span>
+              <NTag
+                size="small"
+                :type="statusMetaOf(detail).tag"
+                :bordered="false"
+              >
+                {{ statusMetaOf(detail).label }}
+              </NTag>
+              <NTag
+                v-if="detail.forceUpdate === 1"
+                size="small"
+                type="error"
+                :bordered="false"
+                >强制更新</NTag
+              >
+            </div>
+
+            <dl
+              class="m-0 grid grid-cols-[86px_1fr] gap-x-3 gap-y-2 text-12px"
+            >
+              <dt class="text-ink-sub">平台</dt>
+              <dd class="m-0 text-ink">{{ detail.platform }}</dd>
+
+              <dt class="text-ink-sub">版本号</dt>
+              <dd class="m-0 text-ink tabular-nums">
+                {{ detail.versionCode }}
+              </dd>
+
+              <dt class="text-ink-sub">包大小</dt>
+              <dd class="m-0 text-ink">
+                {{ formatBytes(detail.packageSize) }}
+              </dd>
+
+              <dt class="text-ink-sub">SHA-256</dt>
+              <dd class="m-0 text-ink font-mono text-11px break-all">
+                {{ detail.checksum }}
+              </dd>
+
+              <dt class="text-ink-sub">存储位置</dt>
+              <dd class="m-0 text-ink break-all">
+                {{ detail.storageRootId }} / {{ detail.category }} /
+                {{ detail.relPath }}
+              </dd>
+
+              <dt class="text-ink-sub">发布时间</dt>
+              <dd class="m-0 text-ink">
+                {{ formatDateTime(detail.publishTime) }}
+              </dd>
+
+              <dt class="text-ink-sub">强制更新</dt>
+              <dd class="m-0 text-ink">
+                {{
+                  detail.forceUpdate === 1
+                    ? `是（最低版本号 ${detail.minVersionCode}）`
+                    : '否'
+                }}
+              </dd>
+
+              <dt class="text-ink-sub">灰度</dt>
+              <dd class="m-0 text-ink">
+                {{
+                  detail.status === APP_VERSION_STATUS.GRAY
+                    ? `${detail.grayPercent}%${detail.grayAutoIncrement === 1 ? ' · 自动递增' : ''}`
+                    : '—'
+                }}
+              </dd>
+
+              <dt class="text-ink-sub">定时发布</dt>
+              <dd class="m-0 text-ink">
+                <template v-if="detail.scheduledPublishAt">
+                  {{ formatDateTime(detail.scheduledPublishAt) }}（{{
+                    detail.scheduledPublishMode === 'gray'
+                      ? `灰度 ${detail.scheduledGrayPercent}%`
+                      : '全量'
+                  }}）
+                </template>
+                <template v-else>—</template>
+              </dd>
+
+              <dt class="text-ink-sub">下架原因</dt>
+              <dd class="m-0 text-ink">
+                {{ offlineReasonLabel(detail) || '—' }}
+              </dd>
+
+              <dt class="text-ink-sub">创建时间</dt>
+              <dd class="m-0 text-ink">
+                {{ formatDateTime(detail.createdAt) }}
+              </dd>
+
+              <dt class="text-ink-sub">更新时间</dt>
+              <dd class="m-0 text-ink">
+                {{ formatDateTime(detail.updatedAt) }}
+              </dd>
+            </dl>
+
+            <div>
+              <p class="m-0 mb-1 text-11px text-ink-sub">更新日志</p>
+              <p class="m-0 text-12px text-ink whitespace-pre-wrap">
+                {{ detail.updateLog || '—' }}
+              </p>
+            </div>
+
+            <div v-if="detail.remark">
+              <p class="m-0 mb-1 text-11px text-ink-sub">备注</p>
+              <p class="m-0 text-12px text-ink whitespace-pre-wrap">
+                {{ detail.remark }}
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <NButton
+                tag="a"
+                :href="getApkDownloadUrl(detail.id)"
+                target="_blank"
+                rel="noreferrer"
+                size="small"
+              >
+                <template #icon
+                  ><NIcon><DocumentTextOutline /></NIcon
+                ></template>
+                下载 APK
+              </NButton>
+              <NButton size="small" @click="detailShow = false">关闭</NButton>
+            </div>
+          </div>
+        </NSpin>
+      </NDrawerContent>
+    </NDrawer>
 
     <!-- 应用创建/重命名 -->
     <NModal

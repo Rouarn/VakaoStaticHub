@@ -53,7 +53,7 @@ async function doLogin() {
 <template>
   <PublicPage>
     <div class="min-h-full flex items-center justify-center p-6">
-      <div class="glass-panel animate-fade-up w-full max-w-95 px-8 py-10">
+      <div class="glass-panel animate-fade-up w-full max-w-95 px-5 sm:px-8 py-8 sm:py-10">
         <div class="mb-8 text-center">
           <img
             src="/brand/star-four.svg"

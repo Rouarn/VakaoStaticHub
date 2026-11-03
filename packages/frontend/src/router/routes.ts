@@ -188,11 +188,11 @@ const protectedChildren: RouteRecordRaw[] = [
     },
   },
   {
-    // 内部预览：同一页面、需要登录；链接参数与对外预览一致
-    path: '/local-file-preview',
+    // 内部预览：在 DefaultLayout 内容区，保留输入框，可 URL 直达
+    path: 'local-file-preview',
     name: 'local-file-preview',
     component: () => import('@/views/file-preview/index.vue'),
-    meta: { title: '本地预览' },
+    meta: { title: '本地预览', group: '工具' },
   },
 ];
 

@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { NButton, NIcon, NSpin, NTag } from 'naive-ui';
+import {
+  NButton,
+  NIcon,
+  NPopconfirm,
+  NSpin,
+  NTag,
+  useMessage,
+} from 'naive-ui';
 import {
   AlbumsOutline,
   FolderOpenOutline,
   PieChartOutline,
   RefreshOutline,
+  SyncOutline,
 } from '@vicons/ionicons5';
 import type { UsageStatsResult } from '@vakao/shared';
-import { getUsageStats } from '@/api/files';
+import { getUsageStats, syncFileIndex } from '@/api/files';
 import { getErrorMessage } from '@/utils/http';
 import { formatBytes } from '@/utils/file-types';
 import { percentOf } from '@/utils/format';
@@ -20,7 +28,9 @@ import DonutChart from '@/components/charts/donut-chart.vue';
 import BarList from '@/components/charts/bar-list.vue';
 
 /** 存储统计：按根目录与分类的容量、占比与文件数 */
+const message = useMessage();
 const data = ref<UsageStatsResult | null>(null);
+const syncing = ref(false);
 const loading = ref(false);
 const error = ref('');
 
@@ -34,6 +44,20 @@ async function load() {
     data.value = null;
   } finally {
     loading.value = false;
+  }
+}
+
+/** 重扫磁盘并刷新索引；完成后刷新统计 */
+async function rebuildIndex() {
+  syncing.value = true;
+  try {
+    await syncFileIndex();
+    message.success('文件索引已重建');
+    await load();
+  } catch (e) {
+    message.error(getErrorMessage(e, '重建索引失败'));
+  } finally {
+    syncing.value = false;
   }
 }
 
@@ -69,13 +93,24 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="存储统计"
       description="按资源根目录与分类统计容量占用、占比与文件数（GET /files/stats/usage）"
       :icon="PieChartOutline"
     >
       <template #actions>
+        <NPopconfirm @positive-click="rebuildIndex">
+          <template #trigger>
+            <NButton size="small" quaternary :loading="syncing">
+              <template #icon
+                ><NIcon><SyncOutline /></NIcon>
+              </template>
+              重建索引
+            </NButton>
+          </template>
+          重新扫描磁盘并刷新文件索引，文件较多时可能耗时，确认继续？
+        </NPopconfirm>
         <NButton size="small" quaternary @click="load">
           <template #icon
             ><NIcon><RefreshOutline /></NIcon
@@ -85,6 +120,7 @@ onMounted(() => void load());
       </template>
     </PageHeader>
 
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
     <NSpin :show="loading">
       <ErrorState v-if="error" :message="error" @retry="load" />
 
@@ -238,5 +274,6 @@ onMounted(() => void load());
         </p>
       </div>
     </NSpin>
+    </div>
   </div>
 </template>

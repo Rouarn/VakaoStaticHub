@@ -78,6 +78,16 @@ const headerDescription = computed(() => {
   return `${total.value} 个文件${size ? ` · ${formatBytes(size)}` : ''}`;
 });
 
+/** 没有有效分类时自动选第一个：避免回落到不存在的默认分类导致 0 文件 */
+function ensureActiveCategory() {
+  const list = categories.value;
+  if (list.length === 0) return false;
+  const active = categoryStore.activeCategory;
+  if (active && list.some((c) => c.name === active)) return false;
+  categoryStore.setActiveCategory(list[0].name);
+  return true;
+}
+
 /** 切换根目录：加载分类并自动选中第一个，避免落到旧分类 */
 async function onRootChange(id: string) {
   appStore.setActiveRoot(id);
@@ -104,7 +114,10 @@ const sortOptions = [
   { label: '大小', value: 'size' },
 ];
 
+let loadSeq = 0;
+
 async function load() {
+  const seq = ++loadSeq;
   loading.value = true;
   error.value = '';
   try {
@@ -115,21 +128,33 @@ async function load() {
       sort: sort.value,
       order: order.value,
     });
+    if (seq !== loadSeq) return;
     items.value = result.items;
     total.value = result.total;
     // 翻页后清理已不在当前页的选中项
     const visible = new Set(result.items.map((i) => i.path));
     selected.value = new Set([...selected.value].filter((p) => visible.has(p)));
   } catch (e) {
+    if (seq !== loadSeq) return;
     error.value = getErrorMessage(e, '文件列表加载失败');
     items.value = [];
     total.value = 0;
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
-const reload = () => void load();
+/** 合并同一轮初始化里的多次加载（分类兜底 + watcher 会同时触发） */
+let loadTimer: number | null = null;
+function scheduleLoad() {
+  if (loadTimer !== null) return;
+  loadTimer = window.setTimeout(() => {
+    loadTimer = null;
+    void load();
+  }, 0);
+}
+
+const reload = () => scheduleLoad();
 
 onMounted(async () => {
   try {
@@ -142,18 +167,20 @@ onMounted(async () => {
   if (categoryStore.categoriesOf(rootId.value).length === 0) {
     await categoryStore.loadCategories(rootId.value);
   }
-  await load();
+  if (!ensureActiveCategory()) scheduleLoad();
 });
 
-watch(rootId, () => {
+watch(categories, () => ensureActiveCategory(), { immediate: true });
+
+watch(rootId, async () => {
   page.value = 1;
   selected.value = new Set();
   // 先清空旧列表：否则切换根目录/分类的请求返回前，
   // 旧文件会带着新分类拼出错误的缩略图 URL（404）
   items.value = [];
   total.value = 0;
-  void categoryStore.loadCategories(rootId.value);
-  void load();
+  await categoryStore.loadCategories(rootId.value);
+  if (!ensureActiveCategory()) scheduleLoad();
 });
 
 watch(category, () => {
@@ -161,16 +188,16 @@ watch(category, () => {
   selected.value = new Set();
   items.value = [];
   total.value = 0;
-  void load();
+  scheduleLoad();
 });
 
-watch([page, pageSize, sort, order], () => void load());
+watch([page, pageSize, sort, order], () => scheduleLoad());
 
 watch(
   q,
   useDebounceFn(() => {
     page.value = 1;
-    void load();
+    scheduleLoad();
   }, 300),
 );
 
@@ -423,12 +450,14 @@ function onShareCreated(link: ShareLink) {
     </PageHeader>
 
     <!-- 分类 chips（原分类面板的入口迁移到页内） -->
-    <div class="flex flex-wrap items-center gap-2">
+    <div
+      class="flex flex-nowrap sm:flex-wrap items-center gap-2 overflow-x-auto scrollbar-hidden pb-1"
+    >
       <button
         v-for="c in categories"
         :key="c.name"
         type="button"
-        class="h-7 px-3 rounded-full border border-solid text-12px cursor-pointer transition-colors"
+        class="h-7 px-3 rounded-full border border-solid text-12px cursor-pointer transition-colors shrink-0"
         :class="
           category === c.name
             ? 'bg-brand-600 text-white border-transparent'
@@ -448,7 +477,7 @@ function onShareCreated(link: ShareLink) {
       </button>
       <button
         type="button"
-        class="ml-auto h-7 px-3 rounded-full border border-solid border-[var(--mat-line)] bg-[var(--mat-chip)] text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink flex items-center gap-1.5"
+        class="ml-auto shrink-0 h-7 px-3 rounded-full border border-solid border-[var(--mat-line)] bg-[var(--mat-chip)] text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink flex items-center gap-1.5"
         @click="manageShow = true"
       >
         <NIcon :size="13"><SettingsOutline /></NIcon>
@@ -461,7 +490,7 @@ function onShareCreated(link: ShareLink) {
         :value="rootId"
         :options="rootOptions"
         size="small"
-        class="w-40"
+        class="w-full sm:w-40"
         @update:value="onRootChange"
       />
       <NInput
@@ -469,7 +498,7 @@ function onShareCreated(link: ShareLink) {
         size="small"
         clearable
         placeholder="搜索文件名 / 路径"
-        class="w-64!"
+        class="w-full! sm:w-64!"
       >
         <template #prefix>
           <NIcon :size="15"><SearchOutline /></NIcon>
@@ -578,7 +607,7 @@ function onShareCreated(link: ShareLink) {
 
         <div
           v-else-if="viewMode === 'grid'"
-          class="content-grid grid-cols-[repeat(auto-fill,minmax(212px,1fr))]"
+          class="content-grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(212px,1fr))]"
         >
           <FileCard
             v-for="file in items"
@@ -622,9 +651,10 @@ function onShareCreated(link: ShareLink) {
     <!-- 分页（无数据时隐藏，避免 0 条却显示页码） -->
     <footer
       v-if="total > 0"
-      class="flex items-center justify-end gap-2 px-1 pb-1"
+      class="flex flex-wrap items-center justify-between sm:justify-end gap-2 px-1 pb-1"
     >
       <NPagination
+        :page-slot="5"
         v-model:page="page"
         v-model:page-size="pageSize"
         :item-count="total"

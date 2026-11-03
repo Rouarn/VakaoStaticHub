@@ -66,11 +66,14 @@ function onPointerUp() {
         v-else
         :src="props.src"
         :alt="props.filename"
-        class="max-w-full max-h-full select-none will-change-transform cursor-grab"
+        class="max-w-full max-h-full select-none will-change-transform cursor-grab active:cursor-grabbing"
+        draggable="false"
+        style="touch-action: none"
         :style="{
           transform: `translate(${tx}px, ${ty}px) scale(${scale}) rotate(${rotate}deg)`,
         }"
         @wheel.prevent="onWheel"
+        @dragstart.prevent
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"

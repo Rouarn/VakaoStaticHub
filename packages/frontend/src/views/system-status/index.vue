@@ -167,7 +167,7 @@ function rootShareLabel(totalSize: number | null): string {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="系统状态"
       description="服务运行指标：健康、运行时长、内存、存储、分享与升级事件（GET /metrics）"
@@ -199,7 +199,7 @@ function rootShareLabel(totalSize: number | null): string {
     </PageHeader>
 
     <!-- 状态条 -->
-    <section class="glass-panel px-4 py-3 flex items-center gap-3 flex-wrap">
+    <section class="glass-panel shrink-0 px-4 py-3 flex items-center gap-3 flex-wrap">
       <div
         class="w-2.5 h-2.5 rounded-full shrink-0"
         :class="healthy ? 'bg-emerald-500' : 'bg-red-500'"
@@ -224,6 +224,7 @@ function rootShareLabel(totalSize: number | null): string {
       </NTag>
     </section>
 
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
     <NSpin :show="loading">
       <ErrorState v-if="!data && error" :message="error" @retry="load()" />
 
@@ -441,5 +442,6 @@ function rootShareLabel(totalSize: number | null): string {
         </p>
       </div>
     </NSpin>
+    </div>
   </div>
 </template>

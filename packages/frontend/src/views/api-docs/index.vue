@@ -250,7 +250,7 @@ function copy(text: string) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="API 文档"
       description="从后端 /docs-json 拉取 OpenAPI 自建渲染，按标签分组、支持搜索与响应示例"
@@ -267,7 +267,7 @@ function copy(text: string) {
     </PageHeader>
 
     <!-- 鉴权说明 -->
-    <section class="glass-panel px-4 py-3 flex items-start gap-3">
+    <section class="glass-panel shrink-0 px-4 py-3 flex items-start gap-3">
       <div class="glass-chip w-9 h-9 flex items-center justify-center shrink-0">
         <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
           ><KeyOutline
@@ -286,7 +286,11 @@ function copy(text: string) {
       </div>
     </section>
 
-    <NSpin :show="loading">
+    <NSpin
+      :show="loading"
+      class="api-docs-spin flex-1 min-h-0"
+      content-class="h-full"
+    >
       <ErrorState v-if="error" :message="error" @retry="load" />
 
       <EmptyState
@@ -298,9 +302,12 @@ function copy(text: string) {
         <NButton size="small" @click="load">重新拉取</NButton>
       </EmptyState>
 
-      <div v-else class="flex flex-col gap-3">
+      <div
+        v-else
+        class="h-full flex flex-col gap-3 overflow-y-auto lg:overflow-hidden"
+      >
         <section
-          class="glass-panel px-4 py-3 flex items-center gap-3 flex-wrap"
+          class="glass-panel shrink-0 px-4 py-3 flex items-center gap-3 flex-wrap"
         >
           <NInput
             v-model:value="search"
@@ -324,10 +331,12 @@ function copy(text: string) {
           </span>
         </section>
 
-        <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)] items-start">
+        <div
+          class="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:flex-1 lg:min-h-0"
+        >
           <!-- 接口目录 -->
           <aside
-            class="glass-panel px-3 py-3 flex flex-col gap-3 xl:sticky xl:top-2 max-h-70vh overflow-y-auto"
+            class="api-docs-pane glass-panel box-border px-3 py-3 flex flex-col gap-3 lg:h-full lg:min-h-0 lg:overflow-y-auto"
           >
             <div
               v-for="group in grouped"
@@ -383,7 +392,7 @@ function copy(text: string) {
           <!-- 接口详情 -->
           <section
             v-if="current"
-            class="glass-panel px-5 py-4 flex flex-col gap-4 min-w-0"
+            class="api-docs-pane glass-panel box-border px-5 py-4 flex flex-col gap-4 min-w-0 lg:h-full lg:min-h-0 lg:overflow-y-auto"
           >
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-2 flex-wrap">

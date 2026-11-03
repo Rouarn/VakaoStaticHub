@@ -134,7 +134,7 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="审计日志"
       description="记录登录、文件、分享与 APP 版本等关键操作，支持按操作人/动作/资源/时间筛选"
@@ -151,7 +151,7 @@ onMounted(() => void load());
     </PageHeader>
 
     <!-- 筛选 -->
-    <section class="glass-panel px-4 py-3 flex flex-wrap items-center gap-2">
+    <section class="glass-panel shrink-0 px-4 py-3 flex flex-wrap items-center gap-2">
       <NInput
         v-model:value="username"
         size="small"
@@ -191,6 +191,7 @@ onMounted(() => void load());
       </span>
     </section>
 
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
     <NSpin :show="loading">
       <ErrorState v-if="error" :message="error" @retry="load" />
 
@@ -227,7 +228,8 @@ onMounted(() => void load());
                 <tr
                   v-for="log in data.items"
                   :key="log.id"
-                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60 hover:bg-brand-500/5"
+                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60 hover:bg-brand-500/5 cursor-pointer"
+                  @click="openDetail(log)"
                 >
                   <td
                     class="py-2.5 pr-3 text-ink-sub tabular-nums whitespace-nowrap"
@@ -282,8 +284,9 @@ onMounted(() => void load());
           </div>
         </section>
 
-        <footer class="glass-panel px-4 py-2 flex items-center justify-end">
+        <footer class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end">
           <NPagination
+        :page-slot="5"
             v-model:page="page"
             v-model:page-size="pageSize"
             :item-count="data.total"
@@ -293,9 +296,14 @@ onMounted(() => void load());
         </footer>
       </div>
     </NSpin>
+    </div>
 
     <!-- 详情抽屉 -->
-    <NDrawer v-model:show="drawerShow" :width="560" placement="right">
+    <NDrawer
+      v-model:show="drawerShow"
+      width="min(560px, 92vw)"
+      placement="right"
+    >
       <NDrawerContent
         :title="
           current
@@ -305,7 +313,7 @@ onMounted(() => void load());
         closable
       >
         <div v-if="current" class="flex flex-col gap-3">
-          <div class="grid grid-cols-2 gap-2 text-12px">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-12px">
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">时间</p>
               <p class="m-0 mt-0.5 text-ink tabular-nums">
@@ -334,7 +342,7 @@ onMounted(() => void load());
               </p>
             </div>
             <div
-              class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-2"
+              class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-full"
             >
               <p class="m-0 text-10px text-ink-sub">IP</p>
               <p class="m-0 mt-0.5 text-ink font-mono text-11px">
@@ -342,7 +350,7 @@ onMounted(() => void load());
               </p>
             </div>
             <div
-              class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-2"
+              class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2 col-span-full"
             >
               <p class="m-0 text-10px text-ink-sub">User-Agent</p>
               <p class="m-0 mt-0.5 text-ink text-11px break-all">
@@ -358,7 +366,7 @@ onMounted(() => void load());
             </p>
             <pre
               v-if="prettyDetails"
-              class="m-0 max-h-96 overflow-auto rounded-xl bg-black/4 dark:bg-black/30 border border-glass-border dark:border-glass-border-dark p-3 text-11px leading-5 text-ink-sub font-mono"
+              class="m-0 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/4 dark:bg-black/30 border border-glass-border dark:border-glass-border-dark p-3 text-11px leading-5 text-ink-sub font-mono"
               >{{ prettyDetails }}</pre>
             <p v-else class="m-0 text-11px text-ink-sub">无附加详情</p>
           </div>

@@ -18,6 +18,9 @@ export const useAuthStore = defineStore('auth', {
       this.accessToken = payload.accessToken;
       this.user = payload.user;
     },
+    setUser(user: UserInfo) {
+      this.user = user;
+    },
     clearAuth() {
       this.accessToken = '';
       this.user = null;

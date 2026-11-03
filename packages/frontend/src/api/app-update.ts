@@ -54,6 +54,11 @@ export function deleteApp(appKey: string) {
   }>(`/app-updates/apps/${encodeURIComponent(appKey)}`);
 }
 
+/** 单个版本详情（GET /app-updates/versions/:id） */
+export function getVersion(id: number) {
+  return http.get<AppVersionRecord>(`/app-updates/versions/${id}`);
+}
+
 export function listVersions(params: ListVersionsQuery) {
   return http.get<PagedResult<AppVersionRecord>>(
     '/app-updates/versions',

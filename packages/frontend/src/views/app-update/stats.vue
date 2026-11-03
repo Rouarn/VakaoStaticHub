@@ -145,7 +145,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="升级漏斗"
       description="按应用与时间范围统计 check → 下载 → 安装的转化情况"
@@ -161,7 +161,7 @@ onMounted(async () => {
       </template>
     </PageHeader>
 
-    <section class="glass-panel px-4 py-3 flex flex-wrap items-end gap-3">
+    <section class="glass-panel shrink-0 px-4 py-3 flex flex-wrap items-end gap-3">
       <label class="flex flex-col gap-1">
         <span class="text-11px text-ink-sub">应用</span>
         <NSelect
@@ -203,6 +203,7 @@ onMounted(async () => {
       </span>
     </section>
 
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
     <NSpin :show="loading">
       <ErrorState v-if="error" :message="error" @retry="load" />
 
@@ -373,5 +374,6 @@ onMounted(async () => {
         </section>
       </div>
     </NSpin>
+    </div>
   </div>
 </template>

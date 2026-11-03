@@ -17,7 +17,10 @@ import {
   LinkOutline,
   RefreshOutline,
 } from '@vicons/ionicons5';
-import { buildPlaceholderUrl } from '@/api/placeholder';
+import {
+  buildPlaceholderPresetUrl,
+  buildPlaceholderUrl,
+} from '@/api/placeholder';
 import PageHeader from '@/components/common/page-header.vue';
 
 /**
@@ -76,19 +79,41 @@ const presets = [
 function applyPreset(width: number, height: number) {
   form.width = width;
   form.height = height;
+  endpointMode.value = 'custom';
 }
 
+/** 接口形态：自定义宽高 / 默认 300×150 / 方形 512 */
+const endpointMode = ref<'custom' | 'default' | 'square'>('custom');
+const SQUARE_SIZE = 512;
+
+const previewSize = computed(() => {
+  if (endpointMode.value === 'default') return { width: 300, height: 150 };
+  if (endpointMode.value === 'square')
+    return { width: SQUARE_SIZE, height: SQUARE_SIZE };
+  return { width: form.width, height: form.height };
+});
+
+const styleParams = computed(() => ({
+  text: form.text.trim(),
+  bgColor: form.bgColor,
+  textColor: form.textColor,
+  fontFamily: form.fontFamily,
+  fontWeight: form.fontWeight,
+  ...(form.fontSize ? { fontSize: form.fontSize } : {}),
+}));
+
 const url = computed(() =>
-  buildPlaceholderUrl({
-    width: form.width,
-    height: form.height,
-    text: form.text.trim(),
-    bgColor: form.bgColor,
-    textColor: form.textColor,
-    fontFamily: form.fontFamily,
-    fontWeight: form.fontWeight,
-    ...(form.fontSize ? { fontSize: form.fontSize } : {}),
-  }),
+  endpointMode.value === 'custom'
+    ? buildPlaceholderUrl({
+        width: form.width,
+        height: form.height,
+        ...styleParams.value,
+      })
+    : buildPlaceholderPresetUrl(
+        endpointMode.value,
+        SQUARE_SIZE,
+        styleParams.value,
+      ),
 );
 
 const previewError = ref(false);
@@ -163,11 +188,12 @@ function rasterize(
 }
 
 async function download() {
+  const size = previewSize.value;
   if (
-    form.width < 1 ||
-    form.width > 4096 ||
-    form.height < 1 ||
-    form.height > 4096
+    size.width < 1 ||
+    size.width > 4096 ||
+    size.height < 1 ||
+    size.height > 4096
   ) {
     message.error('宽高需在 1~4096 之间');
     return;
@@ -187,14 +213,14 @@ async function download() {
     } else {
       const blob = await rasterize(
         svgText,
-        form.width,
-        form.height,
+        size.width,
+        size.height,
         form.format,
       );
       saveBlob(blob, form.format === 'png' ? 'png' : 'jpg');
     }
     message.success(
-      `已下载 ${form.width}×${form.height} ${form.format.toUpperCase()}`,
+      `已下载 ${size.width}×${size.height} ${form.format.toUpperCase()}`,
     );
   } catch (e) {
     message.error(e instanceof Error ? e.message : '下载失败');
@@ -205,7 +231,7 @@ async function download() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="占位图生成"
       description="自定义尺寸、文字与配色，实时预览并下载；后端只输出 SVG，位图格式由前端栅格化"
@@ -232,7 +258,8 @@ async function download() {
       </template>
     </PageHeader>
 
-    <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)] items-start">
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
+      <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)] items-start">
       <!-- 配置面板 -->
       <section class="glass-panel px-4 py-4 flex flex-col gap-3">
         <div class="flex flex-wrap items-center gap-1.5">
@@ -248,6 +275,41 @@ async function download() {
           </NButton>
         </div>
 
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-11px text-ink-sub mr-1">接口形态</span>
+          <NButton
+            size="tiny"
+            :type="endpointMode === 'custom' ? 'primary' : 'default'"
+            @click="endpointMode = 'custom'"
+          >
+            自定义宽高
+          </NButton>
+          <NButton
+            size="tiny"
+            :type="endpointMode === 'default' ? 'primary' : 'default'"
+            @click="endpointMode = 'default'"
+          >
+            默认 300×150
+          </NButton>
+          <NButton
+            size="tiny"
+            :type="endpointMode === 'square' ? 'primary' : 'default'"
+            @click="endpointMode = 'square'"
+          >
+            方形 {{ SQUARE_SIZE }}
+          </NButton>
+        </div>
+        <p
+          v-if="endpointMode !== 'custom'"
+          class="m-0 text-10px text-ink-sub"
+        >
+          当前使用
+          <code class="font-mono">{{
+            endpointMode === 'default' ? '/placeholder' : '/placeholder/512'
+          }}</code>
+          ，宽高由接口固定；文字与配色仍通过 query 生效。
+        </p>
+
         <div class="grid grid-cols-2 gap-2">
           <div class="flex flex-col gap-1">
             <label class="text-11px text-ink-sub">宽度（1~4096）</label>
@@ -257,6 +319,7 @@ async function download() {
               :min="1"
               :max="4096"
               :step="10"
+              @update:value="endpointMode = 'custom'"
             />
           </div>
           <div class="flex flex-col gap-1">
@@ -267,6 +330,7 @@ async function download() {
               :min="1"
               :max="4096"
               :step="10"
+              @update:value="endpointMode = 'custom'"
             />
           </div>
         </div>
@@ -380,7 +444,7 @@ async function download() {
             v-if="!previewError"
             :key="url"
             :src="url"
-            :alt="`占位图 ${form.width}x${form.height}`"
+            :alt="`占位图 ${previewSize.width}x${previewSize.height}`"
             class="max-w-full max-h-360px object-contain rounded-md shadow-sm"
             @error="previewError = true"
           />
@@ -411,6 +475,7 @@ async function download() {
           image/svg+xml。
         </p>
       </section>
+    </div>
     </div>
   </div>
 </template>

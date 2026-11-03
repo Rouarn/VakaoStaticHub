@@ -6,7 +6,6 @@ import {
   NPagination,
   NSelect,
   NSpin,
-  NTag,
   useMessage,
 } from 'naive-ui';
 import {
@@ -18,16 +17,28 @@ import {
   RefreshOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type { DuplicateGroup, DuplicateScanResult } from '@vakao/shared';
+import type {
+  DuplicateFileItem,
+  DuplicateGroup,
+  DuplicateScanResult,
+} from '@vakao/shared';
 import { batchDelete, getDuplicateFiles } from '@/api/files';
 import { listRoots } from '@/api/roots';
 import { getErrorMessage } from '@/utils/http';
-import { formatBytes, formatTime } from '@/utils/file-types';
+import {
+  formatBytes,
+  formatTime,
+  getExtension,
+  getFileKind,
+} from '@/utils/file-types';
+import { buildFileUrl, buildThumbUrl } from '@/utils/file-url';
 import { truncateMiddle } from '@/utils/format';
 import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
+import PreviewDialog from '@/components/preview/preview-dialog.vue';
+import type { PreviewTarget } from '@/components/preview/types';
 
 /**
  * 重复文件检测与清理
@@ -47,6 +58,9 @@ const page = ref(1);
 const pageSize = ref(5);
 const expanded = ref<Set<string>>(new Set());
 const keepIndex = ref<Record<string, number>>({});
+const previewShow = ref(false);
+const previewIndex = ref(0);
+const previewFiles = ref<PreviewTarget[]>([]);
 
 const rootOptions = computed(() => [
   { label: '全部根目录', value: '' },
@@ -58,6 +72,42 @@ const groupCount = computed(() => scan.value?.groupCount ?? 0);
 
 function rootName(id: string) {
   return roots.value.find((root) => root.id === id)?.name ?? id;
+}
+
+function isImageFile(file: DuplicateFileItem) {
+  return getFileKind(file.name) === 'image';
+}
+
+function extOf(file: DuplicateFileItem) {
+  return (getExtension(file.name) || 'FILE').toUpperCase();
+}
+
+function thumbOf(file: DuplicateFileItem) {
+  return buildThumbUrl(
+    { rootId: file.rootId, category: file.category, relPath: file.relPath },
+    160,
+  );
+}
+
+/** 重复组内任意一张缩略图 → 打开整组预览，左右切换对比 */
+function openPreview(group: DuplicateGroup, index: number) {
+  previewFiles.value = group.files.map((file) => ({
+    filename: file.name,
+    src: buildFileUrl({
+      rootId: file.rootId,
+      category: file.category,
+      relPath: file.relPath,
+    }),
+    downloadSrc: buildFileUrl({
+      rootId: file.rootId,
+      category: file.category,
+      relPath: file.relPath,
+      download: true,
+    }),
+    size: file.size,
+  }));
+  previewIndex.value = index;
+  previewShow.value = true;
 }
 
 async function loadRoots() {
@@ -240,7 +290,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="重复文件"
       description="按内容 SHA-256 检测重复文件，可逐组对比并保留一个后清理其余"
@@ -275,13 +325,14 @@ onMounted(async () => {
     </PageHeader>
 
     <div
-      class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub"
+      class="glass-chip shrink-0 self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub"
     >
       <NIcon :size="14"><InformationCircleOutline /></NIcon>
       后端 /files/duplicates 服务端分页（page /
       pageSize），按内容哈希分组；扫描会惰性补算缺失的内容哈希
     </div>
 
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
     <NSpin :show="loading">
       <ErrorState v-if="error" :message="error" @retry="() => load()" />
 
@@ -377,16 +428,49 @@ onMounted(async () => {
           <!-- 默认展示摘要，展开后对比 -->
           <div
             v-if="!expanded.has(group.contentHash)"
-            class="flex flex-wrap gap-1.5"
+            class="flex flex-wrap items-start gap-2"
           >
-            <NTag
+            <button
               v-for="(file, index) in group.files"
-              :key="file.relPath"
-              size="tiny"
-              :bordered="false"
+              :key="`${file.rootId}-${file.category}-${file.relPath}`"
+              type="button"
+              class="group relative w-14 text-left bg-transparent border-none p-0 cursor-pointer"
+              :title="`${file.name}\n${rootName(file.rootId)} / ${file.category}`"
+              @click="openPreview(group, index)"
             >
-              {{ index === keepOf(group) ? '保留：' : '' }}{{ file.name }}
-            </NTag>
+              <span
+                class="block w-14 h-14 rounded-lg overflow-hidden border border-[var(--mat-line)] bg-[var(--mat-chip)]"
+                :class="
+                  index === keepOf(group)
+                    ? 'ring-2 ring-brand-500/70'
+                    : ''
+                "
+              >
+                <img
+                  v-if="isImageFile(file)"
+                  :src="thumbOf(file)"
+                  :alt="file.name"
+                  loading="lazy"
+                  decoding="async"
+                  class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                />
+                <span
+                  v-else
+                  class="w-full h-full flex items-center justify-center text-10px font-600 text-ink-sub"
+                >
+                  {{ extOf(file) }}
+                </span>
+              </span>
+              <span
+                v-if="index === keepOf(group)"
+                class="absolute left-1 top-1 rounded bg-brand-600 px-1 text-9px text-white leading-4"
+                >保留</span
+              >
+              <span
+                class="mt-1 block text-10px text-ink-sub truncate max-w-14"
+                >{{ file.name }}</span
+              >
+            </button>
           </div>
 
           <div v-else class="overflow-x-auto">
@@ -420,15 +504,41 @@ onMounted(async () => {
                     </NButton>
                   </td>
                   <td class="py-2 px-2 min-w-0">
-                    <p
-                      class="m-0 text-ink truncate max-w-260px"
-                      :title="file.relPath"
-                    >
-                      {{ file.name }}
-                    </p>
-                    <p class="m-0 text-10px text-ink-sub truncate max-w-260px">
-                      {{ file.relPath }}
-                    </p>
+                    <div class="flex items-center gap-2 min-w-0">
+                      <button
+                        type="button"
+                        class="w-10 h-10 rounded-md overflow-hidden border border-[var(--mat-line)] bg-[var(--mat-chip)] shrink-0 p-0 cursor-pointer"
+                        :title="`预览 ${file.name}`"
+                        @click="openPreview(group, index)"
+                      >
+                        <img
+                          v-if="isImageFile(file)"
+                          :src="thumbOf(file)"
+                          :alt="file.name"
+                          loading="lazy"
+                          decoding="async"
+                          class="w-full h-full object-cover"
+                        />
+                        <span
+                          v-else
+                          class="w-full h-full flex items-center justify-center text-9px font-600 text-ink-sub"
+                          >{{ extOf(file) }}</span
+                        >
+                      </button>
+                      <div class="min-w-0">
+                        <p
+                          class="m-0 text-ink truncate max-w-260px"
+                          :title="file.relPath"
+                        >
+                          {{ file.name }}
+                        </p>
+                        <p
+                          class="m-0 text-10px text-ink-sub truncate max-w-260px"
+                        >
+                          {{ file.relPath }}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                   <td class="py-2 px-2 text-ink-sub">
                     {{ rootName(file.rootId) }} / {{ file.category }}
@@ -446,12 +556,13 @@ onMounted(async () => {
         </section>
 
         <footer
-          class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2"
+          class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex flex-wrap items-center justify-end gap-2"
         >
           <span class="mr-auto text-11px text-ink-sub">
             共 {{ groupCount }} 组 · 服务端分页
           </span>
           <NPagination
+        :page-slot="5"
             v-model:page="page"
             v-model:page-size="pageSize"
             :item-count="groupCount"
@@ -462,6 +573,7 @@ onMounted(async () => {
         </footer>
       </div>
     </NSpin>
+    </div>
 
     <!-- 清理确认 -->
     <ConfirmModal
@@ -492,5 +604,11 @@ onMounted(async () => {
         </div>
       </div>
     </ConfirmModal>
+
+    <PreviewDialog
+      v-model:show="previewShow"
+      v-model:index="previewIndex"
+      :files="previewFiles"
+    />
   </div>
 </template>

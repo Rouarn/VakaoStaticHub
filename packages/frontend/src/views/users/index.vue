@@ -281,7 +281,7 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="用户管理"
       description="管理登录账号与角色；管理员可重置他人密码，删除由后端校验「不能删自己 / 至少保留一个管理员」"
@@ -303,6 +303,7 @@ onMounted(() => void load());
       </template>
     </PageHeader>
 
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
     <NSpin :show="loading">
       <ErrorState v-if="error" :message="error" @retry="load" />
 
@@ -455,9 +456,10 @@ onMounted(() => void load());
 
         <footer
           v-if="users.length > pageSize"
-          class="glass-panel px-4 py-2 flex items-center justify-end"
+          class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end"
         >
           <NPagination
+        :page-slot="5"
             v-model:page="page"
             v-model:page-size="pageSize"
             :item-count="users.length"
@@ -472,6 +474,7 @@ onMounted(() => void load());
         </p>
       </div>
     </NSpin>
+    </div>
 
     <!-- 创建账号 -->
     <NModal

@@ -216,6 +216,15 @@ export default defineConfig({
           box-shadow: none !important;
         }
 
+        /* API 文档：让 NSpin 内容撑满，目录与详情各自滚动 */
+        .api-docs-spin,
+        .api-docs-spin > .n-spin-content {
+          height: 100%;
+        }
+        .api-docs-pane > * {
+          flex-shrink: 0;
+        }
+
         /* ===== 指标条（原型：共享边框的 4 列指标，而不是 4 张浮卡） ===== */
         .metrics-strip {
           display: grid;
@@ -236,6 +245,9 @@ export default defineConfig({
         }
         @media (max-width: 1180px) {
           .metrics-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 640px) {
+          .metrics-strip { grid-template-columns: 1fr; }
         }
 
         /* ===== 数据表（原型规范：表头 34 / 行 44 / 发丝分隔 / 数字右对齐） ===== */

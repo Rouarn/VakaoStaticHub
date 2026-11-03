@@ -188,7 +188,7 @@ const jsonPreview = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="一言"
       description="调试分类与编码参数，查看原始响应与历史记录（后端反向代理 HITOKOTO_API_URL）"
@@ -204,7 +204,8 @@ const jsonPreview = computed(() => {
       </template>
     </PageHeader>
 
-    <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] items-start">
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
+      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] items-start">
       <div class="flex flex-col gap-4 min-w-0">
         <!-- 参数面板 -->
         <section class="glass-panel px-4 py-4 flex flex-col gap-3">
@@ -431,6 +432,7 @@ const jsonPreview = computed(() => {
           历史记录仅保存在当前浏览器 localStorage，不会上传服务器。
         </p>
       </section>
+    </div>
     </div>
   </div>
 </template>

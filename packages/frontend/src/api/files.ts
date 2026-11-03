@@ -187,6 +187,11 @@ export function cancelChunkUpload(uploadId: string) {
   return http.post<{ success: boolean }>('/files/upload/cancel', { uploadId });
 }
 
+/** 强制重建文件索引：重扫磁盘并刷新数据库 */
+export function syncFileIndex() {
+  return http.post<{ message: string }>('/files/sync');
+}
+
 // ==================== 文件操作 ====================
 
 export function batchDelete(rootId: string, category: string, paths: string[]) {

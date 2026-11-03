@@ -90,19 +90,4 @@ export class RootsController {
   async browse(@Query() query: BrowseDirectoriesQueryDto) {
     return await this.service.browseDirectories(query.path);
   }
-
-  /**
-   * 旧接口，保留响应形状（目录数组）以兼容既有调用方；
-   * 安全边界与 /roots/browse 完全一致，新代码请使用 /roots/browse。
-   */
-  @Get('system/directories')
-  @ApiOperation({
-    summary: '浏览服务器系统目录（旧接口，建议改用 /roots/browse）',
-    deprecated: true,
-  })
-  @ApiQuery({ name: 'path', required: false, description: '要浏览的目录路径' })
-  async browseDirectories(@Query('path') path?: string) {
-    const result = await this.service.browseDirectories(path);
-    return result.entries;
-  }
 }

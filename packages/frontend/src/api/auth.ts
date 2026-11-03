@@ -15,11 +15,3 @@ export function logout() {
 export function getProfile() {
   return http.get<UserInfo>('/auth/profile');
 }
-
-/** 修改当前用户密码 */
-export function changePassword(oldPassword: string, newPassword: string) {
-  return http.patch<{ success: true }>('/auth/password', {
-    oldPassword,
-    newPassword,
-  });
-}
