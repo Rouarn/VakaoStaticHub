@@ -342,8 +342,7 @@ onMounted(async () => {
               </p>
               <p class="m-0 mt-0.5 text-11px text-ink-sub">
                 单文件 {{ formatBytes(group.size) }} · {{ group.count }} 个副本
-                · 可释放
-                {{ formatBytes(group.size * (group.count - 1)) }} ·
+                · 可释放 {{ formatBytes(group.size * (group.count - 1)) }} ·
                 <span class="font-mono" :title="group.contentHash">{{
                   truncateMiddle(group.contentHash, 14, 10)
                 }}</span>

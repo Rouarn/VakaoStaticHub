@@ -641,9 +641,7 @@ onBeforeUnmount(() => {
                   class="m-0 text-11px text-amber-600 dark:text-amber-400"
                 >
                   有
-                  {{
-                    collectionMissingCount
-                  }}
+                  {{ collectionMissingCount }}
                   个文件已被删除，已标记为不可预览/下载。
                 </p>
                 <ul class="m-0 p-0 list-none flex flex-col gap-2">

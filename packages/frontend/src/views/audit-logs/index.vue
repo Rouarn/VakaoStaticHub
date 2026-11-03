@@ -251,7 +251,10 @@ onMounted(() => void load());
                   </td>
                   <td class="py-2.5 px-2 max-w-44">
                     <p class="m-0 text-12px text-ink-sub">
-                      {{ RESOURCE_TYPE_LABELS[log.resourceType] ?? log.resourceType }}
+                      {{
+                        RESOURCE_TYPE_LABELS[log.resourceType] ??
+                        log.resourceType
+                      }}
                     </p>
                     <p
                       v-if="log.resourceId"
@@ -322,7 +325,9 @@ onMounted(() => void load());
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">资源</p>
               <p class="m-0 mt-0.5 text-ink break-all">
-                {{ RESOURCE_TYPE_LABELS[current.resourceType] ?? current.resourceType
+                {{
+                  RESOURCE_TYPE_LABELS[current.resourceType] ??
+                  current.resourceType
                 }}{{ current.resourceId ? ` / ${current.resourceId}` : '' }}
               </p>
             </div>

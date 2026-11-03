@@ -325,6 +325,8 @@ vakao-static-hub/
 
 > 前端公开访问页路由为 `/share/:token`（无 `/static` 前缀），生产环境由 SPA fallback 渲染，页面内再调用上述 API。
 
+> **批量启停 / 删除**：没有独立批量接口。前端分享管理页的批量操作由 `@vakao/shared` 的 `ShareBatchAction` / `ShareBatchResult` 契约支撑，`api/shares.ts#batchShareAction()` 以 4 并发逐条调用上表的 `PATCH` / `DELETE`，逐条返回成败，部分失败不影响其余条目，也不会新增 DTO 与批量上限校验。
+
 - 分享状态：`active` / `expired` / `exhausted` / `disabled`。公开访问接口的错误码语义统一如下：
 
   | 场景                     | 状态码 | `message`                        |

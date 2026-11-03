@@ -76,6 +76,9 @@ export default defineConfig({
     'text-ink-sub': 'text-ink-sub dark:text-ink-dark-sub',
     // —— 页面 ——
     'page-bg': 'bg-surface dark:bg-surface-dark',
+    // —— 内容网格 ——
+    // 列表页卡片网格：列/行间距统一在此定义（文件库与分享管理共用，避免各页各写一套 gap）
+    'content-grid': 'grid gap-4',
     // —— 媒体卡片 ——
     // 图片在深色下默认降透明度、hover 恢复；dark:hover 叠加以保证优先级高于 dark 单变体
     'media-image':

@@ -512,9 +512,7 @@ function onShareCreated(link: ShareLink) {
           class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
         >
           <NEmpty
-            :description="
-              q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'
-            "
+            :description="q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'"
           />
           <NButton v-if="q" size="small" @click="q = ''">清除搜索</NButton>
           <NButton
@@ -529,7 +527,7 @@ function onShareCreated(link: ShareLink) {
 
         <div
           v-else-if="viewMode === 'grid'"
-          class="grid gap-4 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]"
+          class="content-grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))]"
         >
           <FileCard
             v-for="file in items"

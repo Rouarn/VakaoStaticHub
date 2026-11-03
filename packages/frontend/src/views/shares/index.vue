@@ -38,6 +38,8 @@ import {
 import type {
   FileItem,
   ShareAccessLog,
+  ShareBatchAction,
+  ShareBatchResult,
   ShareLink,
   ShareLinkStatus,
   ShareListResult,
@@ -45,6 +47,7 @@ import type {
 } from '@vakao/shared';
 import { RequestError } from '@vakao-ui/axios';
 import {
+  batchShareAction,
   createShare,
   getSharePageUrl,
   listShareAccessLogs,
@@ -101,6 +104,40 @@ const counts = computed(
     },
 );
 
+// ===================== 批量选择 =====================
+/**
+ * 选中项只保留当前页：分页存在时「全选」语义是「全选当前页」，
+ * 跨页选中会让计数与实际操作范围产生歧义。翻页 / 筛选 / 改每页条数时清空。
+ */
+const selected = ref<Set<string>>(new Set());
+const selectedTotal = computed(() => selected.value.size);
+const pageCount = computed(() => links.value.length);
+const allSelected = computed(
+  () =>
+    links.value.length > 0 &&
+    links.value.every((link) => selected.value.has(link.token)),
+);
+const partiallySelected = computed(
+  () => selectedTotal.value > 0 && !allSelected.value,
+);
+
+function toggleSelect(token: string) {
+  const next = new Set(selected.value);
+  if (next.has(token)) next.delete(token);
+  else next.add(token);
+  selected.value = next;
+}
+
+function toggleSelectAll() {
+  selected.value = allSelected.value
+    ? new Set()
+    : new Set(links.value.map((link) => link.token));
+}
+
+function clearSelection() {
+  selected.value = new Set();
+}
+
 function statusOf(link: ShareLink): ShareLinkStatus {
   if (!link.enabled) return 'disabled';
   if (link.expiresAt !== null && link.expiresAt <= now.value) return 'expired';
@@ -148,6 +185,11 @@ async function load(allowClamp = true) {
     });
     if (seq !== shareSeq) return;
     result.value = data;
+    // 只保留当前页仍存在的选中项（翻页 / 数据被外部删除后自动收敛）
+    const visibleTokens = new Set(data.items.map((item) => item.token));
+    selected.value = new Set(
+      [...selected.value].filter((token) => visibleTokens.has(token)),
+    );
     const maxPage = Math.max(1, Math.ceil(data.total / pageSize.value));
     if (allowClamp && page.value > maxPage) {
       page.value = maxPage;
@@ -165,11 +207,15 @@ async function load(allowClamp = true) {
 
 /** 筛选变化后回到第一页并重新拉取（已在第一页时直接请求，避免 page watcher 不触发） */
 function resetAndReload() {
+  clearSelection();
   if (page.value === 1) void load();
   else page.value = 1;
 }
 
-watch(page, () => void load());
+watch(page, () => {
+  clearSelection();
+  void load();
+});
 watch(pageSize, resetAndReload);
 watch(statusFilter, resetAndReload);
 watch(keyword, useDebounceFn(resetAndReload, 300));
@@ -536,6 +582,74 @@ async function toggleEnabled(link: ShareLink) {
   }
 }
 
+// ===================== 批量操作 =====================
+const ACTION_LABEL: Record<ShareBatchAction, string> = {
+  enable: '启用',
+  disable: '停用',
+  delete: '删除',
+};
+
+const batchRunning = ref<ShareBatchAction | null>(null);
+const batchResult = ref<ShareBatchResult | null>(null);
+const batchResultShow = ref(false);
+const batchConfirmShow = ref(false);
+
+const batchFailedItems = computed(
+  () => batchResult.value?.results.filter((item) => !item.success) ?? [],
+);
+/** 失败项中仍留在当前页的数量：这些会保持选中，可直接重试 */
+const batchRetryableCount = computed(() => {
+  const visible = new Set(links.value.map((link) => link.token));
+  return batchFailedItems.value.filter((item) => visible.has(item.token))
+    .length;
+});
+
+function tokenShort(token: string) {
+  return `${token.slice(0, 8)}…${token.slice(-6)}`;
+}
+
+function openBatchDelete() {
+  if (selected.value.size === 0 || batchRunning.value) return;
+  batchConfirmShow.value = true;
+}
+
+async function runBatchAction(action: ShareBatchAction) {
+  const tokens = [...selected.value];
+  if (tokens.length === 0 || batchRunning.value) return;
+  batchRunning.value = action;
+  try {
+    const result = await batchShareAction(tokens, action);
+    batchResult.value = result;
+    await load();
+    // 失败项若仍在当前页则保持选中方便重试；已被外部删除的项无法重试
+    const visible = new Set(links.value.map((link) => link.token));
+    selected.value = new Set(
+      result.results
+        .filter((item) => !item.success && visible.has(item.token))
+        .map((item) => item.token),
+    );
+    if (result.failed === 0) {
+      message.success(
+        `已${ACTION_LABEL[action]} ${result.succeeded} 个分享链接`,
+      );
+    } else {
+      message.warning(
+        `已${ACTION_LABEL[action]} ${result.succeeded} 个，失败 ${result.failed} 个`,
+      );
+      batchResultShow.value = true;
+    }
+  } catch (e) {
+    message.error(getErrorMessage(e, '批量操作失败'));
+  } finally {
+    batchRunning.value = null;
+  }
+}
+
+async function confirmBatchDelete() {
+  batchConfirmShow.value = false;
+  await runBatchAction('delete');
+}
+
 onMounted(async () => {
   if (categoryStore.roots.length === 0) await categoryStore.loadRoots();
   await load();
@@ -596,18 +710,94 @@ onMounted(async () => {
         </button>
       </div>
 
-      <NInput
-        v-model:value="keyword"
-        size="small"
-        clearable
-        placeholder="搜索 token / 文件 / 分类"
-        class="w-64 ml-auto"
-      >
-        <template #prefix
-          ><NIcon :size="15"><SearchOutline /></NIcon
-        ></template>
-      </NInput>
+      <div class="ml-auto flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2">
+          <NCheckbox
+            :checked="allSelected"
+            :indeterminate="partiallySelected"
+            :disabled="links.length === 0"
+            @update:checked="toggleSelectAll"
+          >
+            {{ allSelected ? '取消全选' : '全选当前页' }}
+          </NCheckbox>
+          <span class="text-11px text-ink-sub tabular-nums">
+            已选 {{ selectedTotal }} 项 / 本页 {{ pageCount }} 项
+          </span>
+        </div>
+
+        <NInput
+          v-model:value="keyword"
+          size="small"
+          clearable
+          placeholder="搜索 token / 文件 / 分类"
+          class="w-64"
+        >
+          <template #prefix
+            ><NIcon :size="15"><SearchOutline /></NIcon
+          ></template>
+        </NInput>
+      </div>
     </header>
+
+    <!-- 批量操作条：有选中项时出现，仅作用于当前页选中项 -->
+    <div
+      v-if="selectedTotal > 0"
+      class="glass-panel px-4 py-2 flex flex-wrap items-center gap-2"
+    >
+      <span class="text-12px text-ink">
+        已选
+        <span class="font-600 tabular-nums">{{ selectedTotal }}</span>
+        项
+      </span>
+      <span class="text-11px text-ink-sub">
+        / 本页 {{ pageCount }} 项（仅作用于当前页）
+      </span>
+      <div class="ml-auto flex items-center gap-1.5 flex-wrap">
+        <NButton
+          size="tiny"
+          :disabled="batchRunning !== null"
+          :loading="batchRunning === 'disable'"
+          @click="runBatchAction('disable')"
+        >
+          <template #icon
+            ><NIcon><PauseCircleOutline /></NIcon
+          ></template>
+          批量停用
+        </NButton>
+        <NButton
+          size="tiny"
+          :disabled="batchRunning !== null"
+          :loading="batchRunning === 'enable'"
+          @click="runBatchAction('enable')"
+        >
+          <template #icon
+            ><NIcon><PlayCircleOutline /></NIcon
+          ></template>
+          批量启用
+        </NButton>
+        <NButton
+          size="tiny"
+          type="error"
+          secondary
+          :disabled="batchRunning !== null"
+          :loading="batchRunning === 'delete'"
+          @click="openBatchDelete"
+        >
+          <template #icon
+            ><NIcon><TrashOutline /></NIcon
+          ></template>
+          批量删除
+        </NButton>
+        <NButton
+          size="tiny"
+          quaternary
+          :disabled="batchRunning !== null"
+          @click="clearSelection"
+        >
+          取消选择
+        </NButton>
+      </div>
+    </div>
 
     <!-- 列表独立滚动：工具栏与分页不随内容移动 -->
     <div class="flex-1 min-h-0 overflow-y-auto pr-1">
@@ -615,163 +805,170 @@ onMounted(async () => {
         <ErrorState v-if="error" :message="error" @retry="load" />
 
         <EmptyState
-        v-else-if="!loading && links.length === 0"
-        :icon="LinkOutline"
-        :title="counts.all === 0 ? '还没有分享链接' : '没有符合条件的分享'"
-        :description="
-          counts.all === 0
-            ? '把文件库里的文件生成公开链接，发给同事或外部协作者即可直接访问与下载。'
-            : '调整状态筛选或清空搜索关键词后再试。'
-        "
-      >
-        <NButton
-          v-if="counts.all === 0"
-          type="primary"
-          size="small"
-          @click="openCreate"
-        >
-          创建第一个分享
-        </NButton>
-        <NButton
-          v-else
-          size="small"
-          @click="
-            keyword = '';
-            statusFilter = 'all';
+          v-else-if="!loading && links.length === 0"
+          :icon="LinkOutline"
+          :title="counts.all === 0 ? '还没有分享链接' : '没有符合条件的分享'"
+          :description="
+            counts.all === 0
+              ? '把文件库里的文件生成公开链接，发给同事或外部协作者即可直接访问与下载。'
+              : '调整状态筛选或清空搜索关键词后再试。'
           "
         >
-          清空筛选
-        </NButton>
-      </EmptyState>
-
-      <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <article
-          v-for="link in links"
-          :key="link.token"
-          class="glass-panel px-4 py-3 flex flex-col gap-3 h-full"
-        >
-          <div class="flex items-start gap-3 flex-wrap">
-            <div
-              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
-            >
-              <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
-                <LinkOutline />
-              </NIcon>
-            </div>
-
-            <div class="min-w-0 flex-1">
-              <p
-                class="m-0 text-13px font-600 text-ink truncate"
-                :title="targetLabel(link)"
-              >
-                {{ targetLabel(link) }}
-              </p>
-              <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
-                {{ link.category }} · 创建于
-                {{ formatDateTime(link.createdAt) }}
-              </p>
-              <p
-                v-if="link.remark"
-                class="m-0 mt-0.5 text-11px text-ink-sub truncate"
-              >
-                备注：{{ link.remark }}
-              </p>
-            </div>
-
-            <div class="flex items-center gap-2 flex-wrap">
-              <NTag
-                size="small"
-                :type="STATUS_TAG[statusOf(link)].type"
-                :bordered="false"
-              >
-                {{ STATUS_TAG[statusOf(link)].label }}
-              </NTag>
-              <NTag v-if="link.hasPassword" size="small" :bordered="false"
-                >密码保护</NTag
-              >
-            </div>
-          </div>
-
-          <div
-            class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
+          <NButton
+            v-if="counts.all === 0"
+            type="primary"
+            size="small"
+            @click="openCreate"
           >
-            <span>
-              打开
-              <span class="text-ink font-600 tabular-nums">{{
-                link.accessCount
-              }}</span>
-              <template v-if="link.maxAccesses !== null">
-                / {{ link.maxAccesses }}</template
-              >
-              次
-            </span>
-            <span>
-              {{
-                link.expiresAt
-                  ? `有效期至 ${formatDateTime(link.expiresAt)}`
-                  : '永久有效'
-              }}
-            </span>
-            <span class="font-mono" :title="link.token">
-              token {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
-              <span v-if="!isTokenValid(link.token)" class="text-red-500 ml-1"
-                >格式异常</span
-              >
-            </span>
-          </div>
+            创建第一个分享
+          </NButton>
+          <NButton
+            v-else
+            size="small"
+            @click="
+              keyword = '';
+              statusFilter = 'all';
+            "
+          >
+            清空筛选
+          </NButton>
+        </EmptyState>
 
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <NButton size="tiny" @click="copyUrl(link.token)">
-              <template #icon
-                ><NIcon><CopyOutline /></NIcon
-              ></template>
-              复制链接
-            </NButton>
-            <NButton size="tiny" @click="openQr(link.token)">
-              <template #icon
-                ><NIcon><QrCodeOutline /></NIcon
-              ></template>
-              二维码
-            </NButton>
-            <NButton size="tiny" @click="openLogs(link)">
-              <template #icon
-                ><NIcon><EyeOutline /></NIcon
-              ></template>
-              访问记录
-              <span class="ml-1 tabular-nums text-ink-sub">{{
-                link.accessCount
-              }}</span>
-            </NButton>
-            <NButton size="tiny" @click="openEdit(link)">
-              <template #icon
-                ><NIcon><CreateOutline /></NIcon
-              ></template>
-              编辑
-            </NButton>
-            <NButton size="tiny" quaternary @click="toggleEnabled(link)">
-              <template #icon>
-                <NIcon>
-                  <PlayCircleOutline v-if="!link.enabled" />
-                  <PauseCircleOutline v-else />
+        <div v-else class="content-grid grid-cols-1 xl:grid-cols-2">
+          <article
+            v-for="link in links"
+            :key="link.token"
+            class="glass-panel px-4 py-3 flex flex-col gap-3"
+            :class="{ 'ring-2 ring-brand-500/70': selected.has(link.token) }"
+          >
+            <div class="flex items-start gap-3 flex-wrap">
+              <NCheckbox
+                class="mt-2 shrink-0"
+                :checked="selected.has(link.token)"
+                :aria-label="`选择 ${targetLabel(link)}`"
+                @update:checked="toggleSelect(link.token)"
+              />
+              <div
+                class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
+              >
+                <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
+                  <LinkOutline />
                 </NIcon>
-              </template>
-              {{ link.enabled ? '停用' : '启用' }}
-            </NButton>
-            <NButton
-              size="tiny"
-              quaternary
-              type="error"
-              class="ml-auto"
-              @click="openRevoke(link)"
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <p
+                  class="m-0 text-13px font-600 text-ink truncate"
+                  :title="targetLabel(link)"
+                >
+                  {{ targetLabel(link) }}
+                </p>
+                <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
+                  {{ link.category }} · 创建于
+                  {{ formatDateTime(link.createdAt) }}
+                </p>
+                <p
+                  v-if="link.remark"
+                  class="m-0 mt-0.5 text-11px text-ink-sub truncate"
+                >
+                  备注：{{ link.remark }}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-2 flex-wrap">
+                <NTag
+                  size="small"
+                  :type="STATUS_TAG[statusOf(link)].type"
+                  :bordered="false"
+                >
+                  {{ STATUS_TAG[statusOf(link)].label }}
+                </NTag>
+                <NTag v-if="link.hasPassword" size="small" :bordered="false"
+                  >密码保护</NTag
+                >
+              </div>
+            </div>
+
+            <div
+              class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
             >
-              <template #icon
-                ><NIcon><TrashOutline /></NIcon
-              ></template>
-              撤销
-            </NButton>
-          </div>
-        </article>
-      </div>
+              <span>
+                打开
+                <span class="text-ink font-600 tabular-nums">{{
+                  link.accessCount
+                }}</span>
+                <template v-if="link.maxAccesses !== null">
+                  / {{ link.maxAccesses }}</template
+                >
+                次
+              </span>
+              <span>
+                {{
+                  link.expiresAt
+                    ? `有效期至 ${formatDateTime(link.expiresAt)}`
+                    : '永久有效'
+                }}
+              </span>
+              <span class="font-mono" :title="link.token">
+                token {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
+                <span v-if="!isTokenValid(link.token)" class="text-red-500 ml-1"
+                  >格式异常</span
+                >
+              </span>
+            </div>
+
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <NButton size="tiny" @click="copyUrl(link.token)">
+                <template #icon
+                  ><NIcon><CopyOutline /></NIcon
+                ></template>
+                复制链接
+              </NButton>
+              <NButton size="tiny" @click="openQr(link.token)">
+                <template #icon
+                  ><NIcon><QrCodeOutline /></NIcon
+                ></template>
+                二维码
+              </NButton>
+              <NButton size="tiny" @click="openLogs(link)">
+                <template #icon
+                  ><NIcon><EyeOutline /></NIcon
+                ></template>
+                访问记录
+                <span class="ml-1 tabular-nums text-ink-sub">{{
+                  link.accessCount
+                }}</span>
+              </NButton>
+              <NButton size="tiny" @click="openEdit(link)">
+                <template #icon
+                  ><NIcon><CreateOutline /></NIcon
+                ></template>
+                编辑
+              </NButton>
+              <NButton size="tiny" quaternary @click="toggleEnabled(link)">
+                <template #icon>
+                  <NIcon>
+                    <PlayCircleOutline v-if="!link.enabled" />
+                    <PauseCircleOutline v-else />
+                  </NIcon>
+                </template>
+                {{ link.enabled ? '停用' : '启用' }}
+              </NButton>
+              <NButton
+                size="tiny"
+                quaternary
+                type="error"
+                class="ml-auto"
+                @click="openRevoke(link)"
+              >
+                <template #icon
+                  ><NIcon><TrashOutline /></NIcon
+                ></template>
+                撤销
+              </NButton>
+            </div>
+          </article>
+        </div>
       </NSpin>
     </div>
 
@@ -1150,6 +1347,74 @@ onMounted(async () => {
           </li>
         </ul>
       </NSpin>
+    </NModal>
+
+    <ConfirmModal
+      v-model:show="batchConfirmShow"
+      :title="`批量删除 ${selectedTotal} 个分享链接`"
+      :content="`将物理删除当前页选中的 ${selectedTotal} 个分享链接及其全部访问记录，删除后不可恢复，已发出的链接会立即失效。\n范围：已选 ${selectedTotal} 项 / 本页 ${pageCount} 项。`"
+      :positive-text="`删除 ${selectedTotal} 项`"
+      :loading="batchRunning === 'delete'"
+      @confirm="confirmBatchDelete"
+    />
+
+    <!-- 批量操作结果：部分失败时如实展示成功/失败条数与原因 -->
+    <NModal
+      v-model:show="batchResultShow"
+      preset="card"
+      title="批量操作结果"
+      class="w-520px! max-w-[94vw]"
+      :bordered="false"
+    >
+      <div v-if="batchResult" class="flex flex-col gap-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <NTag type="success" :bordered="false" size="small">
+            成功 {{ batchResult.succeeded }} 项
+          </NTag>
+          <NTag v-if="batchResult.failed > 0" type="error" :bordered="false" size="small">
+            失败 {{ batchResult.failed }} 项
+          </NTag>
+          <span class="text-11px text-ink-sub">
+            共 {{ batchResult.total }} 项 ·
+            {{ ACTION_LABEL[batchResult.action] }}
+          </span>
+        </div>
+
+        <div v-if="batchResult.failed > 0" class="flex flex-col gap-2">
+          <p class="m-0 text-11px text-ink-sub">
+            <template v-if="batchRetryableCount > 0">
+              {{ batchRetryableCount }} 个失败项已保持选中，可直接重试。
+            </template>
+            <template v-if="batchResult.failed - batchRetryableCount > 0">
+              另有
+              {{ batchResult.failed - batchRetryableCount }}
+              个失败项已不在当前列表（可能已被其他操作删除），无法重试。
+            </template>
+          </p>
+          <ul
+            class="m-0 p-0 list-none flex flex-col gap-1.5 max-h-60 overflow-y-auto"
+          >
+            <li
+              v-for="item in batchFailedItems"
+              :key="item.token"
+              class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2"
+            >
+              <p class="m-0 text-11px text-ink font-mono" :title="item.token">
+                {{ tokenShort(item.token) }}
+              </p>
+              <p class="m-0 mt-0.5 text-11px text-red-500">
+                {{ item.error ?? '未知原因' }}
+              </p>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end">
+          <NButton size="small" @click="batchResultShow = false">关闭</NButton>
+        </div>
+      </template>
     </NModal>
 
     <ConfirmModal

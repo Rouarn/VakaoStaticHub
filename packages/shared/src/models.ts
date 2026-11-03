@@ -104,6 +104,32 @@ export interface ShareListResult {
   };
 }
 
+/**
+ * 批量分享操作的动作。
+ *
+ * 后端没有批量接口：前端对每条链接复用单条
+ * `PATCH /share/:token`（enable / disable）与 `DELETE /share/:token`（delete），
+ * 逐条收集结果以如实呈现部分失败。
+ */
+export type ShareBatchAction = 'enable' | 'disable' | 'delete';
+
+/** 批量操作中单条链接的执行结果 */
+export interface ShareBatchItemResult {
+  token: string;
+  success: boolean;
+  /** 失败原因（后端 message 或网络错误文案），成功时不返回 */
+  error?: string;
+}
+
+/** 批量操作汇总（前端逐条调用单条接口后自行聚合，后端不感知） */
+export interface ShareBatchResult {
+  action: ShareBatchAction;
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: ShareBatchItemResult[];
+}
+
 /** 分享链接编辑参数（PATCH /share/:token） */
 export interface UpdateShareLinkParams {
   /** 备注；null 表示清空 */
