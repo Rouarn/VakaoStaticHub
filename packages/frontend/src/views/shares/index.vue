@@ -62,7 +62,6 @@ import { formatBytes, formatTime } from '@/utils/file-types';
 import { formatDateTime } from '@/utils/format';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
-import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
@@ -90,6 +89,11 @@ const keyword = ref('');
 const statusFilter = ref<'all' | ShareLinkStatus>('all');
 const page = ref(1);
 const pageSize = ref(8);
+/** 每页条数选择放在页头工具区（与搜索同一轴线），分页只保留页码 */
+const pageSizeOptions = [8, 16, 32, 64].map((value) => ({
+  label: `${value} 条/页`,
+  value,
+}));
 
 const links = computed(() => result.value?.items ?? []);
 const total = computed(() => result.value?.total ?? 0);
@@ -658,60 +662,97 @@ onMounted(async () => {
 
 <template>
   <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
-    <PageHeader
-      title="分享管理"
-      description="创建与管理公开分享链接；访问者凭链接在 /share/:token 页面访问文件"
-      :icon="ShareSocialOutline"
-    >
-      <template #actions>
-        <NTooltip :delay="300">
-          <template #trigger>
-            <NButton size="small" quaternary circle @click="() => load()">
-              <template #icon
-                ><NIcon><RefreshOutline /></NIcon
+    <!-- 页头：第一行「标题/统计 + 检索工具」，第二行「状态筛选 + 批量入口」 -->
+    <header class="glass-panel px-5 py-4 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5">
+            <NIcon
+              :size="18"
+              class="text-brand-600 dark:text-brand-400 shrink-0"
+            >
+              <ShareSocialOutline />
+            </NIcon>
+            <h1 class="m-0 text-15px font-600 text-ink leading-tight">
+              分享管理
+            </h1>
+            <NTooltip :delay="300">
+              <template #trigger>
+                <NIcon :size="14" class="text-ink-sub cursor-help">
+                  <InformationCircleOutline />
+                </NIcon>
+              </template>
+              访问者通过 /share/:token 页面打开链接；列表由服务端分页与检索（token
+              / 文件 / 分类 / 备注）。停用后访问返回「已停用」，撤销会物理删除链接与访问记录
+            </NTooltip>
+          </div>
+          <p class="m-0 mt-0.5 text-12px text-ink-sub tabular-nums">
+            共 {{ total }} 条 · 活跃 {{ counts.active }} · 已停用
+            {{ counts.disabled }} · 已失效
+            {{ counts.expired + counts.exhausted }}
+          </p>
+        </div>
+
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          <!-- 外层定宽：NInput 自身 width:100% 会覆盖 UnoCSS 的 w-56，导致搜索框撑满并挤掉同行控件 -->
+          <div class="w-56 shrink-0">
+            <NInput
+              v-model:value="keyword"
+              size="small"
+              clearable
+              placeholder="搜索 token / 文件 / 分类"
+            >
+              <template #prefix
+                ><NIcon :size="15"><SearchOutline /></NIcon
               ></template>
-            </NButton>
-          </template>
-          刷新
-        </NTooltip>
-        <NButton type="primary" size="small" @click="openCreate">
-          <template #icon
-            ><NIcon><AddOutline /></NIcon
-          ></template>
-          创建分享
-        </NButton>
-      </template>
-    </PageHeader>
-
-    <div
-      class="glass-chip self-start px-3 py-1.5 flex items-center gap-1.5 text-11px text-ink-sub"
-    >
-      <NIcon :size="14"><InformationCircleOutline /></NIcon>
-      列表由服务端分页与检索（token / 文件 / 分类 /
-      备注）；停用后访问返回「已停用」，撤销会物理删除链接与访问记录
-    </div>
-
-    <!-- 工具条 -->
-    <header class="glass-panel px-4 py-3 flex flex-wrap items-center gap-3">
-      <div class="flex items-center gap-1 flex-wrap">
-        <button
-          v-for="tab in statusTabs"
-          :key="tab.key"
-          class="px-2.5 py-1 rounded-full text-12px transition-colors cursor-pointer border-none"
-          :class="
-            statusFilter === tab.key
-              ? 'bg-brand-600 text-white'
-              : 'bg-white/50 dark:bg-white/8 text-ink-sub hover:text-brand-600 dark:hover:text-brand-400'
-          "
-          @click="statusFilter = tab.key"
-        >
-          {{ tab.label }}
-          <span class="tabular-nums opacity-80">{{ tab.count }}</span>
-        </button>
+            </NInput>
+          </div>
+          <NSelect
+            v-model:value="pageSize"
+            :options="pageSizeOptions"
+            size="small"
+            class="w-28"
+          />
+          <NTooltip :delay="300">
+            <template #trigger>
+              <NButton size="small" quaternary circle @click="() => load()">
+                <template #icon
+                  ><NIcon><RefreshOutline /></NIcon
+                ></template>
+              </NButton>
+            </template>
+            刷新
+          </NTooltip>
+          <NButton type="primary" size="small" @click="openCreate">
+            <template #icon
+              ><NIcon><AddOutline /></NIcon
+            ></template>
+            创建分享
+          </NButton>
+        </div>
       </div>
 
-      <div class="ml-auto flex flex-wrap items-center gap-3">
-        <div class="flex items-center gap-2">
+      <div
+        class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-solid border-ink-sub/15 dark:border-white/10 pt-3"
+      >
+        <div class="flex items-center gap-1 flex-wrap">
+          <button
+            v-for="tab in statusTabs"
+            :key="tab.key"
+            class="px-2.5 py-1 rounded-full text-12px transition-colors cursor-pointer border-none"
+            :class="
+              statusFilter === tab.key
+                ? 'bg-brand-600 text-white'
+                : 'bg-white/50 dark:bg-white/8 text-ink-sub hover:text-brand-600 dark:hover:text-brand-400'
+            "
+            @click="statusFilter = tab.key"
+          >
+            {{ tab.label }}
+            <span class="tabular-nums opacity-80">{{ tab.count }}</span>
+          </button>
+        </div>
+
+        <div class="ml-auto flex items-center gap-2 flex-wrap">
           <NCheckbox
             :checked="allSelected"
             :indeterminate="partiallySelected"
@@ -724,18 +765,6 @@ onMounted(async () => {
             已选 {{ selectedTotal }} 项 / 本页 {{ pageCount }} 项
           </span>
         </div>
-
-        <NInput
-          v-model:value="keyword"
-          size="small"
-          clearable
-          placeholder="搜索 token / 文件 / 分类"
-          class="w-64"
-        >
-          <template #prefix
-            ><NIcon :size="15"><SearchOutline /></NIcon
-          ></template>
-        </NInput>
       </div>
     </header>
 
@@ -977,15 +1006,9 @@ onMounted(async () => {
       class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2 shrink-0"
     >
       <span class="mr-auto text-11px text-ink-sub">
-        共 {{ total }} 条 · 服务端分页
+        共 {{ total }} 条 · 第 {{ page }} / {{ Math.max(1, Math.ceil(total / pageSize)) }} 页
       </span>
-      <NPagination
-        v-model:page="page"
-        v-model:page-size="pageSize"
-        :item-count="total"
-        :page-sizes="[8, 16, 32, 64]"
-        show-size-picker
-      />
+      <NPagination v-model:page="page" :item-count="total" />
     </footer>
 
     <!-- 创建分享 -->

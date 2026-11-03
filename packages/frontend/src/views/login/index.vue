@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NInput, NIcon, useMessage } from 'naive-ui';
 import {
@@ -20,12 +20,23 @@ const authStore = useAuthStore();
 const username = ref('');
 const password = ref('');
 const loading = ref(false);
+/** 用户名去空格后非空且密码非空才允许提交；为空时按钮禁用、回车静默忽略 */
+const canSubmit = computed(
+  () => username.value.trim().length > 0 && password.value.length > 0,
+);
 
-async function submit() {
-  if (!username.value.trim() || !password.value) {
-    message.warning('请输入用户名和密码');
-    return;
-  }
+function submit() {
+  if (loading.value || !canSubmit.value) return;
+  void doLogin();
+}
+
+/** 回车与「登录」按钮共用同一校验：输入法组合中的回车不提交 */
+function onEnter(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
+  submit();
+}
+
+async function doLogin() {
   loading.value = true;
   try {
     const resp = await login(username.value.trim(), password.value);
@@ -64,7 +75,7 @@ async function submit() {
             v-model:value="username"
             size="large"
             placeholder="用户名"
-            @keyup.enter="submit"
+            @keydown.enter.prevent="onEnter"
           >
             <template #prefix>
               <NIcon :size="16"><PersonOutline /></NIcon>
@@ -76,7 +87,7 @@ async function submit() {
             type="password"
             show-password-on="click"
             placeholder="密码"
-            @keyup.enter="submit"
+            @keydown.enter.prevent="onEnter"
           >
             <template #prefix>
               <NIcon :size="16"><LockClosedOutline /></NIcon>
@@ -87,6 +98,7 @@ async function submit() {
             size="large"
             block
             :loading="loading"
+            :disabled="!canSubmit"
             @click="submit"
           >
             登 录

@@ -78,6 +78,7 @@ function go(name: string) {
 
 const userOptions = [
   { label: '修改密码', key: 'change-password', icon: () => h(KeyOutline) },
+  { type: 'divider', key: 'divider' },
   { label: '退出登录', key: 'logout', icon: () => h(LogOutOutline) },
 ];
 
@@ -222,16 +223,18 @@ function onUserAction(key: string) {
       <template #trigger>
         <button
           class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
-          :class="expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11'"
+          :class="
+            expanded ? 'w-full! justify-start! gap-2 px-2.5 h-9!' : 'w-11'
+          "
           @click="appStore.toggleSidebar()"
         >
-          <NIcon :size="20" class="shrink-0">
+          <NIcon :size="18" class="shrink-0">
             <ChevronForwardOutline v-if="!expanded" />
             <ChevronBackOutline v-else />
           </NIcon>
           <span
             v-if="expanded"
-            class="text-13px whitespace-nowrap animate-fade-in"
+            class="text-12px whitespace-nowrap animate-fade-in"
           >
             收起菜单
           </span>
@@ -245,16 +248,18 @@ function onUserAction(key: string) {
       <template #trigger>
         <button
           class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
-          :class="expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11'"
+          :class="
+            expanded ? 'w-full! justify-start! gap-2 px-2.5 h-9!' : 'w-11'
+          "
           @click="appStore.toggleDark()"
         >
-          <NIcon :size="22" class="shrink-0">
+          <NIcon :size="18" class="shrink-0">
             <SunnyOutline v-if="appStore.isDark" />
             <MoonOutline v-else />
           </NIcon>
           <span
             v-if="expanded"
-            class="text-13px whitespace-nowrap animate-fade-in"
+            class="text-12px whitespace-nowrap animate-fade-in"
           >
             {{ appStore.isDark ? '切换浅色' : '切换深色' }}
           </span>
@@ -263,18 +268,25 @@ function onUserAction(key: string) {
       {{ appStore.isDark ? '切换浅色' : '切换深色' }}
     </NTooltip>
 
+    <!-- 工具区与账号区分隔：账号是主信息，收起/主题是次要操作 -->
+    <div
+      v-if="expanded"
+      class="w-full border-t border-solid border-ink-sub/15 dark:border-white/10"
+    />
+
     <!-- 当前用户 -->
     <NDropdown
       trigger="click"
+      size="small"
       placement="right-end"
       :options="userOptions"
       @select="onUserAction"
     >
       <div
-        class="cursor-pointer flex items-center rounded-xl shrink-0"
+        class="cursor-pointer flex items-center rounded-lg shrink-0 transition-colors"
         :class="
           expanded
-            ? 'w-full gap-2.5 px-2 py-1.5 hover:bg-white/60 dark:hover:bg-white/8'
+            ? 'w-full gap-2 px-2 py-1.5 hover:bg-white/60 dark:hover:bg-white/8'
             : ''
         "
       >
@@ -287,7 +299,7 @@ function onUserAction(key: string) {
         </NAvatar>
         <span
           v-if="expanded"
-          class="text-13px text-ink-sub whitespace-nowrap truncate animate-fade-in"
+          class="text-12px text-ink whitespace-nowrap truncate animate-fade-in"
         >
           {{ authStore.user?.username ?? '未登录' }}
         </span>
