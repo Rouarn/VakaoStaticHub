@@ -1,18 +1,34 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { access, constants, mkdir, readdir, stat } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
-import { platform } from 'node:os';
+import type { Dirent, Stats } from 'node:fs';
+import { mkdir, readdir, realpath, stat } from 'node:fs/promises';
+import {
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+  relative,
+  resolve,
+} from 'node:path';
+import { homedir } from 'node:os';
 import { ResourceRootsService } from '#/infra/resource-roots/resource-roots.service.js';
 import {
   CreateResourceRootDto,
   UpdateResourceRootDto,
 } from './dto/resource-root.dto.js';
-import type { ResourceRoot } from '@vakao/shared';
+import { ROOT_BROWSE_MAX_ENTRIES } from '@vakao/shared';
+import type { BrowseDirectoriesResult, ResourceRoot } from '@vakao/shared';
+
+/** child 是否位于 parent 之内（按路径分段判断，避免 `/foo` 误判 `/foobar`） */
+function isWithin(child: string, parent: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
 
 /**
  * 资源根目录管理服务
@@ -208,34 +224,116 @@ export class RootsService {
   }
 
   /**
-   * 浏览服务器系统目录
-   * Windows 无入参时枚举可用盘符；其余平台默认从根路径开始
+   * 允许浏览的边界（真实路径）
+   *
+   * - 每个已配置根目录的父级（便于把新根目录挂在既有存储目录旁边）
+   * - 当前运行用户的主目录
+   * - `ROOT_BROWSE_WHITELIST` 环境变量（逗号分隔的绝对路径，需自行确保可信）
+   *
+   * 用 realpath 归一，符号链接无法借此逃逸到边界之外。
    */
-  async browseDirectories(path?: string) {
-    if (!path) {
-      if (platform() === 'win32') {
-        const drives = [];
-        for (let i = 65; i <= 90; i++) {
-          const letter = String.fromCharCode(i);
-          const driveRoot = `${letter}:\\`;
-          try {
-            await access(driveRoot, constants.F_OK);
-            drives.push({ name: `${letter}:`, path: driveRoot });
-          } catch {
-            // ignore inaccessible drives
-          }
-        }
-        return drives;
-      } else {
-        path = '/';
+  private async allowedBrowseRealPaths(): Promise<string[]> {
+    const candidates = new Set<string>([homedir()]);
+    for (const root of this.resourceRoots.getRoots()) {
+      candidates.add(dirname(this.resolvePath(root.path)));
+    }
+    for (const item of (process.env.ROOT_BROWSE_WHITELIST ?? '').split(',')) {
+      const trimmed = item.trim();
+      if (trimmed && isAbsolute(trimmed)) candidates.add(normalize(trimmed));
+    }
+
+    const allowed: string[] = [];
+    for (const candidate of candidates) {
+      try {
+        allowed.push(await realpath(candidate));
+      } catch {
+        // 边界目录本身不存在时跳过，不影响其它边界
+      }
+    }
+    return [...new Set(allowed)];
+  }
+
+  /** 把 fs 错误翻译为可读的 4xx，避免无权限/不存在被当成 500 */
+  private browseError(path: string, error: unknown): Error {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code === 'ENOENT') return new NotFoundException(`目录不存在：${path}`);
+    if (code === 'EACCES' || code === 'EPERM') {
+      return new BadRequestException(`没有权限读取目录：${path}`);
+    }
+    if (code === 'ENOTDIR') {
+      return new BadRequestException(`目标不是目录：${path}`);
+    }
+    return new BadRequestException(
+      `无法读取目录 ${path}（${code ?? '未知错误'}）`,
+    );
+  }
+
+  /**
+   * 浏览服务器目录（仅目录、不返回文件）
+   *
+   * 安全边界：
+   * 1. 只接受绝对路径，显式拒绝 `..` 段与相对路径；
+   * 2. realpath 解析后必须落在允许边界内，符号链接无法逃逸；
+   * 3. 只枚举目录，符号链接目录不列出、不可进入；
+   * 4. 单次最多返回 ROOT_BROWSE_MAX_ENTRIES 项，超出标记 truncated；
+   * 5. ENOENT → 404，EACCES/EPERM → 400 可读原因，越界 → 403。
+   */
+  async browseDirectories(input?: string): Promise<BrowseDirectoriesResult> {
+    const raw = (input ?? '').trim();
+    if (raw) {
+      if (!isAbsolute(raw)) {
+        throw new BadRequestException('目录路径必须是绝对路径');
+      }
+      if (raw.split(/[\\/]/).includes('..')) {
+        throw new BadRequestException('目录路径不允许包含 `..`');
       }
     }
 
-    const target = isAbsolute(path) ? path : resolve(process.cwd(), path);
-    const entries = await readdir(target, { withFileTypes: true });
-    return entries
-      .filter((d) => d.isDirectory())
-      .map((d) => ({ name: d.name, path: join(target, d.name) }))
+    const target = raw ? resolve(raw) : homedir();
+    const allowed = await this.allowedBrowseRealPaths();
+
+    let real: string;
+    try {
+      real = await realpath(target);
+    } catch (error) {
+      throw this.browseError(target, error);
+    }
+
+    const boundary = allowed.find((prefix) => isWithin(real, prefix));
+    if (!boundary) {
+      throw new ForbiddenException(
+        '不允许浏览该目录：仅限已配置根目录的父级、用户主目录与白名单路径',
+      );
+    }
+
+    let info: Stats;
+    let dirents: Dirent[];
+    try {
+      info = await stat(real);
+    } catch (error) {
+      throw this.browseError(real, error);
+    }
+    if (!info.isDirectory()) {
+      throw new BadRequestException(`目标不是目录：${real}`);
+    }
+    try {
+      dirents = await readdir(real, { withFileTypes: true });
+    } catch (error) {
+      throw this.browseError(real, error);
+    }
+
+    const dirs = dirents
+      .filter((d) => d.isDirectory() && !d.isSymbolicLink())
       .sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      path: real,
+      parent: real === boundary ? null : dirname(real),
+      entries: dirs
+        .slice(0, ROOT_BROWSE_MAX_ENTRIES)
+        .map((d) => ({ name: d.name, path: join(real, d.name) })),
+      truncated: dirs.length > ROOT_BROWSE_MAX_ENTRIES,
+      total: dirs.length,
+    };
   }
 }

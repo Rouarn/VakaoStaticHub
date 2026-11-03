@@ -12,7 +12,7 @@
 
 ## 核心特性
 
-- **多根目录管理**：动态增删资源根目录，配置持久化到 `resource-roots.json`，支持服务器目录浏览；系统启动时会幂等注册内置 `software-update` 根目录
+- **多根目录管理**：动态增删资源根目录，配置持久化到 `resource-roots.json`，支持服务器目录浏览（新建时弹框逐级选择，仅枚举目录、受安全边界限制，手输绝对路径仍可兜底）；系统启动时会幂等注册内置 `software-update` 根目录
 - **文件管理**：上传、删除、重命名、分页浏览、关键词搜索、多字段排序（名称 / 大小 / 修改时间）；支持批量删除、批量移动分类
 - **大文件分片上传**：5MB 分片 + 断点续传，上传中断后可从断点继续，合并时校验 SHA-256
 - **重复文件检测**：`file_entries` 记录内容 SHA-256，按哈希分组找出重复副本，前端可视化对比与清理
@@ -127,6 +127,7 @@ pnpm dev
 | `DEFAULT_CATEGORY`       | `TemporaryFile`                             | 默认分类目录名                                                                                                     |
 | `UPLOAD_TEMP_DIR`        | `<os.tmpdir()>/vakao-static-hub/uploads`     | 分片上传临时目录；默认落在操作系统临时目录下的应用专属子目录。线上如 `/tmp` 挂 tmpfs 且内存吃紧，可指回磁盘目录（如 `/var/vakao-uploads`） |
 | `CHUNK_FILE_SIZE_LIMIT`  | `104857600`（100MB）                         | 单个分片文件硬上限（字节），防超大 buffer 打垮进程内存                                                            |
+| `ROOT_BROWSE_WHITELIST`   | `''`                                          | 目录浏览接口的额外允许前缀（逗号分隔的绝对路径）。默认可浏览「已配置根目录的父级 + 运行用户主目录」；如需浏览其他位置（如 `/var/www`）在此追加 |
 
 ### 定时任务
 
@@ -225,7 +226,16 @@ vakao-static-hub/
 | POST   | `/static/roots`                          | 添加根目录     | 是   |
 | PATCH  | `/static/roots/:id`                      | 更新根目录     | 是   |
 | DELETE | `/static/roots/:id`                      | 删除根目录     | 是   |
-| GET    | `/static/roots/system/directories?path=` | 浏览服务器目录 | 是   |
+| GET    | `/static/roots/system/directories?path=` | 浏览服务器目录（旧接口，建议用 `/roots/browse`） | 是   |
+| GET    | `/static/roots/browse?path=`             | 浏览服务器目录（仅目录，受安全边界限制）       | 是   |
+
+> 目录浏览契约（`GET /static/roots/browse`）：
+>
+> - 参数 `path` 必须是绝对路径，省略时从运行用户主目录开始；相对路径与含 `..` 的路径返回 400。
+> - 返回 `{ path, parent, entries: [{ name, path }], truncated, total }`，只枚举目录，**不返回任何文件**。
+> - 安全边界：realpath 解析后必须落在「已配置根目录的父级 + 运行用户主目录 + `ROOT_BROWSE_WHITELIST`」内，否则 403；符号链接目录不列出、不可借道逃逸。
+> - 无权限目录（EACCES/EPERM）返回 400 可读原因，不存在返回 404；单次最多返回 500 项，超出时 `truncated=true`。
+> - 旧接口 `/static/roots/system/directories` 保留目录数组形状兼容，安全边界与 `/roots/browse` 一致。
 
 ### 文件管理
 

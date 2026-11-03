@@ -25,6 +25,7 @@ import {
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
+import DirectoryPicker from '@/components/common/directory-picker.vue';
 import { getErrorMessage } from '@/utils/http';
 import { formatBytes } from '@/utils/file-types';
 
@@ -186,6 +187,20 @@ const rootEditId = ref('');
 const rootDeleteShow = ref(false);
 const rootDeleteTarget = ref('');
 const rootDeleteLoading = ref(false);
+
+// —— 服务器目录选择 ——
+const browseShow = ref(false);
+const browseInitialPath = ref('');
+
+function openBrowse() {
+  browseInitialPath.value = rootForm.path.trim();
+  browseShow.value = true;
+}
+
+function onBrowseSelect(path: string) {
+  rootForm.path = path;
+  rootFormError.value = '';
+}
 
 function openRootMgr() {
   openCreateRoot();
@@ -575,9 +590,16 @@ async function confirmDeleteRoot() {
             <label class="text-11px text-ink-sub w-14 shrink-0">路径</label>
             <NInput
               v-model:value="rootForm.path"
+              class="flex-1 min-w-0"
               size="small"
               placeholder="服务器绝对路径"
             />
+            <NButton size="small" class="shrink-0" @click="openBrowse">
+              <template #icon
+                ><NIcon :size="14"><FolderOpenOutline /></NIcon
+              ></template>
+              浏览
+            </NButton>
           </div>
           <p v-if="rootFormError" class="m-0 text-12px text-red-500">
             {{ rootFormError }}
@@ -598,6 +620,13 @@ async function confirmDeleteRoot() {
         </div>
       </div>
     </NModal>
+
+    <!-- 服务器目录选择 -->
+    <DirectoryPicker
+      v-model:show="browseShow"
+      :initial-path="browseInitialPath"
+      @select="onBrowseSelect"
+    />
 
     <!-- 删除根目录 -->
     <ConfirmModal

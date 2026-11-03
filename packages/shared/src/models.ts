@@ -10,6 +10,36 @@ export interface ResourceRoot {
   path: string;
 }
 
+/**
+ * 服务器目录浏览（GET /roots/browse）
+ *
+ * 仅枚举目录、不返回文件；仅允许浏览「已配置根目录的父级、用户主目录、
+ * ROOT_BROWSE_WHITELIST 白名单」范围内的绝对路径。
+ */
+export interface BrowseDirectoryEntry {
+  /** 目录名（不含路径） */
+  name: string;
+  /** 绝对路径 */
+  path: string;
+}
+
+/** GET /roots/browse 的响应数据 */
+export interface BrowseDirectoriesResult {
+  /** 当前目录的绝对路径（符号链接已解析为真实路径） */
+  path: string;
+  /** 上级目录；已到达允许浏览的边界时为 null（不能再向上） */
+  parent: string | null;
+  /** 子目录列表（不包含文件与符号链接） */
+  entries: BrowseDirectoryEntry[];
+  /** 是否因单次条目上限被截断 */
+  truncated: boolean;
+  /** 截断前扫描到的子目录总数 */
+  total: number;
+}
+
+/** 单次目录浏览返回的最大条目数（超出部分截断并标记 truncated） */
+export const ROOT_BROWSE_MAX_ENTRIES = 500;
+
 export interface FileItem {
   name: string;
   path: string;

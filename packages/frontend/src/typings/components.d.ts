@@ -16,6 +16,7 @@ declare module 'vue' {
     BarList: typeof import('./../components/charts/bar-list.vue')['default']
     ConfirmModal: typeof import('./../components/common/confirm-modal.vue')['default']
     DefaultPreview: typeof import('./../components/preview/default-preview.vue')['default']
+    DirectoryPicker: typeof import('./../components/common/directory-picker.vue')['default']
     DonutChart: typeof import('./../components/charts/donut-chart.vue')['default']
     EmptyState: typeof import('./../components/common/empty-state.vue')['default']
     ErrorState: typeof import('./../components/common/error-state.vue')['default']
