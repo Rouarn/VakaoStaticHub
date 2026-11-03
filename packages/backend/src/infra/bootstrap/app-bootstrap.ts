@@ -101,6 +101,7 @@ export async function configureApp(
   const serverCfg = configService.get<ServerConfig>('server');
   const fileCfg = configService.get<FileConfig>('files');
   const staticPrefix = serverCfg?.staticPrefix ?? 'static';
+  const webDir = serverCfg?.webDir;
 
   app.setGlobalPrefix(staticPrefix);
   setupCors(app, serverCfg);
@@ -114,7 +115,7 @@ export async function configureApp(
     await mkdir(fileCfg.root, { recursive: true });
   }
 
-  await setupSpaFallback(app, staticPrefix);
+  await setupSpaFallback(app, staticPrefix, webDir);
 
   return serverCfg?.port ?? 9865;
 }

@@ -97,6 +97,7 @@ pnpm dev
 | `PORT`           | `9865`   | 后端监听端口                                                         |
 | `BODY_LIMIT`     | `10mb`   | JSON 请求体大小限制（不作用于 multipart 上传；APK 单包硬上限 500MB） |
 | `STATIC_PREFIX`  | `static` | API 与静态文件 URL 前缀                                              |
+| `WEB_DIR`        | `<仓库根>/packages/frontend/dist` | 前端构建产物目录；同源部署时由后端托管，相对路径按 cwd 解析 |
 | `CORS_ORIGIN`    | `''`     | 跨域来源白名单，逗号分隔；留空不开放跨域，填 `*` 放通全部来源        |
 | `ENABLE_SWAGGER` | `true`   | 是否挂载 Swagger 文档（`/docs`），生产环境建议关闭                   |
 
@@ -464,18 +465,42 @@ findLatestVisible (status ∈ [灰度, 全量], 按 versionCode 倒序)
 
 灰度命中：`sha256(deviceId)` 取前 8 位十六进制转整数对 100 取模，小于 `grayPercent` 即命中（同一设备结果稳定）。强更判定：`forceUpdate === 1` 或客户端 `versionCode < minVersionCode`。
 
-### SPA 回退中间件
+### 前端静态资源与 SPA 回退
 
-`main.ts` 中注册了一个 Express 中间件：
+后端启动时（`packages/backend/src/infra/bootstrap/spa-fallback.ts`）挂载前端构建产物：
 
-- 无文件扩展名 **且** 非 `/static` `/docs` 路径 **且** Accept 包含 `text/html` 的 GET 请求 → 返回 `index.html`
-- 其他请求正常处理
-
-前端静态目录为进程工作目录下的 `web/`（部署包即 `deploy/web/`）。
+- 静态目录**只有一个配置点**：`WEB_DIR` 环境变量覆盖，默认 `<仓库根>/packages/frontend/dist`
+  （按模块文件位置解析，与进程工作目录无关；部署包默认 `<deploy>/web`）
+- 命中优先级：已存在的静态文件（`/assets/**`、`favicon.ico` 等）直接返回；
+  未命中的 HTML 请求（无扩展名、非 `/static` `/docs`、Accept 含 `text/html`）回 `index.html`；
+  未命中的 `/static/**` 仍由 Nest 返回 JSON 404，不会被 fallback 吞掉
+- 缓存：`/assets/**` 返回 `Cache-Control: public, max-age=31536000, immutable`；
+  `index.html` 返回 `no-store, must-revalidate`；CSP 等安全头由 Helmet 统一注入
 
 ---
 
 ## 部署
+
+### 仓库内同源部署（pnpm build 后直接启动）
+
+不需要 `pnpm deploy`、也不需要手工拷贝 `dist`：
+
+```bash
+pnpm build   # shared → backend → frontend，产物落在 packages/frontend/dist
+NODE_ENV=production node packages/backend/dist/main.js
+```
+
+- 同一个端口（默认 `9865`）同时提供前端页面与 `/static/**` API，`/`、`/files` 等前端路由
+  由 SPA fallback 返回 `index.html`；`pnpm build` 后 `packages/frontend/dist` 即后端默认读取的目录
+- 后端以模块位置解析默认目录（`packages/backend/{src,dist}/config` 向上四级为仓库根），
+  因此在仓库根或任意 cwd 启动都能找到产物
+- 需要指向其他产物目录时，用 `WEB_DIR` 覆盖（相对路径按进程 cwd 解析）：
+
+  ```bash
+  WEB_DIR=/opt/vakao/web NODE_ENV=production node packages/backend/dist/main.js
+  ```
+
+- 未执行 `pnpm build`（目录不存在）时，启动会打印警告并只提供 API
 
 ### 一键打包
 
@@ -530,7 +555,7 @@ cd /opt/vakao-static-hub
 # 或 npm start
 ```
 
-生产模式下，NestJS 自动挂载 `deploy/web/` 下的前端静态资源并提供 SPA fallback，前后端同源部署，无需额外配置 CORS 反向代理。
+`start-app.js` 会把 `WEB_DIR` 默认设为部署包内的 `web/`，NestJS 自动挂载该目录的静态资源并提供 SPA fallback，前后端同源部署，无需额外配置 CORS 反向代理（如需改用其他目录，启动前显式设置 `WEB_DIR`）。
 
 ### 数据库初始化与同步
 

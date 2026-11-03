@@ -3,13 +3,6 @@
   "sourceRoot": "packages/backend/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "tsConfigPath": "packages/backend/tsconfig.build.json",
-    "assets": [
-      {
-        "include": "../public/**/*",
-        "outDir": "packages/backend/dist/public",
-        "watchAssets": true
-      }
-    ]
+    "tsConfigPath": "packages/backend/tsconfig.build.json"
   }
 }
