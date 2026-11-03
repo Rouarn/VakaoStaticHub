@@ -47,6 +47,15 @@ const arcs = computed(() => {
 
 const radius = 48;
 const circumference = 2 * Math.PI * radius;
+
+/**
+ * 占比文案：有量但不足 0.1% 时显示「<0.1%」，
+ * 直接 toFixed(1) 会得到 0.0%，看起来像数据错误。
+ */
+function percentText(percent: number, value: number) {
+  if (value > 0 && percent < 0.1) return '<0.1%';
+  return `${percent.toFixed(1)}%`;
+}
 </script>
 
 <template>
@@ -87,7 +96,8 @@ const circumference = 2 * Math.PI * radius;
       </div>
     </div>
 
-    <ul class="m-0 p-0 list-none flex flex-col gap-1.5 min-w-0 flex-1">
+    <!-- 图例限宽，避免 flex-1 拉满后占比数字被推到条形图旁边，误读成条形图的值 -->
+    <ul class="m-0 p-0 list-none flex flex-col gap-1.5 min-w-0 flex-1 max-w-64">
       <li
         v-for="(arc, i) in arcs"
         :key="arc.key"
@@ -100,9 +110,9 @@ const circumference = 2 * Math.PI * radius;
         <span class="text-ink-sub truncate flex-1" :title="arc.label">{{
           arc.label
         }}</span>
-        <span class="text-ink font-600 tabular-nums"
-          >{{ arc.percent.toFixed(1) }}%</span
-        >
+        <span class="text-ink font-600 tabular-nums">{{
+          percentText(arc.percent, arc.value)
+        }}</span>
       </li>
       <li v-if="arcs.length === 0" class="text-12px text-ink-sub">暂无数据</li>
     </ul>

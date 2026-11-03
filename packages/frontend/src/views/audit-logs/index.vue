@@ -22,7 +22,9 @@ import {
 } from '@vicons/ionicons5';
 import type { AuditLog, AuditLogPage } from '@vakao/shared';
 import {
+  ACTION_LABELS,
   ACTION_OPTIONS,
+  RESOURCE_TYPE_LABELS,
   RESOURCE_TYPE_OPTIONS,
   listAuditLogs,
 } from '@/api/audit-logs';
@@ -47,11 +49,17 @@ const range = ref<[number, number] | null>(null);
 
 const actionOptions = [
   { label: '全部动作', value: '' },
-  ...ACTION_OPTIONS.map((value) => ({ label: value, value })),
+  ...ACTION_OPTIONS.map((value) => ({
+    label: ACTION_LABELS[value] ?? value,
+    value,
+  })),
 ];
 const resourceOptions = [
   { label: '全部资源', value: '' },
-  ...RESOURCE_TYPE_OPTIONS.map((value) => ({ label: value, value })),
+  ...RESOURCE_TYPE_OPTIONS.map((value) => ({
+    label: RESOURCE_TYPE_LABELS[value] ?? value,
+    value,
+  })),
 ];
 
 async function load() {
@@ -233,22 +241,25 @@ onMounted(() => void load());
                     </span>
                   </td>
                   <td class="py-2.5 px-2">
-                    <NTag size="tiny" :bordered="false" type="info">{{
-                      log.action
-                    }}</NTag>
-                  </td>
-                  <td class="py-2.5 px-2">
-                    <span class="text-ink-sub">{{ log.resourceType }}</span>
-                    <span
-                      v-if="log.resourceId"
-                      class="text-10px text-ink-sub ml-1"
+                    <NTag
+                      size="tiny"
+                      :bordered="false"
+                      type="info"
+                      :title="log.action"
+                      >{{ ACTION_LABELS[log.action] ?? log.action }}</NTag
                     >
-                      #{{
-                        log.resourceId.length > 18
-                          ? `${log.resourceId.slice(0, 10)}…`
-                          : log.resourceId
-                      }}
-                    </span>
+                  </td>
+                  <td class="py-2.5 px-2 max-w-44">
+                    <p class="m-0 text-12px text-ink-sub">
+                      {{ RESOURCE_TYPE_LABELS[log.resourceType] ?? log.resourceType }}
+                    </p>
+                    <p
+                      v-if="log.resourceId"
+                      class="m-0 text-10px text-ink-sub font-mono truncate"
+                      :title="log.resourceId"
+                    >
+                      #{{ log.resourceId }}
+                    </p>
                   </td>
                   <td class="py-2.5 px-2 text-ink-sub font-mono text-11px">
                     {{ log.ip ?? '—' }}
@@ -280,7 +291,14 @@ onMounted(() => void load());
 
     <!-- 详情抽屉 -->
     <NDrawer v-model:show="drawerShow" :width="560" placement="right">
-      <NDrawerContent :title="current?.action ?? '审计详情'" closable>
+      <NDrawerContent
+        :title="
+          current
+            ? (ACTION_LABELS[current.action] ?? current.action)
+            : '审计详情'
+        "
+        closable
+      >
         <div v-if="current" class="flex flex-col gap-3">
           <div class="grid grid-cols-2 gap-2 text-12px">
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
@@ -297,12 +315,14 @@ onMounted(() => void load());
             </div>
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">动作</p>
-              <p class="m-0 mt-0.5 text-ink">{{ current.action }}</p>
+              <p class="m-0 mt-0.5 text-ink" :title="current.action">
+                {{ ACTION_LABELS[current.action] ?? current.action }}
+              </p>
             </div>
             <div class="rounded-lg bg-white/45 dark:bg-white/4 px-3 py-2">
               <p class="m-0 text-10px text-ink-sub">资源</p>
               <p class="m-0 mt-0.5 text-ink break-all">
-                {{ current.resourceType
+                {{ RESOURCE_TYPE_LABELS[current.resourceType] ?? current.resourceType
                 }}{{ current.resourceId ? ` / ${current.resourceId}` : '' }}
               </p>
             </div>

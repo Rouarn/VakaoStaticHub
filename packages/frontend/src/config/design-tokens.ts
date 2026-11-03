@@ -30,13 +30,17 @@ export const colors = {
   /** 玻璃面板 */
   glass: {
     light: 'rgba(255,255,255,0.65)',
-    dark: 'rgba(22,30,46,0.6)',
+    dark: 'rgba(24,33,50,0.68)',
     /** 浅色模式下更实一级的浮层（Tooltip 等需要保证文字对比度的场景） */
     solidLight: 'rgba(255,255,255,0.96)',
     /** 深色模式下更实一级的浮层（弹窗/下拉） */
     darkSolid: 'rgba(26,35,54,0.92)',
     borderLight: 'rgba(255,255,255,0.9)',
-    borderDark: 'rgba(255,255,255,0.06)',
+    /** 深色面板边界：6% 在 #0b0f19 上几乎不可见，会导致连续卡片“糊”在一起 */
+    borderDark: 'rgba(255,255,255,0.10)',
+    /** 表单控件底（比面板再实一级，避免深色下输入框与面板同色而看不出边界） */
+    inputLight: 'rgba(255,255,255,0.72)',
+    inputDark: 'rgba(255,255,255,0.06)',
   },
   /** 文字 */
   ink: {
@@ -44,6 +48,12 @@ export const colors = {
     secondary: '#5b6b82',
     darkPrimary: '#e2e8f0',
     darkSecondary: '#8b9bb4',
+    /** 占位符：只求可读（≥3:1），不抢正文 */
+    placeholderLight: '#7a8797',
+    placeholderDark: '#8b9bb4',
+    /** 品牌填充底上的文字（NaiveUI 深色主题默认给黑字，与紫色底看起来“脏”） */
+    onBrand: '#ffffff',
+    onBrandMuted: 'rgba(255,255,255,0.55)',
   },
   /** 背景光晕 */
   halo: {

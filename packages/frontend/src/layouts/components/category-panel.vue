@@ -385,7 +385,7 @@ async function confirmDeleteRoot() {
             class="group relative"
           >
             <button
-              class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border-none bg-transparent cursor-pointer transition-all duration-200 text-ink-sub hover:bg-white/60 dark:hover:bg-white/8"
+              class="w-full flex items-center gap-2.5 pl-3 pr-8 py-2 rounded-xl border-none bg-transparent cursor-pointer transition-all duration-200 text-ink-sub hover:bg-white/60 dark:hover:bg-white/8"
               :class="{
                 'bg-white/80! dark:bg-white/10! text-ink dark:text-ink-dark shadow-glass':
                   categoryStore.activeCategory === item.name,

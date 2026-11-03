@@ -381,7 +381,7 @@ function rootShareLabel(totalSize: number | null): string {
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500">根目录</th>
-                  <th class="py-2 px-2 font-500 w-24">ID</th>
+                  <th class="py-2 px-2 font-500 w-32">标识</th>
                   <th class="py-2 px-2 font-500 text-right w-28">文件数</th>
                   <th class="py-2 px-2 font-500 text-right w-32">占用</th>
                   <th class="py-2 pl-2 font-500 w-40">占总存储</th>
@@ -399,7 +399,9 @@ function rootShareLabel(totalSize: number | null): string {
                   >
                     {{ root.name }}
                   </td>
-                  <td class="py-2 px-2 text-ink-sub font-mono text-11px">
+                  <td
+                    class="py-2 px-2 text-ink-sub font-mono text-11px whitespace-nowrap"
+                  >
                     {{ root.rootId }}
                   </td>
                   <td class="py-2 px-2 text-right tabular-nums">

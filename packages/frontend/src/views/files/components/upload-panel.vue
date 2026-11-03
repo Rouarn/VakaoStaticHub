@@ -627,7 +627,9 @@ async function clearAll() {
         >
           取消全部
         </NButton>
-        <NButton size="tiny" quaternary @click="clearAll">清空列表</NButton>
+        <NButton v-else size="tiny" quaternary @click="clearAll"
+          >清空列表</NButton
+        >
       </div>
     </div>
 

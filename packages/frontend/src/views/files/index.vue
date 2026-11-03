@@ -365,8 +365,10 @@ function openBatchShare() {
     <!-- 工具条 -->
     <header class="glass-panel px-4 py-3 flex flex-wrap items-center gap-3">
       <div class="min-w-0">
-        <p class="m-0 text-13px font-600 text-ink truncate">{{ category }}</p>
-        <p class="m-0 text-11px text-ink-sub">
+        <p class="m-0 text-15px font-600 text-ink truncate leading-tight">
+          {{ category }}
+        </p>
+        <p class="m-0 mt-0.5 text-12px text-ink-sub">
           {{ categoryStore.rootName(rootId) }} · 共 {{ total }} 个文件
         </p>
       </div>
@@ -492,9 +494,14 @@ function openBatchShare() {
           v-else-if="!loading && items.length === 0"
           class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
         >
-          <NEmpty :description="q ? '没有匹配的文件' : '当前分类还没有文件'" />
+          <NEmpty
+            :description="
+              q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'
+            "
+          />
+          <NButton v-if="q" size="small" @click="q = ''">清除搜索</NButton>
           <NButton
-            v-if="!q"
+            v-else
             size="small"
             type="primary"
             @click="uploadShow = true"
@@ -546,8 +553,11 @@ function openBatchShare() {
       </NSpin>
     </div>
 
-    <!-- 分页 -->
-    <footer class="glass-panel px-4 py-2 flex items-center justify-end gap-2">
+    <!-- 分页（无数据时隐藏，避免 0 条却显示页码） -->
+    <footer
+      v-if="total > 0"
+      class="glass-panel px-4 py-2 flex items-center justify-end gap-2"
+    >
       <NPagination
         v-model:page="page"
         v-model:page-size="pageSize"

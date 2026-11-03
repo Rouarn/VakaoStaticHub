@@ -627,7 +627,10 @@ onBeforeUnmount(() => {
                       >
                         {{ file.name }}
                       </span>
-                      <span class="block text-10px text-ink-sub truncate">
+                      <span
+                        class="block text-11px text-ink-sub truncate"
+                        :title="file.path"
+                      >
                         {{ file.path }}
                         <template v-if="file.exists">
                           · {{ formatBytes(file.size ?? 0) }}</template
@@ -686,7 +689,7 @@ onBeforeUnmount(() => {
         </template>
 
         <p
-          class="m-0 text-center text-10px text-ink-sub flex items-center justify-center gap-1"
+          class="m-0 text-center text-11px text-ink-sub flex items-center justify-center gap-1"
         >
           <NIcon :size="12"><InformationCircleOutline /></NIcon>
           Vakao 静态资源中心 · 分享链接由文件所有者创建

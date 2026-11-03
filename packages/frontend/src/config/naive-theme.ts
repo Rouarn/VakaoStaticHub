@@ -19,12 +19,45 @@ const commonBase = {
   borderRadiusSmall: '8px',
 } as const;
 
+/** 表单控件（浅色）：占位符默认 #c2c2c2 在玻璃底上低于 3:1，统一抬到令牌值 */
+const lightInput = {
+  color: colors.glass.inputLight,
+  colorFocus: colors.glass.solidLight,
+  textColor: colors.ink.primary,
+  placeholderColor: colors.ink.placeholderLight,
+  border: `1px solid ${colors.glass.borderLight}`,
+  borderHover: `1px solid ${colors.brand[300]}`,
+  borderFocus: `1px solid ${colors.brand[500]}`,
+  boxShadowFocus: `0 0 0 2px ${colors.brand[200]}`,
+  caretColor: colors.brand[600],
+  arrowColor: colors.ink.secondary,
+} as const;
+
+/** 表单控件（深色）：默认深色输入框与面板同色，靠边界区分 */
+const darkInput = {
+  color: colors.glass.inputDark,
+  colorFocus: colors.glass.darkSolid,
+  textColor: colors.ink.darkPrimary,
+  placeholderColor: colors.ink.placeholderDark,
+  border: `1px solid ${colors.glass.borderDark}`,
+  borderHover: `1px solid ${colors.brand[400]}`,
+  borderFocus: `1px solid ${colors.brand[500]}`,
+  boxShadowFocus: `0 0 0 2px ${colors.halo.purpleDark}`,
+  caretColor: colors.brand[400],
+  arrowColor: colors.ink.darkSecondary,
+} as const;
+
 export const lightThemeOverrides: GlobalThemeOverrides = {
   common: {
     ...commonBase,
     textColorBase: colors.ink.primary,
     textColor1: colors.ink.primary,
     textColor2: colors.ink.secondary,
+  },
+  Input: lightInput,
+  InternalSelection: {
+    ...lightInput,
+    borderActive: `1px solid ${colors.brand[500]}`,
   },
   Card: {
     color: colors.glass.light,
@@ -83,13 +116,27 @@ export const lightThemeOverrides: GlobalThemeOverrides = {
 export const darkThemeOverrides: GlobalThemeOverrides = {
   common: {
     ...commonBase,
-    primaryColor: colors.brand[500],
-    primaryColorHover: colors.brand[400],
-    primaryColorPressed: colors.brand[600],
-    primaryColorSuppl: colors.brand[400],
+    // 500 号紫上的白字只有 4.2:1，深色下用 600 号保证主按钮文字 ≥4.5:1
+    primaryColor: colors.brand[600],
+    primaryColorHover: colors.brand[500],
+    primaryColorPressed: colors.brand[700],
+    primaryColorSuppl: colors.brand[500],
     textColorBase: colors.ink.darkPrimary,
     textColor1: colors.ink.darkPrimary,
     textColor2: colors.ink.darkSecondary,
+  },
+  Input: darkInput,
+  InternalSelection: {
+    ...darkInput,
+    borderActive: `1px solid ${colors.brand[500]}`,
+  },
+  // 深色主题默认给主按钮黑字（--n-text-color: #000），紫底黑字发脏且与浅色主题不一致
+  Button: {
+    textColorPrimary: colors.ink.onBrand,
+    textColorHoverPrimary: colors.ink.onBrand,
+    textColorPressedPrimary: colors.ink.onBrand,
+    textColorFocusPrimary: colors.ink.onBrand,
+    textColorDisabledPrimary: colors.ink.onBrandMuted,
   },
   Card: {
     color: colors.glass.dark,

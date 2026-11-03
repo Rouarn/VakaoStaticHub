@@ -642,11 +642,11 @@ onMounted(async () => {
         </NButton>
       </EmptyState>
 
-      <div v-else class="flex flex-col gap-3">
+      <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <article
           v-for="link in links"
           :key="link.token"
-          class="glass-panel px-4 py-3 flex flex-col gap-3"
+          class="glass-panel px-4 py-3 flex flex-col gap-3 h-full"
         >
           <div class="flex items-start gap-3 flex-wrap">
             <div

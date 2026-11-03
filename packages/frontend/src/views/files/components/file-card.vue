@@ -134,13 +134,14 @@ function onAction(key: string) {
         <img v-if="poster" :src="poster" class="media-image" alt="" />
         <div
           v-else
-          class="w-full h-full flex items-center justify-center text-white/70"
+          class="w-full h-full flex items-center justify-center text-brand-600/70 dark:text-brand-300/80"
         >
           <NIcon :size="34"><VideocamOutline /></NIcon>
         </div>
         <div class="absolute inset-0 flex items-center justify-center">
+          <!-- 播放按钮统一用暗底 + 白图标：浅色渐变底上白色玻璃几乎不可见 -->
           <span
-            class="w-12 h-12 rounded-full flex items-center justify-center bg-white/25 dark:bg-white/15 backdrop-blur-md border border-white/40 text-white"
+            class="w-12 h-12 rounded-full flex items-center justify-center bg-black/45 backdrop-blur-md border border-white/30 text-white"
           >
             <NIcon :size="24"><PlayOutline /></NIcon>
           </span>
@@ -158,7 +159,7 @@ function onAction(key: string) {
           class="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-brand-400/25 to-brand-700/25"
         >
           <span
-            class="w-12 h-12 rounded-full flex items-center justify-center bg-white/30 dark:bg-white/15 backdrop-blur-md border border-white/40 text-white"
+            class="w-12 h-12 rounded-full flex items-center justify-center bg-black/45 backdrop-blur-md border border-white/30 text-white"
           >
             <NIcon :size="24"><PlayOutline /></NIcon>
           </span>
@@ -183,13 +184,16 @@ function onAction(key: string) {
         </span>
       </div>
 
-      <!-- 选中框 -->
-      <NCheckbox
-        class="absolute top-2 left-2"
-        :checked="props.selected"
+      <!-- 选中框：叠在图片上时默认白色描边几乎不可见，加一层薄暗底保证可辨 -->
+      <span
+        class="absolute top-2 left-2 w-6 h-6 rounded-md flex items-center justify-center bg-black/25 backdrop-blur-sm"
         @click.stop
-        @update:checked="emit('toggle-select', props.file.path)"
-      />
+      >
+        <NCheckbox
+          :checked="props.selected"
+          @update:checked="emit('toggle-select', props.file.path)"
+        />
+      </span>
 
       <!-- 操作菜单 -->
       <div
@@ -259,7 +263,11 @@ function onAction(key: string) {
       >
         {{ props.file.name }}
       </p>
-      <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
+      <p
+        v-if="props.file.path !== props.file.name"
+        class="m-0 mt-0.5 text-11px text-ink-sub truncate"
+        :title="props.file.path"
+      >
         {{ props.file.path }}
       </p>
     </div>

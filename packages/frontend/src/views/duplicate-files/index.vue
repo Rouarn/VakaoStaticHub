@@ -334,13 +334,19 @@ onMounted(async () => {
               /></NIcon>
             </div>
             <div class="min-w-0 flex-1">
-              <p class="m-0 text-12px text-ink font-600 font-mono">
-                {{ truncateMiddle(group.contentHash, 14, 10) }}
+              <p
+                class="m-0 text-13px text-ink font-600 truncate"
+                :title="group.files[keepOf(group)]?.name"
+              >
+                {{ group.files[keepOf(group)]?.name ?? '重复文件组' }}
               </p>
               <p class="m-0 mt-0.5 text-11px text-ink-sub">
                 单文件 {{ formatBytes(group.size) }} · {{ group.count }} 个副本
                 · 可释放
-                {{ formatBytes(group.size * (group.count - 1)) }}
+                {{ formatBytes(group.size * (group.count - 1)) }} ·
+                <span class="font-mono" :title="group.contentHash">{{
+                  truncateMiddle(group.contentHash, 14, 10)
+                }}</span>
               </p>
             </div>
             <div class="flex items-center gap-1.5">
