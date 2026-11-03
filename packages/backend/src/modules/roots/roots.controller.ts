@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '#/common/guards/jwt-auth.guard.js';
 import {
+  BrowseBoundsResultDto,
   BrowseDirectoriesQueryDto,
   BrowseDirectoriesResultDto,
 } from './dto/browse-directories.dto.js';
@@ -61,6 +62,18 @@ export class RootsController {
     @Body() body: UpdateResourceRootDto,
   ) {
     return await this.service.updateRoot(id, body);
+  }
+
+  @Get('browse/bounds')
+  @ApiOperation({
+    summary: '允许浏览与创建根目录的边界（主目录 / 根目录父级 / 白名单）',
+  })
+  @ApiOkResponse({ type: BrowseBoundsResultDto })
+  async browseBounds() {
+    return {
+      bounds: await this.service.getBrowseBounds(),
+      roots: await this.service.getRootShortcuts(),
+    };
   }
 
   @Get('browse')

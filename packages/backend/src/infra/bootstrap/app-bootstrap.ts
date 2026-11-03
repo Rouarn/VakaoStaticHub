@@ -122,6 +122,5 @@ export async function configureApp(
 
 export function logStartupInfo(port: number): void {
   const logger = new Logger('Bootstrap');
-  logger.log(`客户端已启动，监听端口：http://localhost:9867`);
-  logger.log(`服务端已启动，监听端口: http://localhost:${port}`);
+  logger.log(`服务已启动，监听端口：http://localhost:${port}`);
 }

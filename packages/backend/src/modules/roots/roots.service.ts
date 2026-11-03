@@ -22,13 +22,26 @@ import {
   UpdateResourceRootDto,
 } from './dto/resource-root.dto.js';
 import { ROOT_BROWSE_MAX_ENTRIES } from '@vakao/shared';
-import type { BrowseDirectoriesResult, ResourceRoot } from '@vakao/shared';
+import type {
+  BrowseBound,
+  BrowseBoundSource,
+  BrowseDirectoriesResult,
+  BrowseShortcut,
+  ResourceRoot,
+} from '@vakao/shared';
 
 /** child 是否位于 parent 之内（按路径分段判断，避免 `/foo` 误判 `/foobar`） */
 function isWithin(child: string, parent: string): boolean {
   const rel = relative(parent, child);
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
+
+/** 边界展示顺序：根目录父级 → 白名单 → 主目录（越靠前越适合作为默认起点） */
+const BROWSE_BOUND_PRIORITY: Record<BrowseBoundSource, number> = {
+  'root-parent': 0,
+  whitelist: 1,
+  home: 2,
+};
 
 /**
  * 资源根目录管理服务
@@ -132,6 +145,8 @@ export class RootsService {
       throw new ConflictException(`根目录 ID 已存在：${id}`);
     }
     this.assertPathUnique(path);
+    // 手输路径同样受边界约束：不允许在允许范围之外新建根目录
+    await this.assertPathAllowed(path);
 
     // 先落盘再写配置，避免配置里出现不可用的根目录
     await this.ensureDirectory(path);
@@ -197,6 +212,7 @@ export class RootsService {
       const oldPath = this.resolvePath(root.path);
       const newPath = this.resolvePath(path);
       if (newPath !== oldPath) {
+        await this.assertPathAllowed(path);
         // 旧目录已有内容时不允许改路径：避免配置切换后旧文件“凭空消失”
         try {
           const entries = await readdir(oldPath);
@@ -224,33 +240,122 @@ export class RootsService {
   }
 
   /**
-   * 允许浏览的边界（真实路径）
+   * 允许浏览与创建根目录的边界（真实路径 + 来源）
    *
    * - 每个已配置根目录的父级（便于把新根目录挂在既有存储目录旁边）
    * - 当前运行用户的主目录
    * - `ROOT_BROWSE_WHITELIST` 环境变量（逗号分隔的绝对路径，需自行确保可信）
    *
-   * 用 realpath 归一，符号链接无法借此逃逸到边界之外。
+   * 用 realpath 归一，符号链接无法借此逃逸到边界之外；
+   * 排序保证「根目录父级 → 白名单 → 主目录」，前端据此挑选默认起点。
    */
-  private async allowedBrowseRealPaths(): Promise<string[]> {
-    const candidates = new Set<string>([homedir()]);
+  async getBrowseBounds(): Promise<BrowseBound[]> {
+    const candidates = new Map<
+      string,
+      { label: string; source: BrowseBoundSource }
+    >();
+    const add = (path: string, label: string, source: BrowseBoundSource) => {
+      const key = normalize(path);
+      if (!candidates.has(key)) candidates.set(key, { label, source });
+    };
+
+    add(homedir(), '用户主目录', 'home');
     for (const root of this.resourceRoots.getRoots()) {
-      candidates.add(dirname(this.resolvePath(root.path)));
+      add(dirname(this.resolvePath(root.path)), '根目录父级', 'root-parent');
     }
     for (const item of (process.env.ROOT_BROWSE_WHITELIST ?? '').split(',')) {
       const trimmed = item.trim();
-      if (trimmed && isAbsolute(trimmed)) candidates.add(normalize(trimmed));
+      if (trimmed && isAbsolute(trimmed)) add(trimmed, '白名单', 'whitelist');
     }
 
-    const allowed: string[] = [];
-    for (const candidate of candidates) {
+    const bounds: BrowseBound[] = [];
+    const seen = new Set<string>();
+    for (const [candidate, meta] of candidates) {
       try {
-        allowed.push(await realpath(candidate));
+        const real = await realpath(candidate);
+        if (seen.has(real)) continue;
+        seen.add(real);
+        bounds.push({ path: real, ...meta });
       } catch {
         // 边界目录本身不存在时跳过，不影响其它边界
       }
     }
-    return [...new Set(allowed)];
+    return bounds.sort(
+      (a, b) =>
+        BROWSE_BOUND_PRIORITY[a.source] - BROWSE_BOUND_PRIORITY[b.source] ||
+        a.path.localeCompare(b.path),
+    );
+  }
+
+  private async allowedBrowseRealPaths(): Promise<string[]> {
+    return (await this.getBrowseBounds()).map((bound) => bound.path);
+  }
+
+  /**
+   * 已配置根目录的快捷入口（真实路径 + 显示名称）
+   *
+   * 与边界不同：根目录本身通常落在某个父级边界内，
+   * 这里单独返回是为了让目录弹框能一键跳到具体根目录。
+   */
+  async getRootShortcuts(): Promise<BrowseShortcut[]> {
+    const shortcuts: BrowseShortcut[] = [];
+    for (const root of this.resourceRoots.getRoots()) {
+      try {
+        shortcuts.push({
+          path: await realpath(this.resolvePath(root.path)),
+          label: root.name,
+          rootId: root.id,
+        });
+      } catch {
+        // 物理目录缺失时跳过，配置本身仍保留
+      }
+    }
+    return shortcuts;
+  }
+
+  /**
+   * 校验目标路径是否落在允许边界内（新建根目录 / 修改根目录路径时使用）
+   *
+   * 目标目录可能尚不存在，因此对最近的已存在祖先做 realpath，
+   * 再拼回剩余路径段，避免符号链接借道逃逸到边界之外。
+   */
+  private async assertPathAllowed(path: string): Promise<void> {
+    const target = this.resolvePath(path);
+    const bounds = await this.getBrowseBounds();
+    if (bounds.length === 0) {
+      throw new ForbiddenException('没有可用的目录边界，无法创建根目录');
+    }
+
+    let probe = target;
+    let realBase = '';
+    for (;;) {
+      try {
+        realBase = await realpath(probe);
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+          throw new BadRequestException(
+            `无法解析路径 ${path}（${code ?? '未知错误'}）`,
+          );
+        }
+        const parent = dirname(probe);
+        if (parent === probe) {
+          throw new BadRequestException(`无法解析路径：${path}`);
+        }
+        probe = parent;
+      }
+    }
+
+    const candidate =
+      probe === target ? realBase : join(realBase, relative(probe, target));
+    if (!bounds.some((bound) => isWithin(candidate, bound.path))) {
+      throw new ForbiddenException(
+        `路径不在允许范围内：${path}。允许的前缀：${bounds
+          .map((bound) => bound.path)
+          .join('、')}`,
+      );
+    }
   }
 
   /** 把 fs 错误翻译为可读的 4xx，避免无权限/不存在被当成 500 */
@@ -280,15 +385,13 @@ export class RootsService {
    */
   async browseDirectories(input?: string): Promise<BrowseDirectoriesResult> {
     const raw = (input ?? '').trim();
-    if (raw) {
-      if (!isAbsolute(raw)) {
-        throw new BadRequestException('目录路径必须是绝对路径');
-      }
-      if (raw.split(/[\\/]/).includes('..')) {
-        throw new BadRequestException('目录路径不允许包含 `..`');
-      }
+    if (raw && raw.split(/[\\/]/).includes('..')) {
+      throw new BadRequestException('目录路径不允许包含 `..`');
     }
 
+    // 相对路径按进程工作目录解析（与根目录 path 的解析规则一致），
+    // 因此编辑形如 "storage" 的相对根目录时也能直接定位；
+    // 越界仍由下方 realpath + 边界判断兜底，相对路径不会扩大可访问范围
     const target = raw ? resolve(raw) : homedir();
     const allowed = await this.allowedBrowseRealPaths();
 
@@ -302,7 +405,7 @@ export class RootsService {
     const boundary = allowed.find((prefix) => isWithin(real, prefix));
     if (!boundary) {
       throw new ForbiddenException(
-        '不允许浏览该目录：仅限已配置根目录的父级、用户主目录与白名单路径',
+        `不允许浏览该目录：${real}。允许的前缀：${allowed.join('、')}`,
       );
     }
 

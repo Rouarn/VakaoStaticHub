@@ -1,9 +1,22 @@
 import { http } from '@/utils/http';
-import type { BrowseDirectoriesResult, ResourceRoot } from '@vakao/shared';
+import type {
+  BrowseBoundsResult,
+  BrowseDirectoriesResult,
+  ResourceRoot,
+} from '@vakao/shared';
 
 /** 资源根目录列表（GET /static/roots） */
 export function listRoots() {
   return http.get<ResourceRoot[]>('/roots');
+}
+
+/**
+ * 允许浏览与创建根目录的边界（GET /static/roots/browse/bounds）
+ *
+ * 返回主目录、已配置根目录的父级与白名单，供目录选择弹框展示快捷入口。
+ */
+export function browseBounds() {
+  return http.get<BrowseBoundsResult>('/roots/browse/bounds');
 }
 
 /**

@@ -61,3 +61,49 @@ export class BrowseDirectoriesResultDto {
   @ApiProperty({ description: '截断前扫描到的子目录总数', example: 12 })
   total!: number;
 }
+
+export class BrowseBoundDto {
+  @ApiProperty({
+    description: '边界绝对路径（realpath 归一后）',
+    example: '/www/wwwroot',
+  })
+  path!: string;
+
+  @ApiProperty({ description: '来源说明', example: '白名单' })
+  label!: string;
+
+  @ApiProperty({
+    description: '来源类型',
+    enum: ['root-parent', 'whitelist', 'home'],
+    example: 'whitelist',
+  })
+  source!: 'root-parent' | 'whitelist' | 'home';
+}
+
+export class BrowseShortcutDto {
+  @ApiProperty({
+    description: '根目录真实绝对路径',
+    example: '/www/wwwroot/vakao-static-hub/media',
+  })
+  path!: string;
+
+  @ApiProperty({ description: '根目录显示名称', example: '媒体资源' })
+  label!: string;
+
+  @ApiProperty({ description: '根目录 ID', example: 'media' })
+  rootId!: string;
+}
+
+export class BrowseBoundsResultDto {
+  @ApiProperty({
+    description: '允许浏览与创建根目录的边界列表（按来源排序）',
+    type: [BrowseBoundDto],
+  })
+  bounds!: BrowseBoundDto[];
+
+  @ApiProperty({
+    description: '已配置根目录（作为快捷入口，可直接跳转到该目录）',
+    type: [BrowseShortcutDto],
+  })
+  roots!: BrowseShortcutDto[];
+}

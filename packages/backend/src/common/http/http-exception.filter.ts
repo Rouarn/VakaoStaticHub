@@ -49,6 +49,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message = exception.message || message;
     }
 
+    // 错误响应禁止任何中间层缓存：CDN 一旦缓存 4xx/5xx，
+    // 源站恢复后仍会持续把错误页返回给用户（线上曾出现 EdgeOne 缓存旧 404 的事故）
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
+
     // 返回统一格式的错误响应
     res.status(status).json({
       code: status,

@@ -108,6 +108,9 @@ export default defineConfig({
         ::-webkit-scrollbar-thumb { background: ${colors.ink.secondary}44; border-radius: 8px; }
         ::-webkit-scrollbar-thumb:hover { background: ${colors.ink.secondary}88; }
         ::-webkit-scrollbar-track { background: transparent; }
+        /* 隐藏滚动条但保留滚动能力（内部滚动区域用） */
+        .scrollbar-hidden { scrollbar-width: none; -ms-overflow-style: none; }
+        .scrollbar-hidden::-webkit-scrollbar { display: none; width: 0; height: 0; }
         /* 路由过渡 */
         .fade-slide-enter-active, .fade-slide-leave-active { transition: opacity 0.25s ease, transform 0.25s ease; }
         .fade-slide-enter-from { opacity: 0; transform: translateY(10px); }

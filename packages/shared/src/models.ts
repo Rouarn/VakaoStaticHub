@@ -40,6 +40,37 @@ export interface BrowseDirectoriesResult {
 /** 单次目录浏览返回的最大条目数（超出部分截断并标记 truncated） */
 export const ROOT_BROWSE_MAX_ENTRIES = 500;
 
+/** 允许浏览/创建根目录的边界来源 */
+export type BrowseBoundSource = 'root-parent' | 'whitelist' | 'home';
+
+/** 一条允许的目录边界（GET /roots/browse/bounds） */
+export interface BrowseBound {
+  /** 边界绝对路径（realpath 归一后） */
+  path: string;
+  /** 展示用来源说明 */
+  label: string;
+  /** 来源：根目录父级 / 白名单 / 运行用户主目录 */
+  source: BrowseBoundSource;
+}
+
+/** GET /roots/browse/bounds 的响应数据 */
+export interface BrowseBoundsResult {
+  /** 允许浏览/创建根目录的边界 */
+  bounds: BrowseBound[];
+  /** 已配置的根目录，作为快捷入口直接跳转 */
+  roots: BrowseShortcut[];
+}
+
+/** 已配置根目录的快捷入口（GET /roots/browse/bounds 的 roots 字段） */
+export interface BrowseShortcut {
+  /** 根目录真实绝对路径 */
+  path: string;
+  /** 根目录显示名称 */
+  label: string;
+  /** 根目录 ID */
+  rootId: string;
+}
+
 export interface FileItem {
   name: string;
   path: string;

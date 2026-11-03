@@ -128,7 +128,7 @@ pnpm dev
 | `DEFAULT_CATEGORY`       | `TemporaryFile`                             | 默认分类目录名                                                                                                     |
 | `UPLOAD_TEMP_DIR`        | `<os.tmpdir()>/vakao-static-hub/uploads`     | 分片上传临时目录；默认落在操作系统临时目录下的应用专属子目录。线上如 `/tmp` 挂 tmpfs 且内存吃紧，可指回磁盘目录（如 `/var/vakao-uploads`） |
 | `CHUNK_FILE_SIZE_LIMIT`  | `104857600`（100MB）                         | 单个分片文件硬上限（字节），防超大 buffer 打垮进程内存                                                            |
-| `ROOT_BROWSE_WHITELIST`   | `''`                                          | 目录浏览接口的额外允许前缀（逗号分隔的绝对路径）。默认可浏览「已配置根目录的父级 + 运行用户主目录」；如需浏览其他位置（如 `/var/www`）在此追加 |
+| `ROOT_BROWSE_WHITELIST`   | `''`                                          | 目录浏览与新建根目录的额外允许前缀（逗号分隔的绝对路径）。默认允许「已配置根目录的父级 + 运行用户主目录」；如需在 `/var/www` 等位置浏览或新建根目录，在此追加 |
 
 ### 定时任务
 
@@ -229,12 +229,15 @@ vakao-static-hub/
 | DELETE | `/static/roots/:id`                      | 删除根目录     | 是   |
 | GET    | `/static/roots/system/directories?path=` | 浏览服务器目录（旧接口，建议用 `/roots/browse`） | 是   |
 | GET    | `/static/roots/browse?path=`             | 浏览服务器目录（仅目录，受安全边界限制）       | 是   |
+| GET    | `/static/roots/browse/bounds`            | 允许浏览与创建根目录的边界（主目录 / 根目录父级 / 白名单） | 是   |
 
 > 目录浏览契约（`GET /static/roots/browse`）：
 >
-> - 参数 `path` 必须是绝对路径，省略时从运行用户主目录开始；相对路径与含 `..` 的路径返回 400。
+> - 参数 `path` 支持绝对路径与相对路径（相对路径按进程工作目录解析，便于打开形如 `storage` 的相对根目录），省略时从运行用户主目录开始；含 `..` 的路径返回 400。
 > - 返回 `{ path, parent, entries: [{ name, path }], truncated, total }`，只枚举目录，**不返回任何文件**。
-> - 安全边界：realpath 解析后必须落在「已配置根目录的父级 + 运行用户主目录 + `ROOT_BROWSE_WHITELIST`」内，否则 403；符号链接目录不列出、不可借道逃逸。
+> - 安全边界：realpath 解析后必须落在「已配置根目录的父级 + 运行用户主目录 + `ROOT_BROWSE_WHITELIST`」内，否则 403；符号链接目录不列出、不可借道逃逸。越界错误会直接列出允许的前缀。
+> - `GET /static/roots/browse/bounds` 返回 `{ bounds: [{ path, label, source }], roots: [{ path, label, rootId }] }`：`bounds` 是允许浏览/创建的边界（`source` 为 `root-parent` / `whitelist` / `home`，按此顺序），`roots` 是已配置根目录（前端作为快捷入口直接跳转，不参与边界计算，因此新增同父级根目录不会增加边界入口）。
+> - **新建根目录与修改根目录路径使用同一套边界校验**：目标目录尚不存在时按其最近已存在祖先的 realpath 拼接后再判断，越界返回 403 并给出允许前缀。
 > - 无权限目录（EACCES/EPERM）返回 400 可读原因，不存在返回 404；单次最多返回 500 项，超出时 `truncated=true`。
 > - 旧接口 `/static/roots/system/directories` 保留目录数组形状兼容，安全边界与 `/roots/browse` 一致。
 
@@ -541,6 +544,8 @@ deploy/
 pnpm run deploy
 
 # 2. 将 deploy/ 目录上传到服务器
+#    注意：不要覆盖服务器上的 .env —— 线上 ENABLE_SWAGGER、DB_SYNCHRONIZE 等
+#    与本地根 .env 不同，整包覆盖会把生产配置改回开发值
 scp -r deploy/ user@server:/opt/vakao-static-hub/
 
 # 3. 在服务器上
@@ -556,6 +561,21 @@ cd /opt/vakao-static-hub
 ```
 
 `start-app.js` 会把 `WEB_DIR` 默认设为部署包内的 `web/`，NestJS 自动挂载该目录的静态资源并提供 SPA fallback，前后端同源部署，无需额外配置 CORS 反向代理（如需改用其他目录，启动前显式设置 `WEB_DIR`）。
+
+### 上线后校验与 CDN 缓存
+
+```bash
+# 源站直连（绕过 CDN），应返回 index.html
+curl -sI -H 'Accept: text/html' http://127.0.0.1:9865/ | head -3
+
+# 线上地址：重点看 eo-cache-status 与内容长度
+curl -sI -H 'Accept: text/html' https://static.woyuxiaji.cn/
+```
+
+- 本服务对 `index.html`、SPA fallback 与全部错误响应都返回 `Cache-Control: no-store`，CDN 不应缓存这些对象
+- 若首页仍返回旧内容或 404，先用带时间戳的地址（如 `/index.html?v=20261103`）区分「源站问题」与「CDN 缓存问题」
+- 确认是 CDN 缓存后：腾讯云 EdgeOne 控制台 → 缓存刷新 → URL 刷新 `https://static.woyuxiaji.cn/`（必要时全站刷新）
+- EdgeOne 侧建议把「无扩展名 / `.html`」的缓存规则设为「不缓存」或「遵循源站」，否则 HTML 会被边缘缓存，表现为「接口正常、前端 404/旧版」
 
 ### 数据库初始化与同步
 
