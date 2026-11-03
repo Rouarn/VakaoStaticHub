@@ -662,79 +662,41 @@ onMounted(async () => {
 
 <template>
   <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
-    <!-- 页头：第一行「标题/统计 + 检索工具」，第二行「状态筛选 + 批量入口」 -->
-    <header class="glass-panel px-5 py-4 flex flex-col gap-3">
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5">
-            <NIcon
-              :size="18"
-              class="text-brand-600 dark:text-brand-400 shrink-0"
-            >
-              <ShareSocialOutline />
-            </NIcon>
-            <h1 class="m-0 text-15px font-600 text-ink leading-tight">
-              分享管理
-            </h1>
-            <NTooltip :delay="300">
-              <template #trigger>
-                <NIcon :size="14" class="text-ink-sub cursor-help">
-                  <InformationCircleOutline />
-                </NIcon>
-              </template>
-              访问者通过 /share/:token 页面打开链接；列表由服务端分页与检索（token
-              / 文件 / 分类 / 备注）。停用后访问返回「已停用」，撤销会物理删除链接与访问记录
-            </NTooltip>
-          </div>
-          <p class="m-0 mt-0.5 text-12px text-ink-sub tabular-nums">
-            共 {{ total }} 条 · 活跃 {{ counts.active }} · 已停用
-            {{ counts.disabled }} · 已失效
-            {{ counts.expired + counts.exhausted }}
-          </p>
-        </div>
-
-        <div class="ml-auto flex flex-wrap items-center gap-2">
-          <!-- 外层定宽：NInput 自身 width:100% 会覆盖 UnoCSS 的 w-56，导致搜索框撑满并挤掉同行控件 -->
-          <div class="w-56 shrink-0">
-            <NInput
-              v-model:value="keyword"
-              size="small"
-              clearable
-              placeholder="搜索 token / 文件 / 分类"
-            >
-              <template #prefix
-                ><NIcon :size="15"><SearchOutline /></NIcon
-              ></template>
-            </NInput>
-          </div>
-          <NSelect
-            v-model:value="pageSize"
-            :options="pageSizeOptions"
-            size="small"
-            class="w-28"
-          />
+    <!-- 第 1 块：页面标题区（图标 + 标题 + 统计说明） -->
+    <section class="glass-panel px-4 py-3 flex items-start gap-2.5 shrink-0">
+      <NIcon
+        :size="18"
+        class="mt-0.5 text-brand-600 dark:text-brand-400 shrink-0"
+      >
+        <ShareSocialOutline />
+      </NIcon>
+      <div class="min-w-0">
+        <div class="flex items-center gap-1.5">
+          <h1 class="m-0 text-15px font-600 text-ink leading-tight">
+            分享管理
+          </h1>
           <NTooltip :delay="300">
             <template #trigger>
-              <NButton size="small" quaternary circle @click="() => load()">
-                <template #icon
-                  ><NIcon><RefreshOutline /></NIcon
-                ></template>
-              </NButton>
+              <NIcon :size="14" class="text-ink-sub cursor-help">
+                <InformationCircleOutline />
+              </NIcon>
             </template>
-            刷新
+            访问者通过 /share/:token 页面打开链接；列表由服务端分页与检索（token
+            / 文件 / 分类 /
+            备注）。停用后访问返回「已停用」，撤销会物理删除链接与访问记录
           </NTooltip>
-          <NButton type="primary" size="small" @click="openCreate">
-            <template #icon
-              ><NIcon><AddOutline /></NIcon
-            ></template>
-            创建分享
-          </NButton>
         </div>
+        <p class="m-0 mt-0.5 text-12px text-ink-sub tabular-nums">
+          共 {{ total }} 条 · 活跃 {{ counts.active }} · 已停用
+          {{ counts.disabled }} · 已失效
+          {{ counts.expired + counts.exhausted }}
+        </p>
       </div>
+    </section>
 
-      <div
-        class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-solid border-ink-sub/15 dark:border-white/10 pt-3"
-      >
+    <!-- 第 2 块：工具条区（状态筛选、全选、搜索、每页条数、刷新、创建） -->
+    <section class="glass-panel px-4 py-3 flex flex-col gap-3 shrink-0">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="flex items-center gap-1 flex-wrap">
           <button
             v-for="tab in statusTabs"
@@ -766,7 +728,47 @@ onMounted(async () => {
           </span>
         </div>
       </div>
-    </header>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- 外层定宽：NInput 自身 width:100% 会覆盖 UnoCSS 的 w-56，导致搜索框撑满并挤掉同行控件 -->
+        <div class="w-56 shrink-0">
+          <NInput
+            v-model:value="keyword"
+            size="small"
+            clearable
+            placeholder="搜索 token / 文件 / 分类"
+          >
+            <template #prefix
+              ><NIcon :size="15"><SearchOutline /></NIcon
+            ></template>
+          </NInput>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+          <NSelect
+            v-model:value="pageSize"
+            :options="pageSizeOptions"
+            size="small"
+            class="w-28"
+          />
+          <NTooltip :delay="300">
+            <template #trigger>
+              <NButton size="small" quaternary circle @click="() => load()">
+                <template #icon
+                  ><NIcon><RefreshOutline /></NIcon
+                ></template>
+              </NButton>
+            </template>
+            刷新
+          </NTooltip>
+          <NButton type="primary" size="small" @click="openCreate">
+            <template #icon
+              ><NIcon><AddOutline /></NIcon
+            ></template>
+            创建分享
+          </NButton>
+        </div>
+      </div>
+    </section>
 
     <!-- 批量操作条：有选中项时出现，仅作用于当前页选中项 -->
     <div
@@ -828,188 +830,193 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 列表独立滚动：工具栏与分页不随内容移动 -->
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
-        <ErrorState v-if="error" :message="error" @retry="load" />
+    <!-- 第 3 块：内容区（列表独立滚动 + 底部固定分页） -->
+    <div class="flex-1 min-h-0 flex flex-col gap-3">
+      <div class="flex-1 min-h-0 overflow-y-auto pr-1">
+        <NSpin :show="loading">
+          <ErrorState v-if="error" :message="error" @retry="load" />
 
-        <EmptyState
-          v-else-if="!loading && links.length === 0"
-          :icon="LinkOutline"
-          :title="counts.all === 0 ? '还没有分享链接' : '没有符合条件的分享'"
-          :description="
-            counts.all === 0
-              ? '把文件库里的文件生成公开链接，发给同事或外部协作者即可直接访问与下载。'
-              : '调整状态筛选或清空搜索关键词后再试。'
-          "
-        >
-          <NButton
-            v-if="counts.all === 0"
-            type="primary"
-            size="small"
-            @click="openCreate"
-          >
-            创建第一个分享
-          </NButton>
-          <NButton
-            v-else
-            size="small"
-            @click="
-              keyword = '';
-              statusFilter = 'all';
+          <EmptyState
+            v-else-if="!loading && links.length === 0"
+            :icon="LinkOutline"
+            :title="counts.all === 0 ? '还没有分享链接' : '没有符合条件的分享'"
+            :description="
+              counts.all === 0
+                ? '把文件库里的文件生成公开链接，发给同事或外部协作者即可直接访问与下载。'
+                : '调整状态筛选或清空搜索关键词后再试。'
             "
           >
-            清空筛选
-          </NButton>
-        </EmptyState>
-
-        <div v-else class="content-grid grid-cols-1 xl:grid-cols-2">
-          <article
-            v-for="link in links"
-            :key="link.token"
-            class="glass-panel px-4 py-3 flex flex-col gap-3"
-            :class="{ 'ring-2 ring-brand-500/70': selected.has(link.token) }"
-          >
-            <div class="flex items-start gap-3 flex-wrap">
-              <NCheckbox
-                class="mt-2 shrink-0"
-                :checked="selected.has(link.token)"
-                :aria-label="`选择 ${targetLabel(link)}`"
-                @update:checked="toggleSelect(link.token)"
-              />
-              <div
-                class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
-              >
-                <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
-                  <LinkOutline />
-                </NIcon>
-              </div>
-
-              <div class="min-w-0 flex-1">
-                <p
-                  class="m-0 text-13px font-600 text-ink truncate"
-                  :title="targetLabel(link)"
-                >
-                  {{ targetLabel(link) }}
-                </p>
-                <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
-                  {{ link.category }} · 创建于
-                  {{ formatDateTime(link.createdAt) }}
-                </p>
-                <p
-                  v-if="link.remark"
-                  class="m-0 mt-0.5 text-11px text-ink-sub truncate"
-                >
-                  备注：{{ link.remark }}
-                </p>
-              </div>
-
-              <div class="flex items-center gap-2 flex-wrap">
-                <NTag
-                  size="small"
-                  :type="STATUS_TAG[statusOf(link)].type"
-                  :bordered="false"
-                >
-                  {{ STATUS_TAG[statusOf(link)].label }}
-                </NTag>
-                <NTag v-if="link.hasPassword" size="small" :bordered="false"
-                  >密码保护</NTag
-                >
-              </div>
-            </div>
-
-            <div
-              class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
+            <NButton
+              v-if="counts.all === 0"
+              type="primary"
+              size="small"
+              @click="openCreate"
             >
-              <span>
-                打开
-                <span class="text-ink font-600 tabular-nums">{{
-                  link.accessCount
-                }}</span>
-                <template v-if="link.maxAccesses !== null">
-                  / {{ link.maxAccesses }}</template
-                >
-                次
-              </span>
-              <span>
-                {{
-                  link.expiresAt
-                    ? `有效期至 ${formatDateTime(link.expiresAt)}`
-                    : '永久有效'
-                }}
-              </span>
-              <span class="font-mono" :title="link.token">
-                token {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
-                <span v-if="!isTokenValid(link.token)" class="text-red-500 ml-1"
-                  >格式异常</span
-                >
-              </span>
-            </div>
+              创建第一个分享
+            </NButton>
+            <NButton
+              v-else
+              size="small"
+              @click="
+                keyword = '';
+                statusFilter = 'all';
+              "
+            >
+              清空筛选
+            </NButton>
+          </EmptyState>
 
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <NButton size="tiny" @click="copyUrl(link.token)">
-                <template #icon
-                  ><NIcon><CopyOutline /></NIcon
-                ></template>
-                复制链接
-              </NButton>
-              <NButton size="tiny" @click="openQr(link.token)">
-                <template #icon
-                  ><NIcon><QrCodeOutline /></NIcon
-                ></template>
-                二维码
-              </NButton>
-              <NButton size="tiny" @click="openLogs(link)">
-                <template #icon
-                  ><NIcon><EyeOutline /></NIcon
-                ></template>
-                访问记录
-                <span class="ml-1 tabular-nums text-ink-sub">{{
-                  link.accessCount
-                }}</span>
-              </NButton>
-              <NButton size="tiny" @click="openEdit(link)">
-                <template #icon
-                  ><NIcon><CreateOutline /></NIcon
-                ></template>
-                编辑
-              </NButton>
-              <NButton size="tiny" quaternary @click="toggleEnabled(link)">
-                <template #icon>
-                  <NIcon>
-                    <PlayCircleOutline v-if="!link.enabled" />
-                    <PauseCircleOutline v-else />
+          <div v-else class="content-grid grid-cols-1 xl:grid-cols-2">
+            <article
+              v-for="link in links"
+              :key="link.token"
+              class="glass-panel px-4 py-3 flex flex-col gap-3"
+              :class="{ 'ring-2 ring-brand-500/70': selected.has(link.token) }"
+            >
+              <div class="flex items-start gap-3 flex-wrap">
+                <NCheckbox
+                  class="mt-2 shrink-0"
+                  :checked="selected.has(link.token)"
+                  :aria-label="`选择 ${targetLabel(link)}`"
+                  @update:checked="toggleSelect(link.token)"
+                />
+                <div
+                  class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
+                >
+                  <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
+                    <LinkOutline />
                   </NIcon>
-                </template>
-                {{ link.enabled ? '停用' : '启用' }}
-              </NButton>
-              <NButton
-                size="tiny"
-                quaternary
-                type="error"
-                class="ml-auto"
-                @click="openRevoke(link)"
-              >
-                <template #icon
-                  ><NIcon><TrashOutline /></NIcon
-                ></template>
-                撤销
-              </NButton>
-            </div>
-          </article>
-        </div>
-      </NSpin>
-    </div>
+                </div>
 
-    <footer
-      v-if="total > pageSize"
-      class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2 shrink-0"
-    >
-      <span class="mr-auto text-11px text-ink-sub">
-        共 {{ total }} 条 · 第 {{ page }} / {{ Math.max(1, Math.ceil(total / pageSize)) }} 页
-      </span>
-      <NPagination v-model:page="page" :item-count="total" />
-    </footer>
+                <div class="min-w-0 flex-1">
+                  <p
+                    class="m-0 text-13px font-600 text-ink truncate"
+                    :title="targetLabel(link)"
+                  >
+                    {{ targetLabel(link) }}
+                  </p>
+                  <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
+                    {{ link.category }} · 创建于
+                    {{ formatDateTime(link.createdAt) }}
+                  </p>
+                  <p
+                    v-if="link.remark"
+                    class="m-0 mt-0.5 text-11px text-ink-sub truncate"
+                  >
+                    备注：{{ link.remark }}
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap">
+                  <NTag
+                    size="small"
+                    :type="STATUS_TAG[statusOf(link)].type"
+                    :bordered="false"
+                  >
+                    {{ STATUS_TAG[statusOf(link)].label }}
+                  </NTag>
+                  <NTag v-if="link.hasPassword" size="small" :bordered="false"
+                    >密码保护</NTag
+                  >
+                </div>
+              </div>
+
+              <div
+                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
+              >
+                <span>
+                  打开
+                  <span class="text-ink font-600 tabular-nums">{{
+                    link.accessCount
+                  }}</span>
+                  <template v-if="link.maxAccesses !== null">
+                    / {{ link.maxAccesses }}</template
+                  >
+                  次
+                </span>
+                <span>
+                  {{
+                    link.expiresAt
+                      ? `有效期至 ${formatDateTime(link.expiresAt)}`
+                      : '永久有效'
+                  }}
+                </span>
+                <span class="font-mono" :title="link.token">
+                  token {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
+                  <span
+                    v-if="!isTokenValid(link.token)"
+                    class="text-red-500 ml-1"
+                    >格式异常</span
+                  >
+                </span>
+              </div>
+
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <NButton size="tiny" @click="copyUrl(link.token)">
+                  <template #icon
+                    ><NIcon><CopyOutline /></NIcon
+                  ></template>
+                  复制链接
+                </NButton>
+                <NButton size="tiny" @click="openQr(link.token)">
+                  <template #icon
+                    ><NIcon><QrCodeOutline /></NIcon
+                  ></template>
+                  二维码
+                </NButton>
+                <NButton size="tiny" @click="openLogs(link)">
+                  <template #icon
+                    ><NIcon><EyeOutline /></NIcon
+                  ></template>
+                  访问记录
+                  <span class="ml-1 tabular-nums text-ink-sub">{{
+                    link.accessCount
+                  }}</span>
+                </NButton>
+                <NButton size="tiny" @click="openEdit(link)">
+                  <template #icon
+                    ><NIcon><CreateOutline /></NIcon
+                  ></template>
+                  编辑
+                </NButton>
+                <NButton size="tiny" quaternary @click="toggleEnabled(link)">
+                  <template #icon>
+                    <NIcon>
+                      <PlayCircleOutline v-if="!link.enabled" />
+                      <PauseCircleOutline v-else />
+                    </NIcon>
+                  </template>
+                  {{ link.enabled ? '停用' : '启用' }}
+                </NButton>
+                <NButton
+                  size="tiny"
+                  quaternary
+                  type="error"
+                  class="ml-auto"
+                  @click="openRevoke(link)"
+                >
+                  <template #icon
+                    ><NIcon><TrashOutline /></NIcon
+                  ></template>
+                  撤销
+                </NButton>
+              </div>
+            </article>
+          </div>
+        </NSpin>
+      </div>
+
+      <footer
+        v-if="total > pageSize"
+        class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2 shrink-0"
+      >
+        <span class="mr-auto text-11px text-ink-sub">
+          共 {{ total }} 条 · 第 {{ page }} /
+          {{ Math.max(1, Math.ceil(total / pageSize)) }} 页
+        </span>
+        <NPagination v-model:page="page" :item-count="total" />
+      </footer>
+    </div>
 
     <!-- 创建分享 -->
     <NModal
@@ -1394,7 +1401,12 @@ onMounted(async () => {
           <NTag type="success" :bordered="false" size="small">
             成功 {{ batchResult.succeeded }} 项
           </NTag>
-          <NTag v-if="batchResult.failed > 0" type="error" :bordered="false" size="small">
+          <NTag
+            v-if="batchResult.failed > 0"
+            type="error"
+            :bordered="false"
+            size="small"
+          >
             失败 {{ batchResult.failed }} 项
           </NTag>
           <span class="text-11px text-ink-sub">
