@@ -1,31 +1,38 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import { NIcon } from 'naive-ui';
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 
 /**
- * 业务页统一页头：标题 + 说明 + 右侧操作区
- * 图标底色来自 design-tokens（via uno theme），不散写色值。
+ * 业务页统一页头（对齐原型 topbar）
+ *
+ * 面包屑（路由 meta.group）+ 标题 + 说明 + 右侧操作区；
+ * 图标参数保留兼容（原型 topbar 不再展示图标），页面无需改动调用方式。
  */
 defineProps<{
   title: string;
   description?: string;
   icon?: Component;
 }>();
+
+const route = useRoute();
+const group = computed(() => route.meta.group ?? '');
 </script>
 
 <template>
-  <header class="glass-panel px-5 py-4 flex items-center gap-3 flex-wrap">
-    <div
-      v-if="icon"
-      class="glass-chip w-10 h-10 flex items-center justify-center shrink-0"
-    >
-      <NIcon :size="21" class="text-brand-600 dark:text-brand-400">
-        <component :is="icon" />
-      </NIcon>
-    </div>
-    <div class="min-w-0">
-      <h1 class="m-0 text-16px font-600 text-ink leading-tight">{{ title }}</h1>
-      <p v-if="description" class="m-0 mt-1 text-12px text-ink-sub">
+  <header
+    class="glass-panel px-4 py-2.5 flex items-center gap-3 min-h-13 flex-wrap"
+  >
+    <div class="min-w-0 flex items-baseline gap-2.5 flex-wrap">
+      <span v-if="group" class="text-11px text-ink-sub shrink-0">
+        {{ group }} /
+      </span>
+      <h1
+        class="m-0 text-15px font-600 text-ink leading-tight whitespace-nowrap"
+      >
+        {{ title }}
+      </h1>
+      <p v-if="description" class="m-0 text-12px text-ink-sub truncate">
         {{ description }}
       </p>
     </div>

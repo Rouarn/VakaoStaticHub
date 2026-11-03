@@ -41,6 +41,8 @@ declare module 'vue-router' {
      * 单一开关由布局层读取，视图内不再各自判断。
      */
     categoryPanel?: boolean;
+    /** 侧栏分组与页头面包屑（资源 / 发布 / 系统 / 工具） */
+    group?: string;
   }
 }
 
@@ -52,6 +54,7 @@ const protectedChildren: RouteRecordRaw[] = [
     component: () => import('@/views/files/index.vue'),
     meta: {
       title: '文件库',
+      group: '资源',
       sidebar: true,
       icon: FolderOpenOutline,
       categoryPanel: true,
@@ -61,56 +64,101 @@ const protectedChildren: RouteRecordRaw[] = [
     path: 'shares',
     name: 'shares',
     component: () => import('@/views/shares/index.vue'),
-    meta: { title: '分享管理', sidebar: true, icon: ShareSocialOutline },
+    meta: {
+      title: '分享管理',
+      group: '资源',
+      sidebar: true,
+      icon: ShareSocialOutline,
+    },
   },
   {
     path: 'app-update',
     name: 'app-update',
     component: () => import('@/views/app-update/index.vue'),
-    meta: { title: 'APP 版本', sidebar: true, icon: RocketOutline },
+    meta: {
+      title: 'APP 版本',
+      group: '发布',
+      sidebar: true,
+      icon: RocketOutline,
+    },
   },
   {
     path: 'app-update/stats',
     name: 'app-update-stats',
     component: () => import('@/views/app-update/stats.vue'),
-    meta: { title: '升级漏斗', sidebar: true, icon: FunnelOutline },
-  },
-  {
-    path: 'storage-stats',
-    name: 'storage-stats',
-    component: () => import('@/views/storage-stats/index.vue'),
-    meta: { title: '存储统计', sidebar: true, icon: PieChartOutline },
+    meta: {
+      title: '升级漏斗',
+      group: '发布',
+      sidebar: true,
+      icon: FunnelOutline,
+    },
   },
   {
     path: 'duplicate-files',
     name: 'duplicate-files',
     component: () => import('@/views/duplicate-files/index.vue'),
-    meta: { title: '重复文件', sidebar: true, icon: CopyOutline },
+    meta: {
+      title: '重复文件',
+      group: '资源',
+      sidebar: true,
+      icon: CopyOutline,
+    },
+  },
+  {
+    path: 'storage-stats',
+    name: 'storage-stats',
+    component: () => import('@/views/storage-stats/index.vue'),
+    meta: {
+      title: '存储统计',
+      group: '资源',
+      sidebar: true,
+      icon: PieChartOutline,
+    },
   },
   {
     path: 'users',
     name: 'users',
     component: () => import('@/views/users/index.vue'),
-    meta: { title: '用户管理', sidebar: true, icon: PeopleOutline },
+    meta: {
+      title: '用户管理',
+      group: '系统',
+      sidebar: true,
+      icon: PeopleOutline,
+    },
   },
   {
     path: 'audit-logs',
     name: 'audit-logs',
     component: () => import('@/views/audit-logs/index.vue'),
-    meta: { title: '审计日志', sidebar: true, icon: DocumentTextOutline },
+    meta: {
+      title: '审计日志',
+      group: '系统',
+      sidebar: true,
+      icon: DocumentTextOutline,
+    },
   },
   {
     path: 'system-status',
     name: 'system-status',
     component: () => import('@/views/system-status/index.vue'),
-    meta: { title: '系统状态', sidebar: true, icon: SpeedometerOutline },
+    meta: {
+      title: '系统状态',
+      group: '系统',
+      sidebar: true,
+      icon: SpeedometerOutline,
+    },
   },
   {
     // 侧边栏入口（带子路由：占位图 / 一言）；默认进占位图，激活态按 /tools 前缀判定
     path: 'tools',
     name: 'tools',
     redirect: { name: 'tools-placeholder' },
-    meta: { title: '实用工具', sidebar: true, icon: ConstructOutline },
+    meta: {
+      title: '实用工具',
+      group: '工具',
+      sidebar: true,
+      icon: ConstructOutline,
+    },
     // 组件化父路由：仅渲染子路由出口，侧边栏据此展开二级菜单
     component: { render: () => h(RouterView) },
     children: [
@@ -118,13 +166,13 @@ const protectedChildren: RouteRecordRaw[] = [
         path: 'placeholder',
         name: 'tools-placeholder',
         component: () => import('@/views/tools/placeholder/index.vue'),
-        meta: { title: '占位图生成', icon: ImageOutline },
+        meta: { title: '占位图生成', group: '工具', icon: ImageOutline },
       },
       {
         path: 'hitokoto',
         name: 'tools-hitokoto',
         component: () => import('@/views/tools/hitokoto/index.vue'),
-        meta: { title: '一言', icon: ChatbubbleEllipsesOutline },
+        meta: { title: '一言', group: '工具', icon: ChatbubbleEllipsesOutline },
       },
     ],
   },
@@ -132,7 +180,19 @@ const protectedChildren: RouteRecordRaw[] = [
     path: 'api-docs',
     name: 'api-docs',
     component: () => import('@/views/api-docs/index.vue'),
-    meta: { title: 'API 文档', sidebar: true, icon: CodeSlashOutline },
+    meta: {
+      title: 'API 文档',
+      group: '系统',
+      sidebar: true,
+      icon: CodeSlashOutline,
+    },
+  },
+  {
+    // 内部预览：同一页面、需要登录；链接参数与对外预览一致
+    path: '/local-file-preview',
+    name: 'local-file-preview',
+    component: () => import('@/views/file-preview/index.vue'),
+    meta: { title: '本地预览' },
   },
 ];
 
@@ -150,6 +210,7 @@ export const routes: RouteRecordRaw[] = [
     meta: { public: true, title: '分享访问' },
   },
   {
+    // 对外预览：?file=<绝对地址> 或 ?url=<绝对地址>，也可用结构化的 rootId/category/path
     path: '/file-preview',
     name: 'file-preview',
     component: () => import('@/views/file-preview/index.vue'),

@@ -25,6 +25,7 @@ import type {
   ShareMetrics,
   AppMetrics,
   HealthMetrics,
+  SidebarCounts,
 } from '@vakao/shared';
 
 /** QPS 滑动窗口长度（毫秒），统计最近 60 秒内的请求数 */
@@ -218,6 +219,15 @@ export class MetricsService {
       fileCount: statMap.get(root.id)?.fileCount ?? 0,
       totalSize: statMap.get(root.id)?.totalSize ?? null,
     }));
+  }
+
+  /** 侧栏计数：文件索引总数 + 分享链接总数（两条 COUNT，避免拉取完整指标） */
+  async getSidebarCounts(): Promise<SidebarCounts> {
+    const [files, shares] = await Promise.all([
+      this.fileRepo.count(),
+      this.shareRepo.count(),
+    ]);
+    return { files, shares };
   }
 
   /** 分享链接统计：总数 / 活跃数 / 已过期数（含过期时间与访问次数两种失效方式） */

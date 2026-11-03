@@ -446,7 +446,7 @@ function copy(text: string) {
             >
               <h3 class="m-0 text-12px font-600 text-ink">参数</h3>
               <div class="overflow-x-auto">
-                <table class="w-full min-w-560px border-collapse text-12px">
+                <table class="app-table w-full min-w-560px border-collapse text-12px">
                   <thead>
                     <tr class="text-left text-11px text-ink-sub">
                       <th class="py-1.5 pr-3 font-500">名称</th>
@@ -502,7 +502,7 @@ function copy(text: string) {
                 >
               </h3>
               <div v-if="body.fields.length > 0" class="overflow-x-auto">
-                <table class="w-full min-w-560px border-collapse text-12px">
+                <table class="app-table w-full min-w-560px border-collapse text-12px">
                   <thead>
                     <tr class="text-left text-11px text-ink-sub">
                       <th class="py-1.5 pr-3 font-500">字段</th>

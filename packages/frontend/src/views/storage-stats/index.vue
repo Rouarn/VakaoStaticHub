@@ -195,7 +195,7 @@ onMounted(() => void load());
           </div>
 
           <div v-if="root.categories.length > 0" class="overflow-x-auto">
-            <table class="w-full min-w-520px border-collapse text-12px">
+            <table class="app-table w-full min-w-520px border-collapse text-12px">
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500">分类</th>

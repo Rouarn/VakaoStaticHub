@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppBackdrop: typeof import('./../components/common/app-backdrop.vue')['default']
     ArchivePreview: typeof import('./../components/preview/archive-preview.vue')['default']
     AudioPreview: typeof import('./../components/preview/audio-preview.vue')['default']
     BarList: typeof import('./../components/charts/bar-list.vue')['default']
@@ -24,6 +25,7 @@ declare module 'vue' {
     HtmlPreview: typeof import('./../components/preview/html-preview.vue')['default']
     ImagePreview: typeof import('./../components/preview/image-preview.vue')['default']
     MarkdownPreview: typeof import('./../components/preview/markdown-preview.vue')['default']
+    NDropdown: typeof import('naive-ui')['NDropdown']
     PageHeader: typeof import('./../components/common/page-header.vue')['default']
     PdfPreview: typeof import('./../components/preview/pdf-preview.vue')['default']
     PlaceholderView: typeof import('./../components/common/placeholder-view.vue')['default']

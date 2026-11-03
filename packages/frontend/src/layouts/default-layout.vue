@@ -1,55 +1,36 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { RouterView, useRoute } from 'vue-router';
-import { useAppStore } from '@/stores/modules/app';
+import { RouterView } from 'vue-router';
 import SystemSidebar from './components/system-sidebar.vue';
-import CategoryPanel from './components/category-panel.vue';
+import PhotoBar from './components/photo-bar.vue';
 
 /**
- * 双轨制布局外壳
+ * 管理端布局外壳
  *
+ * - 壁纸与玻璃材质：App.vue 的 AppBackdrop + html[data-material="cool"]
  * - System Sidebar（72px）：系统级固定功能，纯图标 + Tooltip
  * - Category Panel（240px）：用户动态资源分类，独立玻璃面板 + 独立滚动
  * - Main Content：主内容区，路由过渡 + 独立滚动
- *
- * 背景光晕层按主题切换（aurora-light / aurora-dark，色值来自 design-tokens）
+ * - PhotoBar：底部状态栏，右侧「随机图片」入口（按当前根目录 / 分类生成地址）
  */
-const appStore = useAppStore();
-const route = useRoute();
-const auroraClass = computed(() =>
-  appStore.isDark ? 'aurora-dark' : 'aurora-light',
-);
-/** 是否渲染第二栏分类面板：唯一开关是路由 meta.categoryPanel */
-const showCategoryPanel = computed(() => route.meta.categoryPanel === true);
+
 </script>
 
 <template>
   <div class="page-bg text-ink relative h-full w-full overflow-hidden">
-    <!-- 背景光晕层（浅色：左上紫 + 右上粉 / 深色：暗紫 + 暗青） -->
-    <div
-      class="pointer-events-none absolute inset-0 transition-opacity duration-500"
-      :class="auroraClass"
-    />
-
     <div class="relative h-full flex gap-4 p-4 box-border">
       <SystemSidebar />
 
-      <!-- 分类面板：仅资源管理路由渲染；宽度过渡收起，避免主区瞬移 -->
-      <div
-        class="shrink-0 h-full overflow-hidden transition-[width,margin] duration-300 ease-out"
-        :class="showCategoryPanel ? 'w-60' : 'w-0 -mr-4'"
-      >
-        <CategoryPanel v-if="showCategoryPanel" />
+      <!-- 主内容区 + 底部状态栏 -->
+      <div class="min-w-0 min-h-0 flex-1 flex flex-col">
+        <main class="min-w-0 min-h-0 flex-1 overflow-y-auto pb-2">
+          <RouterView v-slot="{ Component }">
+            <Transition name="fade-slide" mode="out-in">
+              <component :is="Component" />
+            </Transition>
+          </RouterView>
+        </main>
+        <PhotoBar />
       </div>
-
-      <!-- 主内容区 -->
-      <main class="min-w-0 min-h-0 flex-1 overflow-y-auto">
-        <RouterView v-slot="{ Component }">
-          <Transition name="fade-slide" mode="out-in">
-            <component :is="Component" />
-          </Transition>
-        </RouterView>
-      </main>
     </div>
   </div>
 </template>

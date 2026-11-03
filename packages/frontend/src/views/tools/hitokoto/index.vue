@@ -204,7 +204,7 @@ const jsonPreview = computed(() => {
       </template>
     </PageHeader>
 
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] items-start">
+    <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] items-start">
       <div class="flex flex-col gap-4 min-w-0">
         <!-- 参数面板 -->
         <section class="glass-panel px-4 py-4 flex flex-col gap-3">
@@ -337,6 +337,7 @@ const jsonPreview = computed(() => {
 
             <EmptyState
               v-else-if="!loading"
+              flat
               :icon="ChatbubbleOutline"
               title="还没有请求结果"
               description="选择分类与编码后点击「请求一言」，响应会展示在这里并写入本地历史。"

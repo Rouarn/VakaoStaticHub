@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, h, ref } from 'vue';
+import { computed, h, onMounted, ref, watch } from 'vue';
 import type { Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  NTooltip,
   NIcon,
   NDropdown,
   NAvatar,
@@ -17,63 +16,114 @@ import {
   SunnyOutline,
   KeyOutline,
   LogOutOutline,
-  CloudOutline,
-  ChevronForwardOutline,
-  ChevronBackOutline,
+  EyeOutline,
+  OpenOutline,
 } from '@vicons/ionicons5';
 import { routes } from '@/router/routes';
 import { useAppStore } from '@/stores/modules/app';
 import { useAuthStore } from '@/stores/modules/auth';
+import { useOverviewStore } from '@/stores/modules/overview';
 import { changeMyPassword } from '@/api/users';
 import { getErrorMessage } from '@/utils/http';
 import { colors } from '@/config/design-tokens';
 
+/**
+ * 左侧导航（对齐原型的单栏侧边栏）
+ *
+ * - 品牌区 + 分组导航（资源 / 发布 / 系统 / 工具）+ 底部账号与主题切换
+ * - 菜单区可滚动但不显示滚动条（scrollbar-hidden），主体区域保持默认滚动条
+ * - 导航项仍从路由表派生，避免菜单与路由漂移
+ */
 const message = useMessage();
 const route = useRoute();
 const router = useRouter();
 const appStore = useAppStore();
 const authStore = useAuthStore();
+const overview = useOverviewStore();
 
-const expanded = computed(() => appStore.sidebarExpanded);
-
-interface NavItem {
+interface SideItem {
   name: string;
   title: string;
   icon?: Component;
-  children?: { name: string; title: string; icon?: Component }[];
+  group?: string;
 }
 
-/** 从路由表提取侧边栏项（单一来源，避免菜单与路由漂移） */
-const navItems = computed<NavItem[]>(() => {
+/** 路由表 → 扁平侧栏项（带子路由的入口展开为子项） */
+const navEntries = computed<SideItem[]>(() => {
   const root = routes.find((r) => r.path === '/');
-  const children = root?.children ?? [];
-  return children
-    .filter((r) => r.meta?.sidebar)
-    .map((r) => ({
-      name: String(r.name),
-      title: String(r.meta?.title ?? r.name),
-      icon: r.meta?.icon,
-      children: r.children
-        ?.filter((c) => c.meta?.title)
-        .map((c) => ({
-          name: String(c.name),
-          title: String(c.meta?.title ?? c.name),
-          icon: c.meta?.icon,
-        })),
-    }));
+  const out: SideItem[] = [];
+  for (const r of root?.children ?? []) {
+    if (!r.meta?.sidebar) continue;
+    if (r.children?.length) {
+      for (const c of r.children) {
+        if (c.meta?.title) {
+          out.push({
+            name: String(c.name),
+            title: String(c.meta.title),
+            icon: c.meta.icon,
+            group: c.meta.group ?? r.meta?.group,
+          });
+        }
+      }
+    } else {
+      out.push({
+        name: String(r.name),
+        title: String(r.meta?.title ?? r.name),
+        icon: r.meta?.icon,
+        group: r.meta?.group,
+      });
+    }
+  }
+  out.push(...STATIC_TOOLS);
+  return out;
 });
 
-/** tools 等带子路由的入口按路径前缀判定激活 */
-const activeName = computed(() => {
-  const matched = navItems.value.find(
-    (item) =>
-      route.name === item.name ||
-      (item.name === 'tools' && route.path.startsWith('/tools')),
-  );
-  return matched?.name ?? '';
+/** 静态工具项：不在路由表里，直接给预览页提供入口 */
+const STATIC_TOOLS: SideItem[] = [
+  { name: 'local-file-preview', title: '本地预览', icon: EyeOutline, group: '工具' },
+  { name: 'external-preview', title: '外部预览', icon: OpenOutline, group: '工具' },
+];
+
+/** 分组顺序（分组信息来自路由 meta.group，避免菜单与路由漂移） */
+const GROUP_ORDER = ['资源', '发布', '系统', '工具'];
+
+const groups = computed(() => {
+  const map = new Map<string, SideItem[]>();
+  for (const item of navEntries.value) {
+    const key = item.group ?? '其他';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(item);
+  }
+  return GROUP_ORDER.map((label) => ({
+    label,
+    items: map.get(label) ?? [],
+  })).filter((group) => group.items.length > 0);
 });
+
+/** 侧栏徽标：文件 / 分享总数来自轻量聚合接口 */
+function badgeFor(name: string): number | undefined {
+  if (name === 'files') return overview.files;
+  if (name === 'shares') return overview.shares;
+  return undefined;
+}
+
+onMounted(() => {
+  void overview.load();
+});
+watch(
+  () => route.name,
+  () => {
+    void overview.load();
+  },
+);
+
+const isActive = (name: string) => route.name === name;
 
 function go(name: string) {
+  if (name === 'external-preview') {
+    window.open(`${window.location.origin}/file-preview`, '_blank', 'noopener');
+    return;
+  }
   void router.push({ name });
 }
 
@@ -84,22 +134,18 @@ const dangerTextClass = computed(() =>
 
 /** 账号浮层局部主题：只作用于本 NDropdown，不改全局 Dropdown */
 const dropdownThemeOverrides = computed(() => ({
-  // 浮层内边距：hover 底色与浮层边缘留 4px，圆角不贴边
   padding: '4px',
   optionHeightSmall: '34px',
   fontSizeSmall: '12px',
   optionIconSizeSmall: '16px',
-  // 图标列默认预留 36px，图标与文字间空隙过大；收紧到 28px（图标 16 + 左右各 6）
   optionIconPrefixWidthSmall: '28px',
   optionPrefixWidthSmall: '10px',
   optionColorHover: appStore.isDark
     ? 'rgba(255,255,255,0.08)'
     : colors.brand[50],
-  // 分隔线：浅色不能让白色边框色（玻璃高光）承担，改用 15% 的次要文字色
   dividerColor: appStore.isDark
     ? colors.glass.borderDark
     : `${colors.ink.secondary}26`,
-  // 阴影与其它玻璃面板同一套（Naive 默认是中性投影，和玻璃风不搭）
   peers: {
     Popover: {
       boxShadow: appStore.isDark
@@ -192,176 +238,126 @@ function onUserAction(key: string) {
 
 <template>
   <aside
-    class="glass-panel h-full flex flex-col items-center py-4 shrink-0 overflow-hidden transition-all duration-300 ease-out box-border"
-    :class="expanded ? 'w-52 px-3 gap-2' : 'w-18 px-2 gap-2'"
+    class="glass-panel h-full w-60 shrink-0 flex flex-col overflow-hidden box-border"
   >
-    <!-- Logo -->
-    <div
-      class="flex items-center mb-1 shrink-0"
-      :class="expanded ? 'w-full gap-2.5 px-1' : 'justify-center'"
-    >
-      <div
-        class="rail-icon-active w-11 h-11 flex items-center justify-center rounded-xl shrink-0"
-      >
-        <NIcon :size="24"><CloudOutline /></NIcon>
+    <!-- 品牌区 -->
+    <div class="flex items-center gap-2.5 px-4 pt-4 pb-3 shrink-0">
+      <img
+        src="/brand/star-four.svg"
+        alt="VaKao"
+        class="w-7 h-7 shrink-0 dark:hidden"
+      />
+      <img
+        src="/brand/star-white.svg"
+        alt="VaKao"
+        class="w-7 h-7 shrink-0 hidden dark:block"
+      />
+      <div class="min-w-0">
+        <p class="m-0 text-13px font-600 text-ink leading-tight truncate">
+          Vakao Static Hub
+        </p>
+        <p class="m-0 text-10.5px text-ink-sub leading-tight">静态资源管理</p>
       </div>
-      <span
-        v-if="expanded"
-        class="text-ink text-sm font-600 whitespace-nowrap animate-fade-in"
-      >
-        静态资源
-      </span>
     </div>
 
-    <!-- 系统功能导航 -->
-    <nav class="flex flex-col gap-1.5 overflow-y-auto w-full">
-      <template v-for="item in navItems" :key="item.name">
-        <NTooltip placement="right" :delay="300" :disabled="expanded">
-          <template #trigger>
-            <button
-              class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
-              :class="[
-                activeName === item.name ? 'rail-icon-active' : '',
-                expanded ? 'w-full! justify-start! gap-2.5 px-3' : 'w-11',
-              ]"
-              @click="go(item.name)"
-            >
-              <NIcon :size="22" class="shrink-0" :component="item.icon" />
-              <span
-                v-if="expanded"
-                class="text-13px whitespace-nowrap animate-fade-in"
-              >
-                {{ item.title }}
-              </span>
-            </button>
-          </template>
-          {{ item.title }}
-        </NTooltip>
-
-        <!-- 子菜单（仅展开态且当前项有子路由时显示） -->
+    <!-- 分组导航（可滚动，不显示滚动条） -->
+    <nav
+      class="flex-1 min-h-0 overflow-y-auto scrollbar-hidden px-2 pb-4"
+      :class="{ 'nav-fade': route.meta.categoryPanel }"
+    >
+      <div v-for="group in groups" :key="group.label" class="mb-2">
         <div
-          v-if="expanded && item.children?.length"
-          class="flex flex-col gap-1 pl-7 pr-2"
+          class="px-2 pt-2 pb-1 text-10.5px font-600 tracking-wide text-ink-sub/85"
         >
-          <button
-            v-for="child in item.children"
-            :key="child.name"
-            class="cursor-pointer border-none bg-transparent text-left rounded-lg px-2 py-1.5 text-12px whitespace-nowrap transition-colors flex items-center gap-2"
-            :class="
-              route.name === child.name
-                ? 'text-brand-600 dark:text-brand-400 bg-white/60 dark:bg-white/8'
-                : 'text-ink-sub hover:text-ink hover:bg-white/40 dark:hover:bg-white/5'
-            "
-            @click="go(child.name)"
-          >
-            <NIcon
-              v-if="child.icon"
-              :size="15"
-              class="shrink-0"
-              :class="
-                route.name === child.name
-                  ? 'text-brand-600 dark:text-brand-400'
-                  : 'text-ink-sub'
-              "
-              :component="child.icon"
-            />
-            {{ child.title }}
-          </button>
+          {{ group.label }}
         </div>
-      </template>
-    </nav>
-
-    <div class="flex-1" />
-
-    <!-- 展开 / 收起 -->
-    <NTooltip placement="right" :delay="300" :disabled="expanded">
-      <template #trigger>
         <button
-          class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
+          v-for="item in group.items"
+          :key="item.name"
+          type="button"
+          class="w-full flex items-center gap-2.5 h-8 px-2.5 rounded-[10px] border border-solid border-transparent cursor-pointer text-left transition-colors"
           :class="
-            expanded ? 'w-full! justify-start! gap-2 px-2.5 h-9!' : 'w-11'
+            isActive(item.name)
+              ? 'bg-brand-500/12 dark:bg-brand-400/15 text-brand-700 dark:text-brand-300 font-600'
+              : 'bg-transparent text-ink-sub hover:text-ink hover:bg-[var(--mat-hover)]'
           "
-          @click="appStore.toggleSidebar()"
+          @click="go(item.name)"
         >
-          <NIcon :size="18" class="shrink-0">
-            <ChevronForwardOutline v-if="!expanded" />
-            <ChevronBackOutline v-else />
-          </NIcon>
+          <NIcon
+            v-if="item.icon"
+            :size="16"
+            class="shrink-0"
+            :class="
+              isActive(item.name)
+                ? 'text-brand-600 dark:text-brand-400'
+                : 'text-ink-sub'
+            "
+            :component="item.icon"
+          />
+          <span class="text-12.5px whitespace-nowrap truncate">
+            {{ item.title }}
+          </span>
           <span
-            v-if="expanded"
-            class="text-12px whitespace-nowrap animate-fade-in"
+            v-if="badgeFor(item.name) !== undefined"
+            class="ml-auto text-10.5px leading-4 px-1.5 rounded-[5px]"
+            :class="
+              isActive(item.name)
+                ? 'bg-brand-500/12 text-brand-700 dark:text-brand-300'
+                : 'bg-[var(--mat-chip)] text-ink-sub'
+            "
           >
-            收起菜单
+            {{ badgeFor(item.name) }}
           </span>
         </button>
-      </template>
-      展开菜单
-    </NTooltip>
+      </div>
+    </nav>
 
-    <!-- 主题切换 -->
-    <NTooltip placement="right" :delay="300" :disabled="expanded">
-      <template #trigger>
+    <!-- 账号 + 主题 -->
+    <div class="shrink-0 p-2 border-t border-[var(--mat-line-soft)]">
+      <div class="flex items-center gap-1">
+        <NDropdown
+          trigger="click"
+          size="small"
+          placement="right-end"
+          :options="userOptions"
+          :theme-overrides="dropdownThemeOverrides"
+          :menu-props="dropdownMenuProps"
+          @select="onUserAction"
+        >
+          <div
+            class="flex-1 min-w-0 flex items-center gap-2.5 p-1.5 rounded-[10px] cursor-pointer transition-colors hover:bg-[var(--mat-hover)]"
+          >
+            <NAvatar
+              round
+              size="small"
+              class="bg-gradient-to-br from-brand-500 to-brand-700! text-white align-middle shrink-0"
+            >
+              {{ authStore.user?.username?.slice(0, 1).toUpperCase() ?? 'U' }}
+            </NAvatar>
+            <div class="min-w-0">
+              <p
+                class="m-0 text-12.5px font-600 text-ink leading-tight truncate"
+              >
+                {{ authStore.user?.username ?? '未登录' }}
+              </p>
+              <p class="m-0 text-10.5px text-ink-sub leading-tight">管理员</p>
+            </div>
+          </div>
+        </NDropdown>
+
         <button
-          class="rail-icon cursor-pointer border-none bg-transparent shrink-0"
-          :class="
-            expanded ? 'w-full! justify-start! gap-2 px-2.5 h-9!' : 'w-11'
-          "
+          type="button"
+          class="w-7 h-7 grid place-items-center rounded-full border-none bg-transparent text-ink-sub cursor-pointer transition-colors hover:text-ink hover:bg-[var(--mat-hover)]"
+          :title="appStore.isDark ? '切换浅色' : '切换深色'"
           @click="appStore.toggleDark()"
         >
-          <NIcon :size="18" class="shrink-0">
+          <NIcon :size="15">
             <SunnyOutline v-if="appStore.isDark" />
             <MoonOutline v-else />
           </NIcon>
-          <span
-            v-if="expanded"
-            class="text-12px whitespace-nowrap animate-fade-in"
-          >
-            {{ appStore.isDark ? '切换浅色' : '切换深色' }}
-          </span>
         </button>
-      </template>
-      {{ appStore.isDark ? '切换浅色' : '切换深色' }}
-    </NTooltip>
-
-    <!-- 工具区与账号区分隔：账号是主信息，收起/主题是次要操作 -->
-    <div
-      v-if="expanded"
-      class="w-full border-t border-solid border-ink-sub/15 dark:border-white/10"
-    />
-
-    <!-- 当前用户 -->
-    <NDropdown
-      trigger="click"
-      size="small"
-      placement="right-end"
-      :options="userOptions"
-      :theme-overrides="dropdownThemeOverrides"
-      :menu-props="dropdownMenuProps"
-      @select="onUserAction"
-    >
-      <div
-        class="cursor-pointer flex items-center rounded-lg shrink-0 transition-colors"
-        :class="
-          expanded
-            ? 'w-full gap-2 px-2 py-1.5 hover:bg-white/60 dark:hover:bg-white/8'
-            : ''
-        "
-      >
-        <NAvatar
-          round
-          size="medium"
-          class="bg-brand-600! text-white align-middle shrink-0"
-        >
-          {{ authStore.user?.username?.slice(0, 1).toUpperCase() ?? 'U' }}
-        </NAvatar>
-        <span
-          v-if="expanded"
-          class="text-12px text-ink whitespace-nowrap truncate animate-fade-in"
-        >
-          {{ authStore.user?.username ?? '未登录' }}
-        </span>
       </div>
-    </NDropdown>
+    </div>
   </aside>
 
   <!-- 修改密码弹窗 -->

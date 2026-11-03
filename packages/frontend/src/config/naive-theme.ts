@@ -15,8 +15,8 @@ const commonBase = {
   primaryColorHover: colors.brand[500],
   primaryColorPressed: colors.brand[700],
   primaryColorSuppl: colors.brand[500],
-  borderRadius: '10px',
-  borderRadiusSmall: '8px',
+  borderRadius: '12px',
+  borderRadiusSmall: '9px',
 } as const;
 
 /** 表单控件（浅色）：占位符默认 #c2c2c2 在玻璃底上低于 3:1，统一抬到令牌值 */
@@ -42,7 +42,7 @@ const darkInput = {
   border: `1px solid ${colors.glass.borderDark}`,
   borderHover: `1px solid ${colors.brand[400]}`,
   borderFocus: `1px solid ${colors.brand[500]}`,
-  boxShadowFocus: `0 0 0 2px ${colors.halo.purpleDark}`,
+  boxShadowFocus: `0 0 0 3px ${colors.focus.ringDark}`,
   caretColor: colors.brand[400],
   arrowColor: colors.ink.darkSecondary,
 } as const;
@@ -54,6 +54,13 @@ export const lightThemeOverrides: GlobalThemeOverrides = {
     textColor1: colors.ink.primary,
     textColor2: colors.ink.secondary,
   },
+  Button: {
+    borderRadiusTiny: '999px',
+    borderRadiusSmall: '999px',
+    borderRadiusMedium: '999px',
+    borderRadiusLarge: '999px',
+  },
+  Tag: { borderRadius: '999px' },
   Input: lightInput,
   InternalSelection: {
     ...lightInput,
@@ -110,7 +117,7 @@ export const lightThemeOverrides: GlobalThemeOverrides = {
     tdColor: 'transparent',
     borderColor: colors.glass.borderLight,
   },
-  Pagination: { itemBorderRadius: '8px' },
+  Pagination: { itemBorderRadius: '999px' },
 };
 
 export const darkThemeOverrides: GlobalThemeOverrides = {
@@ -132,6 +139,10 @@ export const darkThemeOverrides: GlobalThemeOverrides = {
   },
   // 深色主题默认给主按钮黑字（--n-text-color: #000），紫底黑字发脏且与浅色主题不一致
   Button: {
+    borderRadiusTiny: '999px',
+    borderRadiusSmall: '999px',
+    borderRadiusMedium: '999px',
+    borderRadiusLarge: '999px',
     textColorPrimary: colors.ink.onBrand,
     textColorHoverPrimary: colors.ink.onBrand,
     textColorPressedPrimary: colors.ink.onBrand,
@@ -187,5 +198,5 @@ export const darkThemeOverrides: GlobalThemeOverrides = {
     tdColor: 'transparent',
     borderColor: colors.glass.borderDark,
   },
-  Pagination: { itemBorderRadius: '8px' },
+  Pagination: { itemBorderRadius: '999px' },
 };

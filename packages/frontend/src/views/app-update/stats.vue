@@ -311,7 +311,7 @@ onMounted(async () => {
         <section class="glass-panel px-4 py-3 flex flex-col gap-2">
           <h2 class="m-0 text-13px font-600 text-ink">按版本明细</h2>
           <div class="overflow-x-auto">
-            <table class="w-full min-w-760px border-collapse text-12px">
+            <table class="app-table w-full min-w-760px border-collapse text-12px">
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500">版本</th>

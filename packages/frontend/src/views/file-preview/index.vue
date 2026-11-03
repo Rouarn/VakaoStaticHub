@@ -9,11 +9,13 @@ import type { PreviewTarget } from '@/components/preview/types';
 import { buildFileUrl } from '@/utils/file-url';
 
 /**
- * 独立文件预览页（/file-preview，公开）
+ * 独立文件预览页
  *
- * 输入任意可跨域访问的直链即可预览，走同一份 preview-registry 分发；
+ * 两个路由共用同一份页面：
+ * - /file-preview（公开）：给其他项目内嵌，?file=<绝对地址> 或 ?url=<绝对地址>
+ * - /local-file-preview（需登录）：内部使用，参数格式一致
+ * 也支持结构化的 ?rootId=&category=&path=，直链由 file-url.ts 统一构造。
  * HTML 仍由 html-preview.vue 以 sandbox=""（无 allow-same-origin）渲染。
- * 支持 ?url= 参数直接打开，方便分享。
  */
 const route = useRoute();
 const url = ref('');
@@ -39,7 +41,12 @@ function openPreview() {
   if (!raw) return;
   let absolute: string;
   try {
-    absolute = new URL(raw, window.location.href).toString();
+    const parsed = new URL(raw, window.location.href);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      invalid.value = '只支持 http / https 地址';
+      return;
+    }
+    absolute = parsed.toString();
   } catch {
     invalid.value =
       'URL 格式不正确，请填写完整地址（如 https://example.com/a.pdf）';
@@ -53,7 +60,15 @@ function openPreview() {
 }
 
 onMounted(() => {
-  // 优先使用结构化的 rootId/category/path：直链由 utils/file-url.ts 统一构造，
+  // 对外项目通常直接传绝对地址：/file-preview?file=<url>
+  const fileQuery = route.query.file;
+  if (typeof fileQuery === 'string' && fileQuery.trim()) {
+    url.value = fileQuery.trim();
+    openPreview();
+    return;
+  }
+
+  // 其次使用结构化的 rootId/category/path：直链由 utils/file-url.ts 统一构造，
   // 避免调用方手工拼 /static（历史 bug 就是这里多叠了一层前缀）。
   const { rootId, category, path } = route.query;
   if (
@@ -106,7 +121,8 @@ onMounted(() => {
           <div>
             <h1 class="m-0 text-17px font-600 text-ink">文件预览</h1>
             <p class="m-0 text-12px text-ink-sub">
-              输入可跨域访问的文件直链，按扩展名自动分发到对应预览组件
+              支持 ?file= 直链或 ?rootId=&category=&path=
+              结构化参数，按扩展名自动分发
             </p>
           </div>
         </div>

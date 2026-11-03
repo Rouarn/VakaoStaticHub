@@ -10,7 +10,6 @@ import {
   NPagination,
   NSelect,
   NSpin,
-  NTooltip,
   useMessage,
 } from 'naive-ui';
 import {
@@ -19,6 +18,7 @@ import {
   ListOutline,
   RefreshOutline,
   SearchOutline,
+  SettingsOutline,
   ShareSocialOutline,
   SwapHorizontalOutline,
   TrashOutline,
@@ -32,9 +32,11 @@ import {
   listFiles,
   renameFile,
 } from '@/api/files';
+import PageHeader from '@/components/common/page-header.vue';
+import CategoryPanel from '@/layouts/components/category-panel.vue';
 import { buildFileUrl, buildSharePageUrl } from '@/utils/file-url';
 import { getErrorMessage } from '@/utils/http';
-import { isImage } from '@/utils/file-types';
+import { formatBytes, isImage } from '@/utils/file-types';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
 import FileCard from './components/file-card.vue';
@@ -56,12 +58,32 @@ const categoryStore = useCategoryStore();
 const message = useMessage();
 
 const defaultCategory = ref('TemporaryFile');
+const manageShow = ref(false);
 
 const rootId = computed(() => appStore.activeRootId);
 const category = computed(
   () => categoryStore.activeCategory || defaultCategory.value,
 );
 const categories = computed(() => categoryStore.categoriesOf(rootId.value));
+const rootOptions = computed(() =>
+  categoryStore.roots.map((root) => ({ label: root.name, value: root.id })),
+);
+/** 当前分类的总大小（来自分类统计接口），用于页头副标题 */
+const categoryTotalSize = computed(
+  () =>
+    categories.value.find((c) => c.name === category.value)?.totalSize ?? null,
+);
+const headerDescription = computed(() => {
+  const size = categoryTotalSize.value;
+  return `${total.value} 个文件${size ? ` · ${formatBytes(size)}` : ''}`;
+});
+
+/** 切换根目录：加载分类并自动选中第一个，避免落到旧分类 */
+async function onRootChange(id: string) {
+  appStore.setActiveRoot(id);
+  await categoryStore.loadCategories(id);
+  categoryStore.setActiveCategory(categories.value[0]?.name ?? null);
+}
 
 const items = ref<FileItem[]>([]);
 const total = ref(0);
@@ -378,24 +400,76 @@ function onShareCreated(link: ShareLink) {
 </script>
 
 <template>
-  <div class="h-full flex flex-col gap-4 animate-fade-up">
-    <!-- 工具条 -->
-    <header class="glass-panel px-4 py-3 flex flex-wrap items-center gap-3">
-      <div class="min-w-0">
-        <p class="m-0 text-15px font-600 text-ink truncate leading-tight">
-          {{ category }}
-        </p>
-        <p class="m-0 mt-0.5 text-12px text-ink-sub">
-          {{ categoryStore.rootName(rootId) }} · 共 {{ total }} 个文件
-        </p>
-      </div>
+  <div class="h-full flex flex-col gap-3 animate-fade-up">
+    <!-- 页头 + 工具条（对齐原型：topbar + toolbar 两段） -->
+    <PageHeader
+      title="文件库"
+      :description="headerDescription"
+    >
+      <template #actions>
+        <NButton size="small" quaternary @click="reload">
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon>
+          </template>
+          刷新
+        </NButton>
+        <NButton type="primary" size="small" @click="uploadShow = true">
+          <template #icon
+            ><NIcon><CloudUploadOutline /></NIcon>
+          </template>
+          上传文件
+        </NButton>
+      </template>
+    </PageHeader>
 
+    <!-- 分类 chips（原分类面板的入口迁移到页内） -->
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        v-for="c in categories"
+        :key="c.name"
+        type="button"
+        class="h-7 px-3 rounded-full border border-solid text-12px cursor-pointer transition-colors"
+        :class="
+          category === c.name
+            ? 'bg-brand-600 text-white border-transparent'
+            : 'bg-[var(--mat-chip)] text-ink-sub border-[var(--mat-line)] hover:text-ink'
+        "
+        @click="categoryStore.setActiveCategory(c.name)"
+      >
+        {{ c.name }}
+        <span class="tabular-nums opacity-70">{{ c.fileCount }}</span>
+      </button>
+      <button
+        type="button"
+        class="h-7 px-3 rounded-full border border-dashed border-[var(--mat-line)] bg-transparent text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink"
+        @click="manageShow = true"
+      >
+        + 新建分类
+      </button>
+      <button
+        type="button"
+        class="ml-auto h-7 px-3 rounded-full border border-solid border-[var(--mat-line)] bg-[var(--mat-chip)] text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink flex items-center gap-1.5"
+        @click="manageShow = true"
+      >
+        <NIcon :size="13"><SettingsOutline /></NIcon>
+        管理分类
+      </button>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <NSelect
+        :value="rootId"
+        :options="rootOptions"
+        size="small"
+        class="w-40"
+        @update:value="onRootChange"
+      />
       <NInput
         v-model:value="q"
         size="small"
         clearable
         placeholder="搜索文件名 / 路径"
-        class="w-56 ml-auto"
+        class="w-64!"
       >
         <template #prefix>
           <NIcon :size="15"><SearchOutline /></NIcon>
@@ -408,64 +482,41 @@ function onShareCreated(link: ShareLink) {
         size="small"
         class="w-32"
       />
-      <NTooltip :delay="300">
-        <template #trigger>
-          <NButton size="small" quaternary @click="toggleOrder">
-            {{ order === 'asc' ? '升序' : '降序' }}
-          </NButton>
-        </template>
-        切换排序方向
-      </NTooltip>
-
-      <div class="flex items-center gap-1">
-        <NTooltip :delay="300"
-          ><template #trigger>
-            <NButton
-              size="small"
-              circle
-              :type="viewMode === 'grid' ? 'primary' : 'default'"
-              quaternary
-              @click="viewMode = 'grid'"
-            >
-              <template #icon
-                ><NIcon><GridOutline /></NIcon
-              ></template>
-            </NButton> </template
-          >网格视图</NTooltip
-        >
-        <NTooltip :delay="300"
-          ><template #trigger>
-            <NButton
-              size="small"
-              circle
-              :type="viewMode === 'list' ? 'primary' : 'default'"
-              quaternary
-              @click="viewMode = 'list'"
-            >
-              <template #icon
-                ><NIcon><ListOutline /></NIcon
-              ></template>
-            </NButton> </template
-          >列表视图</NTooltip
-        >
-        <NTooltip :delay="300"
-          ><template #trigger>
-            <NButton size="small" circle quaternary @click="reload">
-              <template #icon
-                ><NIcon><RefreshOutline /></NIcon
-              ></template>
-            </NButton> </template
-          >刷新</NTooltip
-        >
-      </div>
-
-      <NButton type="primary" size="small" @click="uploadShow = true">
-        <template #icon
-          ><NIcon><CloudUploadOutline /></NIcon
-        ></template>
-        上传文件
+      <NButton
+        size="small"
+        quaternary
+        circle
+        :title="order === 'asc' ? '升序' : '降序'"
+        @click="toggleOrder"
+      >
+        {{ order === 'asc' ? '↑' : '↓' }}
       </NButton>
-    </header>
+
+      <div class="ml-auto flex items-center gap-1">
+        <NButton
+          size="small"
+          circle
+          quaternary
+          :type="viewMode === 'grid' ? 'primary' : 'default'"
+          @click="viewMode = 'grid'"
+        >
+          <template #icon
+            ><NIcon><GridOutline /></NIcon>
+          </template>
+        </NButton>
+        <NButton
+          size="small"
+          circle
+          quaternary
+          :type="viewMode === 'list' ? 'primary' : 'default'"
+          @click="viewMode = 'list'"
+        >
+          <template #icon
+            ><NIcon><ListOutline /></NIcon>
+          </template>
+        </NButton>
+      </div>
+    </div>
 
     <!-- 批量操作条 -->
     <div
@@ -527,7 +578,7 @@ function onShareCreated(link: ShareLink) {
 
         <div
           v-else-if="viewMode === 'grid'"
-          class="content-grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))]"
+          class="content-grid grid-cols-[repeat(auto-fill,minmax(212px,1fr))]"
         >
           <FileCard
             v-for="file in items"
@@ -571,7 +622,7 @@ function onShareCreated(link: ShareLink) {
     <!-- 分页（无数据时隐藏，避免 0 条却显示页码） -->
     <footer
       v-if="total > 0"
-      class="glass-panel px-4 py-2 flex items-center justify-end gap-2"
+      class="flex items-center justify-end gap-2 px-1 pb-1"
     >
       <NPagination
         v-model:page="page"
@@ -581,6 +632,19 @@ function onShareCreated(link: ShareLink) {
         show-size-picker
       />
     </footer>
+
+    <!-- 分类管理（复用原分类面板，仅作为弹窗内容） -->
+    <NModal
+      v-model:show="manageShow"
+      preset="card"
+      title="资源分类"
+      style="width: 420px"
+      :bordered="false"
+    >
+      <div class="h-110">
+        <CategoryPanel embedded />
+      </div>
+    </NModal>
 
     <!-- 上传 -->
     <NModal

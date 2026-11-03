@@ -11,7 +11,6 @@ import {
   InformationCircleOutline,
   LockClosedOutline,
   RefreshOutline,
-  ShareSocialOutline,
   ShieldCheckmarkOutline,
   TimeOutline,
 } from '@vicons/ionicons5';
@@ -358,23 +357,17 @@ onBeforeUnmount(() => {
     <div class="min-h-full flex flex-col items-center px-4 py-8 sm:py-14">
       <div class="w-full max-w-2xl flex flex-col gap-4">
         <!-- 页头 -->
-        <header class="glass-panel px-5 py-4 flex items-center gap-3">
-          <div
-            class="glass-chip w-10 h-10 flex items-center justify-center shrink-0"
-          >
-            <NIcon :size="21" class="text-brand-600 dark:text-brand-400">
-              <ShareSocialOutline />
-            </NIcon>
-          </div>
-          <div class="min-w-0">
+        <header class="glass-panel px-4 py-2.5 flex items-center gap-3">
+          <div class="min-w-0 flex items-baseline gap-2.5">
+            <span class="text-11px text-ink-sub">分享 /</span>
             <h1 class="m-0 text-15px font-600 text-ink leading-tight">
               文件分享
             </h1>
-            <p class="m-0 mt-1 text-11px text-ink-sub truncate">
+            <p class="m-0 text-12px text-ink-sub truncate">
               token {{ token.slice(0, 8) }}…{{ token.slice(-6) }}
             </p>
           </div>
-          <NButton size="tiny" quaternary class="ml-auto" @click="copyAddress">
+          <NButton size="small" quaternary class="ml-auto" @click="copyAddress">
             复制地址
           </NButton>
         </header>

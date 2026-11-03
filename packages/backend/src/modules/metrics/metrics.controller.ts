@@ -20,4 +20,11 @@ export class MetricsController {
   async getMetrics() {
     return await this.metricsService.getMetrics();
   }
+
+  /** 侧栏计数（文件 / 分享），供布局层展示徽标 */
+  @Get('sidebar')
+  @ApiOperation({ summary: '获取侧栏计数' })
+  async getSidebarCounts() {
+    return await this.metricsService.getSidebarCounts();
+  }
 }

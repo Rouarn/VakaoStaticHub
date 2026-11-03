@@ -157,7 +157,7 @@ onMounted(() => void load());
         size="small"
         clearable
         placeholder="操作人"
-        class="w-36"
+        class="w-36!"
       >
         <template #prefix
           ><NIcon :size="14"><SearchOutline /></NIcon
@@ -210,7 +210,9 @@ onMounted(() => void load());
       <div v-else class="flex flex-col gap-3">
         <section class="glass-panel px-4 py-2">
           <div class="overflow-x-auto">
-            <table class="w-full min-w-760px border-collapse text-12px">
+            <table
+              class="app-table w-full min-w-760px border-collapse text-12px"
+            >
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500 w-40">时间</th>

@@ -2,11 +2,7 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NInput, NIcon, useMessage } from 'naive-ui';
-import {
-  CloudOutline,
-  PersonOutline,
-  LockClosedOutline,
-} from '@vicons/ionicons5';
+import { PersonOutline, LockClosedOutline } from '@vicons/ionicons5';
 import PublicPage from '@/components/common/public-page.vue';
 import { login } from '@/api/auth';
 import { getErrorMessage } from '@/utils/http';
@@ -59,11 +55,16 @@ async function doLogin() {
     <div class="min-h-full flex items-center justify-center p-6">
       <div class="glass-panel animate-fade-up w-full max-w-95 px-8 py-10">
         <div class="mb-8 text-center">
-          <div
-            class="mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift dark:shadow-lift-dark"
-          >
-            <NIcon :size="28"><CloudOutline /></NIcon>
-          </div>
+          <img
+            src="/brand/star-four.svg"
+            alt="VaKao"
+            class="mx-auto mb-4 w-14 h-14 dark:hidden"
+          />
+          <img
+            src="/brand/star-white.svg"
+            alt="VaKao"
+            class="mx-auto mb-4 w-14 h-14 hidden dark:block"
+          />
           <h1 class="m-0 text-xl font-600 text-ink">静态资源管理</h1>
           <p class="m-0 mt-1 text-12px text-ink-sub">
             Vakao Static Hub · 统一静态资源服务
@@ -97,6 +98,7 @@ async function doLogin() {
             type="primary"
             size="large"
             block
+            class="login-submit"
             :loading="loading"
             :disabled="!canSubmit"
             @click="submit"

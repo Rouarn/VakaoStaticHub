@@ -250,7 +250,7 @@ onMounted(async () => {
         <NSelect
           v-model:value="rootId"
           size="small"
-          class="w-36"
+          class="w-36!"
           :options="rootOptions"
           @update:value="changeFilter"
         />
@@ -390,7 +390,9 @@ onMounted(async () => {
           </div>
 
           <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-720px border-collapse text-12px">
+            <table
+              class="app-table w-full min-w-720px border-collapse text-12px"
+            >
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500">保留</th>

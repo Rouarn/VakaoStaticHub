@@ -6,7 +6,6 @@ import {
   CheckmarkCircleOutline,
   HardwareChipOutline,
   PauseOutline,
-  PeopleOutline,
   PlayOutline,
   PulseOutline,
   RefreshOutline,
@@ -237,7 +236,7 @@ function rootShareLabel(totalSize: number | null): string {
         <NButton size="small" type="primary" @click="load()">重新获取</NButton>
       </EmptyState>
 
-      <div v-else-if="data" class="flex flex-col gap-4">
+      <div v-else-if="data" class="flex flex-col gap-3">
         <div
           v-if="error"
           class="glass-panel border-l-4 border-l-red-500 px-4 py-2 flex items-center gap-2 text-12px"
@@ -248,7 +247,7 @@ function rootShareLabel(totalSize: number | null): string {
           >
         </div>
 
-        <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <div class="metrics-strip">
           <StatCard
             label="健康状态"
             :value="healthy ? '正常' : '异常'"
@@ -377,7 +376,7 @@ function rootShareLabel(totalSize: number | null): string {
             暂无资源根目录
           </div>
           <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-600px border-collapse text-12px">
+            <table class="app-table w-full min-w-600px border-collapse text-12px">
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500">根目录</th>
@@ -434,30 +433,6 @@ function rootShareLabel(totalSize: number | null): string {
             </table>
           </div>
         </section>
-
-        <!-- 其他指标 -->
-        <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="用户数"
-            :value="data.users.toLocaleString()"
-            :icon="PeopleOutline"
-          />
-          <StatCard
-            label="应用总数"
-            :value="data.apps.total.toLocaleString()"
-            :icon="RocketOutline"
-          />
-          <StatCard
-            label="分享总数"
-            :value="data.shares.total.toLocaleString()"
-            :icon="ShareSocialOutline"
-          />
-          <StatCard
-            label="根目录数"
-            :value="rootItems.length.toLocaleString()"
-            :icon="SaveOutline"
-          />
-        </div>
 
         <p class="m-0 text-10px text-ink-sub">
           说明：health

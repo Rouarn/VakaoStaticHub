@@ -329,7 +329,7 @@ onMounted(() => void load());
             <span class="ml-auto">管理员 {{ adminCount }} 个</span>
           </div>
           <div class="overflow-x-auto mt-2">
-            <table class="w-full min-w-720px border-collapse text-12px">
+            <table class="app-table w-full min-w-720px border-collapse text-12px">
               <thead>
                 <tr class="text-left text-11px text-ink-sub">
                   <th class="py-2 pr-3 font-500">用户</th>

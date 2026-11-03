@@ -42,6 +42,9 @@ import { formatBytes } from '@/utils/file-types';
  * - 新建 POST /files/:rootId/categories
  * - 删除 DELETE /files/:rootId/categories/:category（非空需 recursive=true）
  */
+/** 嵌入侧栏时去掉独立面板的外观，只保留内容与滚动 */
+const props = defineProps<{ embedded?: boolean }>();
+
 const route = useRoute();
 const router = useRouter();
 const message = useMessage();
@@ -299,10 +302,17 @@ async function confirmDeleteRoot() {
 </script>
 
 <template>
-  <section class="glass-panel w-60 h-full flex flex-col shrink-0">
-    <header class="px-4 pt-4 pb-3">
+  <section
+    class="flex flex-col min-h-0"
+    :class="props.embedded ? 'h-full' : 'glass-panel w-60 h-full shrink-0'"
+  >
+    <header :class="props.embedded ? 'px-2 pt-3 pb-2' : 'px-4 pt-4 pb-3'">
       <div class="flex items-center justify-between mb-3">
-        <span class="text-ink text-sm font-600 tracking-wide">资源分类</span>
+        <span
+          class="text-ink font-600 tracking-wide"
+          :class="props.embedded ? 'text-12px' : 'text-sm'"
+          >资源分类</span
+        >
         <div class="flex items-center gap-1">
           <NTooltip placement="bottom" :delay="300">
             <template #trigger>
@@ -353,7 +363,10 @@ async function confirmDeleteRoot() {
       </div>
     </header>
 
-    <nav class="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+    <nav
+      class="flex-1 min-h-0 overflow-y-auto pb-2"
+      :class="props.embedded ? 'px-1 scrollbar-hidden' : 'px-2'"
+    >
       <NSpin :show="categoryStore.loading" size="small">
         <!-- 错误态 -->
         <div v-if="categoryStore.error" class="px-3 py-6 text-center">
@@ -388,9 +401,9 @@ async function confirmDeleteRoot() {
             class="group relative"
           >
             <button
-              class="w-full flex items-center gap-2.5 pl-3 pr-8 py-2 rounded-xl border-none bg-transparent cursor-pointer transition-all duration-200 text-ink-sub hover:bg-white/60 dark:hover:bg-white/8"
+              class="w-full flex items-center gap-2.5 h-8 pl-2.5 pr-8 rounded-[10px] border-none bg-transparent cursor-pointer transition-colors text-ink-sub hover:bg-[var(--mat-hover)]"
               :class="{
-                'bg-white/80! dark:bg-white/10! text-ink dark:text-ink-dark shadow-glass':
+                'bg-brand-500/12! dark:bg-brand-400/15! text-brand-700 dark:text-brand-300 font-600':
                   categoryStore.activeCategory === item.name,
               }"
               @click="selectCategory(item.name)"
@@ -434,7 +447,8 @@ async function confirmDeleteRoot() {
     </nav>
 
     <footer
-      class="px-4 py-3 border-t border-glass-border dark:border-glass-border-dark"
+      class="border-t border-[var(--mat-line-soft)]"
+      :class="props.embedded ? 'px-3 py-2' : 'px-4 py-3'"
     >
       <p class="m-0 text-11px text-ink-sub">
         {{ categories.length }} 个分类 ·

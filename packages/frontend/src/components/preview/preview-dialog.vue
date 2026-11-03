@@ -154,10 +154,16 @@ function forcePreview() {
                 {{ current?.filename }}
               </p>
               <p class="m-0 text-11px text-ink-sub">
-                {{ formatBytes(current?.size ?? 0) }}
-                <span v-if="canPage">
-                  · {{ props.index + 1 }} / {{ props.files.length }}</span
-                >
+                <!-- 远程直链拿不到文件大小，0 时不显示，避免出现「0 B」 -->
+                <template v-if="(current?.size ?? 0) > 0">
+                  {{ formatBytes(current?.size ?? 0) }}
+                  <span v-if="canPage">
+                    · {{ props.index + 1 }} / {{ props.files.length }}</span
+                  >
+                </template>
+                <template v-else-if="canPage">
+                  {{ props.index + 1 }} / {{ props.files.length }}
+                </template>
               </p>
             </div>
             <div class="ml-auto flex items-center gap-1">

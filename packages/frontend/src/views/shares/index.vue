@@ -14,25 +14,19 @@ import {
   NSpin,
   NSwitch,
   NTag,
-  NTooltip,
   useMessage,
 } from 'naive-ui';
 import {
   AddOutline,
   ChevronBackOutline,
   ChevronForwardOutline,
-  CopyOutline,
-  CreateOutline,
   DocumentTextOutline,
-  EyeOutline,
   InformationCircleOutline,
   LinkOutline,
   PauseCircleOutline,
   PlayCircleOutline,
-  QrCodeOutline,
   RefreshOutline,
   SearchOutline,
-  ShareSocialOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
 import type {
@@ -53,7 +47,6 @@ import {
   listShareAccessLogs,
   listShares,
   revokeShare,
-  SHARE_TOKEN_RE,
   updateShare,
 } from '@/api/shares';
 import { listFiles } from '@/api/files';
@@ -63,6 +56,7 @@ import { formatDateTime } from '@/utils/format';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
 import EmptyState from '@/components/common/empty-state.vue';
+import PageHeader from '@/components/common/page-header.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import ShareQrModal from './components/share-qr-modal.vue';
@@ -511,10 +505,6 @@ async function confirmRevoke() {
   }
 }
 
-function isTokenValid(token: string) {
-  return SHARE_TOKEN_RE.test(token);
-}
-
 // ===================== 编辑 / 启停 =====================
 const editShow = ref(false);
 const editSaving = ref(false);
@@ -574,6 +564,22 @@ async function submitEdit() {
   } finally {
     editSaving.value = false;
   }
+}
+
+/** 行内「更多」菜单：二维码 / 访问记录 / 编辑 / 撤销 */
+const rowMenuOptions = [
+  { label: '二维码', key: 'qr' },
+  { label: '访问记录', key: 'logs' },
+  { label: '编辑', key: 'edit' },
+  { type: 'divider', key: 'd1' },
+  { label: '撤销链接', key: 'revoke' },
+];
+
+function onRowAction(key: string, link: ShareLink) {
+  if (key === 'qr') openQr(link.token);
+  else if (key === 'logs') void openLogs(link);
+  else if (key === 'edit') openEdit(link);
+  else if (key === 'revoke') openRevoke(link);
 }
 
 async function toggleEnabled(link: ShareLink) {
@@ -662,37 +668,26 @@ onMounted(async () => {
 
 <template>
   <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
-    <!-- 第 1 块：页面标题区（图标 + 标题 + 统计说明） -->
-    <section class="glass-panel px-4 py-3 flex items-start gap-2.5 shrink-0">
-      <NIcon
-        :size="18"
-        class="mt-0.5 text-brand-600 dark:text-brand-400 shrink-0"
-      >
-        <ShareSocialOutline />
-      </NIcon>
-      <div class="min-w-0">
-        <div class="flex items-center gap-1.5">
-          <h1 class="m-0 text-15px font-600 text-ink leading-tight">
-            分享管理
-          </h1>
-          <NTooltip :delay="300">
-            <template #trigger>
-              <NIcon :size="14" class="text-ink-sub cursor-help">
-                <InformationCircleOutline />
-              </NIcon>
-            </template>
-            访问者通过 /share/:token 页面打开链接；列表由服务端分页与检索（token
-            / 文件 / 分类 /
-            备注）。停用后访问返回「已停用」，撤销会物理删除链接与访问记录
-          </NTooltip>
-        </div>
-        <p class="m-0 mt-0.5 text-12px text-ink-sub tabular-nums">
-          共 {{ total }} 条 · 活跃 {{ counts.active }} · 已停用
-          {{ counts.disabled }} · 已失效
-          {{ counts.expired + counts.exhausted }}
-        </p>
-      </div>
-    </section>
+    <!-- 页头（对齐原型 topbar） -->
+    <PageHeader
+      title="分享管理"
+      :description="`共 ${total} 条 · 活跃 ${counts.active} · 已停用 ${counts.disabled} · 已失效 ${counts.expired + counts.exhausted}`"
+    >
+      <template #actions>
+        <NButton size="small" quaternary @click="() => load()">
+          <template #icon
+            ><NIcon><RefreshOutline /></NIcon>
+          </template>
+          刷新
+        </NButton>
+        <NButton type="primary" size="small" @click="openCreate">
+          <template #icon
+            ><NIcon><AddOutline /></NIcon>
+          </template>
+          创建分享
+        </NButton>
+      </template>
+    </PageHeader>
 
     <!-- 第 2 块：工具条区（状态筛选、全选、搜索、每页条数、刷新、创建） -->
     <section class="glass-panel px-4 py-3 flex flex-col gap-3 shrink-0">
@@ -750,22 +745,6 @@ onMounted(async () => {
             size="small"
             class="w-28"
           />
-          <NTooltip :delay="300">
-            <template #trigger>
-              <NButton size="small" quaternary circle @click="() => load()">
-                <template #icon
-                  ><NIcon><RefreshOutline /></NIcon
-                ></template>
-              </NButton>
-            </template>
-            刷新
-          </NTooltip>
-          <NButton type="primary" size="small" @click="openCreate">
-            <template #icon
-              ><NIcon><AddOutline /></NIcon
-            ></template>
-            创建分享
-          </NButton>
         </div>
       </div>
     </section>
@@ -866,149 +845,137 @@ onMounted(async () => {
             </NButton>
           </EmptyState>
 
-          <div v-else class="content-grid grid-cols-1 xl:grid-cols-2">
-            <article
-              v-for="link in links"
-              :key="link.token"
-              class="glass-panel px-4 py-3 flex flex-col gap-3"
-              :class="{ 'ring-2 ring-brand-500/70': selected.has(link.token) }"
-            >
-              <div class="flex items-start gap-3 flex-wrap">
-                <NCheckbox
-                  class="mt-2 shrink-0"
-                  :checked="selected.has(link.token)"
-                  :aria-label="`选择 ${targetLabel(link)}`"
-                  @update:checked="toggleSelect(link.token)"
-                />
-                <div
-                  class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
-                >
-                  <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
-                    <LinkOutline />
-                  </NIcon>
-                </div>
-
-                <div class="min-w-0 flex-1">
-                  <p
-                    class="m-0 text-13px font-600 text-ink truncate"
-                    :title="targetLabel(link)"
+          <div v-else class="glass-panel overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="app-table min-w-880px">
+                <thead>
+                  <tr>
+                    <th class="w-9 pl-4">
+                      <NCheckbox
+                        :checked="allSelected"
+                        :indeterminate="partiallySelected"
+                        :disabled="links.length === 0"
+                        aria-label="全选当前页"
+                        @update:checked="toggleSelectAll"
+                      />
+                    </th>
+                    <th>分享链接</th>
+                    <th>目标文件</th>
+                    <th>状态</th>
+                    <th class="num">访问次数</th>
+                    <th class="num">过期时间</th>
+                    <th class="text-right pr-4">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="link in links"
+                    :key="link.token"
+                    :class="{ 'bg-brand-500/6': selected.has(link.token) }"
                   >
-                    {{ targetLabel(link) }}
-                  </p>
-                  <p class="m-0 mt-0.5 text-11px text-ink-sub truncate">
-                    {{ link.category }} · 创建于
-                    {{ formatDateTime(link.createdAt) }}
-                  </p>
-                  <p
-                    v-if="link.remark"
-                    class="m-0 mt-0.5 text-11px text-ink-sub truncate"
-                  >
-                    备注：{{ link.remark }}
-                  </p>
-                </div>
-
-                <div class="flex items-center gap-2 flex-wrap">
-                  <NTag
-                    size="small"
-                    :type="STATUS_TAG[statusOf(link)].type"
-                    :bordered="false"
-                  >
-                    {{ STATUS_TAG[statusOf(link)].label }}
-                  </NTag>
-                  <NTag v-if="link.hasPassword" size="small" :bordered="false"
-                    >密码保护</NTag
-                  >
-                </div>
-              </div>
-
-              <div
-                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
-              >
-                <span>
-                  打开
-                  <span class="text-ink font-600 tabular-nums">{{
-                    link.accessCount
-                  }}</span>
-                  <template v-if="link.maxAccesses !== null">
-                    / {{ link.maxAccesses }}</template
-                  >
-                  次
-                </span>
-                <span>
-                  {{
-                    link.expiresAt
-                      ? `有效期至 ${formatDateTime(link.expiresAt)}`
-                      : '永久有效'
-                  }}
-                </span>
-                <span class="font-mono" :title="link.token">
-                  token {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
-                  <span
-                    v-if="!isTokenValid(link.token)"
-                    class="text-red-500 ml-1"
-                    >格式异常</span
-                  >
-                </span>
-              </div>
-
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <NButton size="tiny" @click="copyUrl(link.token)">
-                  <template #icon
-                    ><NIcon><CopyOutline /></NIcon
-                  ></template>
-                  复制链接
-                </NButton>
-                <NButton size="tiny" @click="openQr(link.token)">
-                  <template #icon
-                    ><NIcon><QrCodeOutline /></NIcon
-                  ></template>
-                  二维码
-                </NButton>
-                <NButton size="tiny" @click="openLogs(link)">
-                  <template #icon
-                    ><NIcon><EyeOutline /></NIcon
-                  ></template>
-                  访问记录
-                  <span class="ml-1 tabular-nums text-ink-sub">{{
-                    link.accessCount
-                  }}</span>
-                </NButton>
-                <NButton size="tiny" @click="openEdit(link)">
-                  <template #icon
-                    ><NIcon><CreateOutline /></NIcon
-                  ></template>
-                  编辑
-                </NButton>
-                <NButton size="tiny" quaternary @click="toggleEnabled(link)">
-                  <template #icon>
-                    <NIcon>
-                      <PlayCircleOutline v-if="!link.enabled" />
-                      <PauseCircleOutline v-else />
-                    </NIcon>
-                  </template>
-                  {{ link.enabled ? '停用' : '启用' }}
-                </NButton>
-                <NButton
-                  size="tiny"
-                  quaternary
-                  type="error"
-                  class="ml-auto"
-                  @click="openRevoke(link)"
-                >
-                  <template #icon
-                    ><NIcon><TrashOutline /></NIcon
-                  ></template>
-                  撤销
-                </NButton>
-              </div>
-            </article>
+                    <td class="pl-4">
+                      <NCheckbox
+                        :checked="selected.has(link.token)"
+                        :aria-label="`选择 ${targetLabel(link)}`"
+                        @update:checked="toggleSelect(link.token)"
+                      />
+                    </td>
+                    <td>
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span
+                          class="font-mono text-11.5px text-ink truncate"
+                          :title="link.token"
+                        >
+                          {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
+                        </span>
+                        <NTag
+                          v-if="link.hasPassword"
+                          size="tiny"
+                          :bordered="false"
+                        >
+                          密码
+                        </NTag>
+                      </div>
+                      <div
+                        v-if="link.remark"
+                        class="mt-0.5 text-11px text-ink-sub truncate max-w-220px"
+                        :title="link.remark"
+                      >
+                        {{ link.remark }}
+                      </div>
+                    </td>
+                    <td>
+                      <div
+                        class="text-ink truncate max-w-260px"
+                        :title="targetLabel(link)"
+                      >
+                        {{ targetLabel(link) }}
+                      </div>
+                      <div class="mt-0.5 text-11px text-ink-sub truncate">
+                        {{ link.category }}
+                      </div>
+                    </td>
+                    <td>
+                      <NTag
+                        size="small"
+                        :type="STATUS_TAG[statusOf(link)].type"
+                        :bordered="false"
+                      >
+                        {{ STATUS_TAG[statusOf(link)].label }}
+                      </NTag>
+                    </td>
+                    <td class="num">
+                      {{ link.accessCount }}
+                      <span v-if="link.maxAccesses !== null" class="text-ink-sub">
+                        / {{ link.maxAccesses }}</span
+                      >
+                    </td>
+                    <td class="num">
+                      {{ link.expiresAt ? formatDateTime(link.expiresAt) : '永久' }}
+                    </td>
+                    <td class="pr-4">
+                      <div class="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          class="border-none bg-transparent p-0 text-12px text-ink-sub cursor-pointer transition-colors hover:text-brand-600 dark:hover:text-brand-400"
+                          @click="copyUrl(link.token)"
+                        >
+                          复制
+                        </button>
+                        <button
+                          type="button"
+                          class="border-none bg-transparent p-0 text-12px text-ink-sub cursor-pointer transition-colors hover:text-brand-600 dark:hover:text-brand-400"
+                          @click="toggleEnabled(link)"
+                        >
+                          {{ link.enabled ? '停用' : '启用' }}
+                        </button>
+                        <NDropdown
+                          trigger="click"
+                          :options="rowMenuOptions"
+                          placement="bottom-end"
+                          @select="(key: string) => onRowAction(key, link)"
+                        >
+                          <button
+                            type="button"
+                            class="border-none bg-transparent p-0 text-12px text-ink-sub cursor-pointer hover:text-ink"
+                            aria-label="更多操作"
+                          >
+                            ⋯
+                          </button>
+                        </NDropdown>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </NSpin>
       </div>
 
       <footer
         v-if="total > pageSize"
-        class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2 shrink-0"
+        class="flex flex-wrap items-center justify-end gap-2 shrink-0 px-1 pb-1"
       >
         <span class="mr-auto text-11px text-ink-sub">
           共 {{ total }} 条 · 第 {{ page }} /

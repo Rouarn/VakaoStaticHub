@@ -728,7 +728,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="flex flex-col gap-3 animate-fade-up">
     <PageHeader
       title="APP 版本管理"
       description="上传 APK、全量/灰度发布、强更与一键回滚；下架原因区分自动与手动"
@@ -870,17 +870,9 @@ onMounted(async () => {
         <article
           v-for="version in versions"
           :key="version.id"
-          class="glass-panel px-4 py-3 flex flex-col gap-2.5"
+          class="glass-card px-4 py-3 flex flex-col gap-2.5"
         >
           <div class="flex items-start gap-3 flex-wrap">
-            <div
-              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
-            >
-              <NIcon :size="18" class="text-brand-600 dark:text-brand-400">
-                <RocketOutline />
-              </NIcon>
-            </div>
-
             <div class="min-w-0 flex-1">
               <p class="m-0 text-13px font-600 text-ink truncate">
                 {{ version.appKey }} · v{{ version.versionName }}

@@ -54,6 +54,10 @@ const emit = defineEmits<{
 }>();
 
 const kind = computed(() => getFileKind(props.file.name));
+/** 角标与音频封面共用的扩展名文本（如 JPG / MP3） */
+const extLabel = computed(
+  () => (getExtension(props.file.name) || 'FILE').toUpperCase(),
+);
 const urlParams = computed(() => ({
   rootId: props.rootId,
   category: props.category,
@@ -121,7 +125,7 @@ function onAction(key: string) {
     :class="{ 'ring-2 ring-brand-500/70': props.selected }"
     @click="emit('open', props.file)"
   >
-    <div ref="mediaRef" class="media-frame aspect-square">
+    <div ref="mediaRef" class="media-frame aspect-[16/10] m-1.5 rounded-xl">
       <img
         v-if="kind === 'image'"
         :src="thumbUrl"
@@ -156,21 +160,10 @@ function onAction(key: string) {
 
       <template v-else-if="kind === 'audio'">
         <div
-          class="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-brand-400/25 to-brand-700/25"
+          class="w-full h-full flex flex-col items-center justify-center gap-2 bg-[var(--mat-chip)] text-ink-sub"
         >
-          <span
-            class="w-12 h-12 rounded-full flex items-center justify-center bg-black/45 backdrop-blur-md border border-white/30 text-white"
-          >
-            <NIcon :size="24"><PlayOutline /></NIcon>
-          </span>
-          <div class="flex items-end gap-0.5 h-8 opacity-70">
-            <span
-              v-for="i in 16"
-              :key="i"
-              class="w-1 rounded-sm bg-brand-500 dark:bg-brand-400"
-              :style="{ height: `${30 + ((i * 13) % 70)}%` }"
-            />
-          </div>
+          <NIcon :size="30"><MusicalNotesOutline /></NIcon>
+          <span class="text-10px font-700 tracking-widest">{{ extLabel }}</span>
         </div>
       </template>
 
@@ -183,6 +176,14 @@ function onAction(key: string) {
           {{ getExtension(props.file.name) || 'file' }}
         </span>
       </div>
+
+      <!-- 类型角标：对齐原型，图片/视频在左下角显示扩展名 -->
+      <span
+        v-if="kind === 'image' || kind === 'video'"
+        class="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-md bg-black/55 text-white text-10px font-600 tracking-wide backdrop-blur-sm"
+      >
+        {{ extLabel }}
+      </span>
 
       <!-- 选中框：叠在图片上时默认白色描边几乎不可见，加一层薄暗底保证可辨 -->
       <span

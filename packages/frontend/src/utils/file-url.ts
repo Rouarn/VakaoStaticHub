@@ -70,6 +70,25 @@ export function buildThumbUrl(params: FileUrlParams, size = 320): string {
   return `${url}${sep}w=${size}&h=${size}&format=webp&q=75`;
 }
 
+/**
+ * 随机图片窗口地址：`<origin>/static/photo?rootId=..&category=..`
+ *
+ * 对应后端 PhotoController（GET /static/photo），按根目录 / 分类随机返回一张图片。
+ * 旧版入口在页面右下角，点击后以弹窗打开该地址；参数取自当前根目录与分类，
+ * 切换根目录 / 分类后再点，地址随之变化。
+ */
+export function buildRandomPhotoUrl({
+  rootId,
+  category,
+}: {
+  rootId: string;
+  category?: string | null;
+}): string {
+  const query = new URLSearchParams({ rootId });
+  if (category) query.set('category', category);
+  return `${getApiBaseUrl()}/photo?${query.toString()}`;
+}
+
 /** 分享页地址（前端路由，不是后端接口） */
 export function buildSharePageUrl(token: string): string {
   return `${window.location.origin}/share/${encodeURIComponent(token)}`;
