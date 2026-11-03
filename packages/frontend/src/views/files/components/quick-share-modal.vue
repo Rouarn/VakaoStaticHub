@@ -3,17 +3,13 @@ import { computed, ref, watch } from 'vue';
 import {
   NButton,
   NCheckbox,
-  NIcon,
   NInput,
   NInputNumber,
   NModal,
   NSelect,
-  useMessage,
 } from 'naive-ui';
-import { CheckmarkCircleOutline, CopyOutline } from '@vicons/ionicons5';
 import { createShare } from '@/api/shares';
 import { getErrorMessage } from '@/utils/http';
-import { buildSharePageUrl } from '@/utils/file-url';
 import type { ShareLink } from '@vakao/shared';
 
 /**
@@ -29,8 +25,11 @@ const props = defineProps<{
   paths: string[];
 }>();
 
-const emit = defineEmits<{ 'update:show': [value: boolean] }>();
-const message = useMessage();
+const emit = defineEmits<{
+  'update:show': [value: boolean];
+  /** 创建成功：交给父级统一弹出二维码（复用 ShareQrModal） */
+  created: [link: ShareLink];
+}>();
 
 const isCollection = computed(() => props.paths.length > 1);
 const fileName = computed(() => {
@@ -48,7 +47,6 @@ const requirePassword = ref(false);
 const password = ref('');
 const busy = ref(false);
 const error = ref('');
-const created = ref<ShareLink | null>(null);
 
 const expiryOptions = [
   { label: '永久有效', value: 0 },
@@ -68,7 +66,6 @@ function reset() {
   password.value = '';
   busy.value = false;
   error.value = '';
-  created.value = null;
 }
 
 watch(
@@ -116,25 +113,12 @@ async function submit() {
         ? { password: password.value.trim() }
         : {}),
     });
-    created.value = link;
+    close();
+    emit('created', link);
   } catch (e) {
     error.value = getErrorMessage(e, '创建分享失败');
   } finally {
     busy.value = false;
-  }
-}
-
-const shareUrl = computed(() =>
-  created.value ? buildSharePageUrl(created.value.token) : '',
-);
-
-async function copyUrl() {
-  if (!shareUrl.value) return;
-  try {
-    await navigator.clipboard.writeText(shareUrl.value);
-    message.success('分享链接已复制');
-  } catch {
-    message.error('复制失败，请手动复制');
   }
 }
 </script>
@@ -148,7 +132,7 @@ async function copyUrl() {
     style="width: 480px"
     :mask-closable="false"
   >
-    <div v-if="!created" class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3">
       <div class="glass-card px-3 py-2">
         <p class="m-0 text-12px text-ink-sub">目标分类</p>
         <p class="m-0 text-13px font-600 text-ink truncate">
@@ -216,34 +200,6 @@ async function copyUrl() {
         <NButton size="small" type="primary" :loading="busy" @click="submit">
           创建分享
         </NButton>
-      </div>
-    </div>
-
-    <div v-else class="flex flex-col gap-3">
-      <div class="flex items-center gap-2 text-emerald-500">
-        <NIcon :size="18"><CheckmarkCircleOutline /></NIcon>
-        <span class="text-13px font-600">分享链接已创建</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <NInput :value="shareUrl" size="small" readonly class="font-mono" />
-        <NButton size="small" quaternary @click="copyUrl">
-          <template #icon
-            ><NIcon :size="14"><CopyOutline /></NIcon
-          ></template>
-          复制
-        </NButton>
-      </div>
-      <p
-        v-if="requirePassword && password.trim()"
-        class="m-0 text-11px text-ink-sub"
-      >
-        访问密码：{{ password }}
-      </p>
-      <p class="m-0 text-11px text-ink-sub">
-        链接永久/有效期内可访问，可在「分享管理」中查看、编辑与撤销。
-      </p>
-      <div class="flex justify-end pt-1">
-        <NButton size="small" type="primary" @click="close">完成</NButton>
       </div>
     </div>
   </NModal>

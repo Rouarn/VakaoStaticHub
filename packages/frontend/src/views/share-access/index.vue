@@ -79,6 +79,9 @@ const collectionRootId = ref('');
 const collectionCategory = ref('');
 const collectionLoading = ref(false);
 const collectionError = ref('');
+/** 单文件分享的真实大小：ShareInfo 不含 size，用 HEAD 读 Content-Length */
+const singleSize = ref<number | null>(null);
+const singleMissing = ref(false);
 const collectionMissingCount = computed(
   () => collectionFiles.value.filter((file) => !file.exists).length,
 );
@@ -131,6 +134,8 @@ async function init() {
   collectionFiles.value = [];
   collectionRootId.value = '';
   collectionCategory.value = '';
+  singleSize.value = null;
+  singleMissing.value = false;
   errorText.value = '';
   password.value = '';
   passwordError.value = '';
@@ -180,6 +185,7 @@ async function unlock() {
     password.value = '';
     phase.value = 'ready';
     if (info.value?.shareType === 'collection') await loadCollection();
+    else await loadSingleMeta();
   } catch (e) {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
@@ -259,6 +265,28 @@ const singleDownloadSrc = computed(() =>
   }),
 );
 
+/**
+ * 单文件分享没有独立的元信息接口，用 HEAD 读取 Content-Length。
+ * 404 才判定「文件已删除」；网络失败保持未知，避免误报。
+ */
+async function loadSingleMeta() {
+  singleSize.value = null;
+  singleMissing.value = false;
+  if (!singleFile.value) return;
+  try {
+    const res = await fetch(singleSrc.value, { method: 'HEAD' });
+    if (res.status === 404) {
+      singleMissing.value = true;
+      return;
+    }
+    if (!res.ok) return;
+    const length = Number(res.headers.get('content-length'));
+    singleSize.value = Number.isFinite(length) ? length : null;
+  } catch {
+    /* 保留未知状态 */
+  }
+}
+
 function nameOf(path: string) {
   return path.split('/').pop() ?? path;
 }
@@ -284,7 +312,7 @@ function openSinglePreview() {
       filename: singleFile.value.name,
       src: singleSrc.value,
       downloadSrc: singleDownloadSrc.value,
-      size: 0,
+      size: singleSize.value ?? 0,
     },
   ];
   previewIndex.value = 0;
@@ -513,18 +541,33 @@ onBeforeUnmount(() => {
                 </p>
                 <p class="m-0 mt-0.5 text-11px text-ink-sub">
                   单文件分享 · {{ info.category }}
+                  <template v-if="singleMissing">
+                    ·
+                    <span class="text-amber-600 dark:text-amber-400"
+                      >文件已删除</span
+                    >
+                  </template>
+                  <template v-else-if="singleSize !== null">
+                    · {{ formatBytes(singleSize) }}
+                  </template>
                 </p>
               </div>
             </div>
 
             <img
-              v-if="isImage(singleFile.name)"
+              v-if="isImage(singleFile.name) && !singleMissing"
               :src="singleSrc"
               :alt="singleFile.name"
               class="max-h-64 w-auto mx-auto rounded-xl object-contain"
             />
 
-            <div class="flex items-center gap-2 flex-wrap">
+            <div v-if="singleMissing" class="flex items-center gap-2">
+              <span class="text-12px text-amber-600 dark:text-amber-400">
+                文件已被删除，请联系分享者重新创建分享。
+              </span>
+            </div>
+
+            <div v-else class="flex items-center gap-2 flex-wrap">
               <NButton
                 v-if="isPreviewable(singleFile.name)"
                 type="primary"

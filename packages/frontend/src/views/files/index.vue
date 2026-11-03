@@ -23,7 +23,7 @@ import {
   SwapHorizontalOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type { FileItem } from '@vakao/shared';
+import type { FileItem, ShareLink } from '@vakao/shared';
 import {
   batchDelete,
   batchMove,
@@ -32,7 +32,7 @@ import {
   listFiles,
   renameFile,
 } from '@/api/files';
-import { buildFileUrl } from '@/utils/file-url';
+import { buildFileUrl, buildSharePageUrl } from '@/utils/file-url';
 import { getErrorMessage } from '@/utils/http';
 import { isImage } from '@/utils/file-types';
 import { useAppStore } from '@/stores/modules/app';
@@ -42,6 +42,7 @@ import UploadPanel from './components/upload-panel.vue';
 import RenameFileModal from './components/rename-file-modal.vue';
 import MoveFileModal from './components/move-file-modal.vue';
 import QuickShareModal from './components/quick-share-modal.vue';
+import ShareQrModal from '@/views/shares/components/share-qr-modal.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
 import type { PreviewTarget } from '@/components/preview/types';
@@ -358,6 +359,22 @@ function openBatchShare() {
   sharePaths.value = [...selected.value];
   shareShow.value = true;
 }
+
+// —— 创建成功后的二维码（与「分享管理」复用同一组件） ——
+const qrShow = ref(false);
+const qrUrl = ref('');
+const qrFilename = ref('');
+const shareLabel = computed(() =>
+  sharePaths.value.length > 1
+    ? `文件集合-${sharePaths.value.length}个`
+    : (sharePaths.value[0]?.split('/').pop() ?? 'share'),
+);
+
+function onShareCreated(link: ShareLink) {
+  qrUrl.value = buildSharePageUrl(link.token);
+  qrFilename.value = `${shareLabel.value}-qr.png`;
+  qrShow.value = true;
+}
 </script>
 
 <template>
@@ -620,6 +637,9 @@ function openBatchShare() {
       :root-id="rootId"
       :category="category"
       :paths="sharePaths"
+      @created="onShareCreated"
     />
+
+    <ShareQrModal v-model:show="qrShow" :url="qrUrl" :filename="qrFilename" />
   </div>
 </template>

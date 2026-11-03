@@ -39,7 +39,7 @@ interface NavItem {
   name: string;
   title: string;
   icon?: Component;
-  children?: { name: string; title: string }[];
+  children?: { name: string; title: string; icon?: Component }[];
 }
 
 /** 从路由表提取侧边栏项（单一来源，避免菜单与路由漂移） */
@@ -57,6 +57,7 @@ const navItems = computed<NavItem[]>(() => {
         .map((c) => ({
           name: String(c.name),
           title: String(c.meta?.title ?? c.name),
+          icon: c.meta?.icon,
         })),
     }));
 });
@@ -184,12 +185,12 @@ function onUserAction(key: string) {
         <!-- 子菜单（仅展开态且当前项有子路由时显示） -->
         <div
           v-if="expanded && item.children?.length"
-          class="flex flex-col gap-1 pl-9 pr-2"
+          class="flex flex-col gap-1 pl-7 pr-2"
         >
           <button
             v-for="child in item.children"
             :key="child.name"
-            class="cursor-pointer border-none bg-transparent text-left rounded-lg px-2 py-1.5 text-12px whitespace-nowrap transition-colors"
+            class="cursor-pointer border-none bg-transparent text-left rounded-lg px-2 py-1.5 text-12px whitespace-nowrap transition-colors flex items-center gap-2"
             :class="
               route.name === child.name
                 ? 'text-brand-600 dark:text-brand-400 bg-white/60 dark:bg-white/8'
@@ -197,6 +198,17 @@ function onUserAction(key: string) {
             "
             @click="go(child.name)"
           >
+            <NIcon
+              v-if="child.icon"
+              :size="15"
+              class="shrink-0"
+              :class="
+                route.name === child.name
+                  ? 'text-brand-600 dark:text-brand-400'
+                  : 'text-ink-sub'
+              "
+              :component="child.icon"
+            />
             {{ child.title }}
           </button>
         </div>

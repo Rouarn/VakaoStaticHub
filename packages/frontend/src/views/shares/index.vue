@@ -543,7 +543,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
     <PageHeader
       title="分享管理"
       description="创建与管理公开分享链接；访问者凭链接在 /share/:token 页面访问文件"
@@ -609,10 +609,12 @@ onMounted(async () => {
       </NInput>
     </header>
 
-    <NSpin :show="loading">
-      <ErrorState v-if="error" :message="error" @retry="load" />
+    <!-- 列表独立滚动：工具栏与分页不随内容移动 -->
+    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
+      <NSpin :show="loading">
+        <ErrorState v-if="error" :message="error" @retry="load" />
 
-      <EmptyState
+        <EmptyState
         v-else-if="!loading && links.length === 0"
         :icon="LinkOutline"
         :title="counts.all === 0 ? '还没有分享链接' : '没有符合条件的分享'"
@@ -769,23 +771,25 @@ onMounted(async () => {
             </NButton>
           </div>
         </article>
-
-        <footer
-          class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2"
-        >
-          <span class="mr-auto text-11px text-ink-sub">
-            共 {{ total }} 条 · 服务端分页
-          </span>
-          <NPagination
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :item-count="total"
-            :page-sizes="[8, 16, 32, 64]"
-            show-size-picker
-          />
-        </footer>
       </div>
-    </NSpin>
+      </NSpin>
+    </div>
+
+    <footer
+      v-if="total > pageSize"
+      class="glass-panel px-4 py-2 flex flex-wrap items-center justify-end gap-2 shrink-0"
+    >
+      <span class="mr-auto text-11px text-ink-sub">
+        共 {{ total }} 条 · 服务端分页
+      </span>
+      <NPagination
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :item-count="total"
+        :page-sizes="[8, 16, 32, 64]"
+        show-size-picker
+      />
+    </footer>
 
     <!-- 创建分享 -->
     <NModal

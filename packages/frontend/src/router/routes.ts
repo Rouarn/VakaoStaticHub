@@ -14,6 +14,8 @@ import {
   SpeedometerOutline,
   ConstructOutline,
   CodeSlashOutline,
+  ImageOutline,
+  ChatbubbleEllipsesOutline,
 } from '@vicons/ionicons5';
 
 /**
@@ -116,13 +118,13 @@ const protectedChildren: RouteRecordRaw[] = [
         path: 'placeholder',
         name: 'tools-placeholder',
         component: () => import('@/views/tools/placeholder/index.vue'),
-        meta: { title: '占位图生成' },
+        meta: { title: '占位图生成', icon: ImageOutline },
       },
       {
         path: 'hitokoto',
         name: 'tools-hitokoto',
         component: () => import('@/views/tools/hitokoto/index.vue'),
-        meta: { title: '一言' },
+        meta: { title: '一言', icon: ChatbubbleEllipsesOutline },
       },
     ],
   },
