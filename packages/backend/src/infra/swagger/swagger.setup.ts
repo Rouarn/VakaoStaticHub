@@ -22,5 +22,12 @@ export function setupSwagger(
     .addBearerAuth()
     .build();
   const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, swaggerDoc);
+  // createDocument 会把 global prefix（/static）写进每条 path，
+  // 因此文档里的 path 就是客户端实际调用的完整路径（如 /static/files/...）。
+  // setup 必须关闭 useGlobalPrefix：文档挂在 /docs，绝不能再叠加一次前缀，
+  // 否则会出现 /static/static/... 的重复路径。
+  SwaggerModule.setup('docs', app, swaggerDoc, {
+    useGlobalPrefix: false,
+    swaggerOptions: { url: '/docs-json' },
+  });
 }

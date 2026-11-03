@@ -275,6 +275,9 @@ export class FilesService {
     category: string,
     opts: ListFilesOptions,
   ) {
+    // 根目录不存在时统一 404（与分类、上传等接口保持一致），避免返回空列表掩盖错误
+    this.resourceRoots.resolveRootPath(rootId);
+
     const { dbCategory, relPathSuffix } = normalizeCategoryPath(category);
 
     const qb = this.repo

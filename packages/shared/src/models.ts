@@ -122,6 +122,35 @@ export interface ShareCollectionResult {
   files: ShareCollectionFile[];
 }
 
+/** 分享访问令牌有效期：30 分钟（后端签发与前端「令牌已过期」提示共用） */
+export const SHARE_ACCESS_TOKEN_TTL_MS = 30 * 60 * 1000;
+
+/** 分享访问令牌传递的 query 参数名 */
+export const SHARE_ACCESS_TOKEN_QUERY = 'accessToken';
+
+/**
+ * 分享访问令牌（accessToken）的正式契约
+ *
+ * - 签发：`POST /share/:token/verify` 解锁成功后返回，一次打开只签发一次
+ * - 形态：`<issuedAt>.<hmac>`，`issuedAt` 为毫秒时间戳，`hmac` 为
+ *   `HMAC-SHA256(JWT_SECRET, '<shareToken>.<issuedAt>')` 的 64 位小写 hex
+ * - 绑定：只对签发时的分享 token 有效，不能跨链接复用
+ * - 有效期：`SHARE_ACCESS_TOKEN_TTL_MS`（30 分钟），超期需重新解锁
+ * - 传递：`GET /share/:token?accessToken=<token>`（下载/预览/多文件列表通用）
+ * - 失效：超期、链接被停用/过期/撤销、服务端密钥变更 → 401
+ */
+export interface ShareAccessGrant {
+  success: true;
+  accessToken: string;
+}
+
+/**
+ * 分享链接不可用的三类原因：
+ * expired 已过期 / exhausted 打开次数用尽 / disabled 已被停用。
+ * 公开访问接口统一返回 410 Gone，并用 message 区分具体原因。
+ */
+export type ShareUnavailableReason = 'expired' | 'exhausted' | 'disabled';
+
 export interface CreateShareLinkParams {
   rootId: string;
   category: string;

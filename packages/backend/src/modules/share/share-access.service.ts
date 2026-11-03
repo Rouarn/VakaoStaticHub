@@ -4,7 +4,6 @@
  */
 
 import {
-  BadRequestException,
   GoneException,
   Injectable,
   NotFoundException,
@@ -17,6 +16,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { ShareCollectionFile } from '@vakao/shared';
+import { SHARE_ACCESS_TOKEN_TTL_MS } from '@vakao/shared';
 import { ShareLinkEntity } from '#/infra/database/entities/share-link.entity.js';
 import { getMimeType } from '#/common/utils/mime.util.js';
 import { verifyPassword } from '../auth/utils/password.util.js';
@@ -27,9 +27,6 @@ import {
   parseFilePaths,
   toShareInfo,
 } from './share.mapper.js';
-
-/** 分享访问令牌有效期：30 分钟 */
-const SHARE_ACCESS_TOKEN_TTL_MS = 30 * 60 * 1000;
 
 /** 已通过校验的分享访问上下文 */
 export interface ShareAccessContext {
@@ -100,7 +97,7 @@ export class ShareAccessService {
       .execute();
 
     if (!result.affected) {
-      throw new BadRequestException('分享链接打开次数已达上限');
+      throw new GoneException('分享链接打开次数已达上限');
     }
 
     return {
@@ -125,7 +122,7 @@ export class ShareAccessService {
     }
 
     if (link.expiresAt && Date.now() > link.expiresAt) {
-      throw new BadRequestException('分享链接已过期');
+      throw new GoneException('分享链接已过期');
     }
 
     if (!accessToken || !this.validateShareAccessToken(token, accessToken)) {
@@ -205,15 +202,18 @@ export class ShareAccessService {
     };
   }
 
-  /** 停用 / 过期 / 次数用尽的公开访问统一拦截 */
+  /**
+   * 停用 / 过期 / 次数用尽的公开访问统一拦截
+   * 三类「链接不可用」统一返回 410 Gone（与 404 未知 token、401 密码错误区分）
+   */
   private assertAccessible(link: ShareLinkEntity) {
     switch (deriveShareStatus(link)) {
       case 'disabled':
         throw new GoneException('分享链接已停用');
       case 'expired':
-        throw new BadRequestException('分享链接已过期');
+        throw new GoneException('分享链接已过期');
       case 'exhausted':
-        throw new BadRequestException('分享链接打开次数已达上限');
+        throw new GoneException('分享链接打开次数已达上限');
       default:
         break;
     }
@@ -230,7 +230,7 @@ export class ShareAccessService {
 
   /**
    * 签发分享访问令牌
-   * 格式：<timestamp>.<hmac>，有效期 30 分钟
+   * 格式：<timestamp>.<hmac>，有效期见 SHARE_ACCESS_TOKEN_TTL_MS
    * 使用 JWT_SECRET 作为 HMAC 密钥
    */
   private signShareAccessToken(token: string): string {
@@ -251,6 +251,12 @@ export class ShareAccessService {
   ): boolean {
     const parts = accessToken.split('.');
     if (parts.length !== 2) return false;
+
+    // 形态必须为 <毫秒时间戳>.<64 位小写 hex>，否则直接判定无效，
+    // 避免 timingSafeEqual 因长度不一致抛 RangeError 变成 500
+    if (!/^\d{1,16}$/.test(parts[0]) || !/^[a-f0-9]{64}$/.test(parts[1])) {
+      return false;
+    }
 
     const timestamp = Number(parts[0]);
     if (!Number.isFinite(timestamp)) return false;

@@ -17,7 +17,14 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { createReadStream } from 'node:fs';
@@ -33,6 +40,10 @@ import { ShareAccessService } from './share-access.service.js';
 import { CreateShareLinkDto } from './dto/create-share-link.dto.js';
 import { ListShareLinksQueryDto } from './dto/list-share-links-query.dto.js';
 import { UpdateShareLinkDto } from './dto/update-share-link.dto.js';
+import {
+  ShareAccessTokenDto,
+  UnlockShareLinkDto,
+} from './dto/share-access.dto.js';
 
 @ApiTags('分享链接')
 @Controller('share')
@@ -141,6 +152,11 @@ export class ShareController {
   @Get(':token/info')
   @ApiOperation({ summary: '获取分享链接元信息' })
   @ApiParam({ name: 'token', description: '分享 token' })
+  @ApiResponse({ status: 404, description: '分享链接不存在' })
+  @ApiResponse({
+    status: 410,
+    description: '分享链接已停用 / 已过期 / 打开次数用尽',
+  })
   async getShareInfo(@Param('token') token: string) {
     return await this.shareAccessService.getShareInfo(token);
   }
@@ -150,9 +166,20 @@ export class ShareController {
   @Post(':token/verify')
   @ApiOperation({ summary: '解锁分享链接（校验密码，无密码链接直接解锁）' })
   @ApiParam({ name: 'token', description: '分享 token' })
+  @ApiOkResponse({
+    description: '解锁成功；data 为分享访问令牌（外层仍是统一信封）',
+    type: ShareAccessTokenDto,
+  })
+  @ApiResponse({ status: 401, description: '分享密码错误' })
+  @ApiResponse({ status: 404, description: '分享链接不存在' })
+  @ApiResponse({
+    status: 410,
+    description: '分享链接已停用 / 已过期 / 打开次数用尽',
+  })
+  @ApiResponse({ status: 429, description: '解锁请求过于频繁' })
   async unlockShareLink(
     @Param('token') token: string,
-    @Body() body: { password?: string } | undefined,
+    @Body() body: UnlockShareLinkDto | undefined,
     @Ip() ip: string | undefined,
     @Headers('user-agent') userAgent: string | undefined,
   ) {
@@ -166,6 +193,19 @@ export class ShareController {
   @Get(':token')
   @ApiOperation({ summary: '通过分享链接访问文件' })
   @ApiParam({ name: 'token', description: '分享 token' })
+  @ApiQuery({
+    name: 'accessToken',
+    required: false,
+    description:
+      '解锁接口签发的分享访问令牌（形态 `<issuedAt>.<hmac>`，有效期 30 分钟，' +
+      '只能用于签发时的分享 token）。单文件链接必填，多文件列表与下载均需携带。',
+  })
+  @ApiResponse({ status: 404, description: '分享链接不存在' })
+  @ApiResponse({
+    status: 410,
+    description: '分享链接已停用 / 已过期 / 打开次数用尽',
+  })
+  @ApiResponse({ status: 401, description: '访问令牌缺失、无效或已过期' })
   async accessShareLink(
     @Param('token') token: string,
     @Query('download') isDownload: string | undefined,

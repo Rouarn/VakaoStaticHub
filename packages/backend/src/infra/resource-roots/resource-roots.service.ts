@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { mkdir, access, readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
@@ -49,10 +49,14 @@ export class ResourceRootsService implements OnModuleInit {
     return this.roots.find((r) => r.id === id);
   }
 
+  /**
+   * 解析资源根的物理路径
+   * 根目录 ID 不存在时抛 404（调用方无需再各自判空，避免同类场景有的 404 有的 500）
+   */
   resolveRootPath(id: string) {
     const root = this.getRoot(id);
     if (!root) {
-      throw new Error(`Resource root not found: ${id}`);
+      throw new NotFoundException(`根目录不存在：${id}`);
     }
     if (isAbsolute(root.path)) {
       return root.path;

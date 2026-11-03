@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { NButton, NIcon, NInput, NSpin, useMessage } from 'naive-ui';
 import {
   ArrowBackOutline,
+  BanOutline,
   DocumentTextOutline,
   DownloadOutline,
   EyeOutline,
@@ -41,8 +42,9 @@ import type { PreviewTarget } from '@/components/preview/types';
  *
  * 关键点：
  * - 使用 publicHttp，避免「密码错误 401」触发全局清态跳登录
- * - 10 次/分钟限流（429）与密码错误（401）分开提示，绝不误导为密码错误
- * - 过期 / 次数用尽给出明确独立状态
+ * - 状态码契约（后端统一）：404 不存在 / 410 已停用·已过期·次数用尽 /
+ *   401 密码错误或访问令牌失效 / 429 限流
+ * - 410 的三种原因用 message 区分，分别渲染停用、过期、次数用尽三种空态
  * - 解锁后凭 accessToken 访问文件，不再消耗打开次数
  */
 const route = useRoute();
@@ -53,7 +55,14 @@ const token = computed(() => String(route.params.token ?? ''));
 const tokenValid = computed(() => SHARE_TOKEN_RE.test(token.value));
 
 type Phase =
-  'loading' | 'error' | 'notfound' | 'gate' | 'expired' | 'exhausted' | 'ready';
+  | 'loading'
+  | 'error'
+  | 'notfound'
+  | 'disabled'
+  | 'gate'
+  | 'expired'
+  | 'exhausted'
+  | 'ready';
 const phase = ref<Phase>('loading');
 const errorText = ref('');
 const info = ref<ShareInfo | null>(null);
@@ -105,6 +114,17 @@ function joinMessage(value: string | string[] | undefined) {
   return value ?? '';
 }
 
+/**
+ * 把 410 Gone 的 message 映射为具体空态
+ * 后端对「已停用 / 已过期 / 次数用尽」统一返回 410，并用 message 区分原因
+ */
+function unavailablePhase(text: string): Phase | null {
+  if (text.includes('已停用')) return 'disabled';
+  if (text.includes('次数已达上限')) return 'exhausted';
+  if (text.includes('已过期')) return 'expired';
+  return null;
+}
+
 async function init() {
   accessToken.value = '';
   info.value = null;
@@ -132,6 +152,11 @@ async function init() {
   } catch (e) {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
+    const unavailable = code === 410 ? unavailablePhase(text) : null;
+    if (unavailable) {
+      phase.value = unavailable;
+      return;
+    }
     if (code === 404 || text.includes('不存在')) {
       phase.value = 'notfound';
       return;
@@ -170,12 +195,9 @@ async function unlock() {
       }, 60_000);
       return;
     }
-    if (text.includes('已过期')) {
-      phase.value = 'expired';
-      return;
-    }
-    if (text.includes('次数已达上限') || text.includes('打开次数已达上限')) {
-      phase.value = 'exhausted';
+    const unavailable = code === 410 ? unavailablePhase(text) : null;
+    if (unavailable) {
+      phase.value = unavailable;
       return;
     }
     if (code === 404 || text.includes('不存在')) {
@@ -205,7 +227,10 @@ async function loadCollection() {
   } catch (e) {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
-    if (code === 401) {
+    const unavailable = code === 410 ? unavailablePhase(text) : null;
+    if (unavailable) {
+      phase.value = unavailable;
+    } else if (code === 401) {
       collectionError.value =
         '访问令牌已过期（有效期 30 分钟），请刷新页面重新打开分享';
     } else {
@@ -364,6 +389,14 @@ onBeforeUnmount(() => {
             重试
           </NButton>
         </EmptyState>
+
+        <!-- 已停用 -->
+        <EmptyState
+          v-else-if="phase === 'disabled'"
+          :icon="BanOutline"
+          title="分享链接已停用"
+          description="分享者已停用该链接，无法继续访问。请联系分享者重新启用或重新创建链接。"
+        />
 
         <!-- 已过期 -->
         <EmptyState

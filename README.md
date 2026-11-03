@@ -308,13 +308,32 @@ vakao-static-hub/
 | PATCH  | `/static/share/:token`             | 编辑备注 / 有效期 / 密码 / 最大访问次数 / 启停              | 是         |
 | DELETE | `/static/share/:token`             | 撤销分享链接                                                | 是         |
 | GET    | `/static/share/:token/info`        | 获取分享元信息（类型、文件名、是否需密码等）                | 否（公开） |
-| POST   | `/static/share/:token/verify`      | 校验访问密码，返回短期访问令牌（HMAC）                      | 否（公开） |
+| POST   | `/static/share/:token/verify`      | 校验访问密码，返回短期访问令牌 `accessToken`（HMAC）        | 否（公开） |
 | GET    | `/static/share/:token/access-logs` | 获取该分享的访问记录（仅创建者）                            | 是         |
 | GET    | `/static/share/:token`             | 访问分享文件（支持 `download/w/h/q/format`、`accessToken`） | 否（公开） |
 
 > 前端公开访问页路由为 `/share/:token`（无 `/static` 前缀），生产环境由 SPA fallback 渲染，页面内再调用上述 API。
 
-- 分享状态：`active` / `expired` / `exhausted` / `disabled`；停用后访问公开接口返回 **410 Gone** `{ "message": "分享链接已停用" }`，与不存在的 404 明确区分。
+- 分享状态：`active` / `expired` / `exhausted` / `disabled`。公开访问接口的错误码语义统一如下：
+
+  | 场景                     | 状态码 | `message`                        |
+  | ------------------------ | ------ | -------------------------------- |
+  | 分享 token 不存在/已撤销 | 404    | `分享链接不存在`                 |
+  | 已停用                   | 410    | `分享链接已停用`                 |
+  | 已过期                   | 410    | `分享链接已过期`                 |
+  | 打开次数用尽             | 410    | `分享链接打开次数已达上限`       |
+  | 密码错误（verify）       | 401    | `分享密码错误`                   |
+  | 访问令牌缺失/无效/超期   | 401    | `访问令牌无效或已过期，请重新打开分享链接` |
+  | 解锁过于频繁             | 429    | 限流提示                         |
+
+  `GET /static/share/:token` 为直接写回文件流/JSON 的端点，错误体保持原有 `{ "message": "..." }` 形态（不套统一信封）；其余公开接口走统一信封 `{code,message,data}`。
+
+- **分享访问令牌（`accessToken`）契约**（与 `@vakao/shared` 的 `ShareAccessGrant` / `SHARE_ACCESS_TOKEN_TTL_MS` 同源）：
+  - 签发：`POST /static/share/:token/verify` 解锁成功后返回，格式 `<issuedAt>.<hmac>`（毫秒时间戳 + 64 位小写 hex）
+  - 绑定：HMAC 载荷为 `<分享token>.<issuedAt>`，仅对签发时的分享链接有效，不可跨链接复用
+  - 有效期：30 分钟（`SHARE_ACCESS_TOKEN_TTL_MS`），超期需重新解锁
+  - 传递：`GET /static/share/:token?accessToken=<token>`，下载、预览、多文件列表通用
+  - 失效：超期、链接被停用/过期/撤销、服务端密钥变更 → 401
 - **目录分享不支持**：服务端未提供整目录打包下载能力，前端只支持单文件或文件集合；如需目录分享，需要先新增服务端打包（zip/tar）与目录遍历鉴权能力，当前未实现，前端已明确提示。
 
 ### APP 在线更新
