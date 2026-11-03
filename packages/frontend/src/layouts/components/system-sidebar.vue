@@ -26,6 +26,7 @@ import { useAppStore } from '@/stores/modules/app';
 import { useAuthStore } from '@/stores/modules/auth';
 import { changeMyPassword } from '@/api/users';
 import { getErrorMessage } from '@/utils/http';
+import { colors } from '@/config/design-tokens';
 
 const message = useMessage();
 const route = useRoute();
@@ -76,10 +77,64 @@ function go(name: string) {
   void router.push({ name });
 }
 
+/** 危险操作文字：浅色用 700、深色用 300，保证在常态与 hover 底上均 ≥4.5:1 */
+const dangerTextClass = computed(() =>
+  appStore.isDark ? 'text-red-300' : 'text-red-700',
+);
+
+/** 账号浮层局部主题：只作用于本 NDropdown，不改全局 Dropdown */
+const dropdownThemeOverrides = computed(() => ({
+  // 浮层内边距：hover 底色与浮层边缘留 4px，圆角不贴边
+  padding: '4px',
+  optionHeightSmall: '34px',
+  fontSizeSmall: '12px',
+  optionIconSizeSmall: '16px',
+  // 图标列默认预留 36px，图标与文字间空隙过大；收紧到 28px（图标 16 + 左右各 6）
+  optionIconPrefixWidthSmall: '28px',
+  optionPrefixWidthSmall: '10px',
+  optionColorHover: appStore.isDark
+    ? 'rgba(255,255,255,0.08)'
+    : colors.brand[50],
+  // 分隔线：浅色不能让白色边框色（玻璃高光）承担，改用 15% 的次要文字色
+  dividerColor: appStore.isDark
+    ? colors.glass.borderDark
+    : `${colors.ink.secondary}26`,
+  // 阴影与其它玻璃面板同一套（Naive 默认是中性投影，和玻璃风不搭）
+  peers: {
+    Popover: {
+      boxShadow: appStore.isDark
+        ? `0 8px 32px ${colors.shadow.glassDark}`
+        : `0 8px 32px ${colors.shadow.glassLight}`,
+    },
+  },
+}));
+
+/** 浮层本体：定宽 + 与玻璃面板一致的 1px 边框（Naive 下拉默认无边框） */
+function dropdownMenuProps() {
+  return {
+    style: `width: 168px; min-width: 168px; border: 1px solid ${
+      appStore.isDark ? colors.glass.borderDark : colors.glass.borderLight
+    };`,
+  };
+}
+
 const userOptions = [
-  { label: '修改密码', key: 'change-password', icon: () => h(KeyOutline) },
+  {
+    label: '修改密码',
+    key: 'change-password',
+    icon: () => h(NIcon, { size: 16 }, { default: () => h(KeyOutline) }),
+  },
   { type: 'divider', key: 'divider' },
-  { label: '退出登录', key: 'logout', icon: () => h(LogOutOutline) },
+  {
+    label: () => h('span', { class: dangerTextClass.value }, '退出登录'),
+    key: 'logout',
+    icon: () =>
+      h(
+        NIcon,
+        { size: 16, class: dangerTextClass.value },
+        { default: () => h(LogOutOutline) },
+      ),
+  },
 ];
 
 // —— 修改密码弹窗 ——
@@ -280,6 +335,8 @@ function onUserAction(key: string) {
       size="small"
       placement="right-end"
       :options="userOptions"
+      :theme-overrides="dropdownThemeOverrides"
+      :menu-props="dropdownMenuProps"
       @select="onUserAction"
     >
       <div
