@@ -16,7 +16,7 @@ export class ImageProcessorService {
   private readonly manifestPath: string;
 
   constructor(private readonly configService: ConfigService) {
-    const fileRoot = this.configService.get<string>('files.root') ?? 'storage';
+    const fileRoot = this.configService.get<string>('files.root') ?? 'data';
     this.cacheDir = resolve(fileRoot, '.cache', 'thumbnails');
     this.manifestPath = resolve(this.cacheDir, 'manifest.json');
   }

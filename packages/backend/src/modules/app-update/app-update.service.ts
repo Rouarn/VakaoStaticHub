@@ -1,8 +1,8 @@
 /**
  * APP 在线更新服务（多应用）
  *
- * 存储模型：software-update 资源根（与 storage 同级）下每个应用一个目录——
- *   software-update/{appKey}/v{versionCode}_{versionName}.apk
+ * 存储模型：software-update 资源根（data 下的子目录，位于 packages/backend/data/software-update/）
+ *   每个应用一个子目录——software-update/{appKey}/v{versionCode}_{versionName}.apk
  * appKey 即资源分类名（xiaolv / xiaolan…），每个应用独立维护版本序列、灰度与强更。
  *
  * 能力：应用目录管理、版本检查（versionCode 判定 + 灰度 + 强更）、
@@ -63,7 +63,7 @@ export class AppUpdateService implements OnModuleInit {
     private readonly configService: ConfigService,
   ) {}
 
-  /** 幂等注册软件更新专用资源根（与 storage 同级） */
+  /** 幂等注册软件更新专用资源根（data/software-update，位于 backend 包下） */
   async onModuleInit() {
     if (!this.resourceRoots.getRoot(SOFTWARE_UPDATE_ROOT_ID)) {
       await this.resourceRoots.addRoot({

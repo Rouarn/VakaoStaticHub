@@ -4,10 +4,11 @@ import { mkdir, access, readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { dirname } from 'node:path';
 import type { ResourceRoot } from '@vakao/shared';
+import { getBackendRoot } from '../../common/utils/backend-root.util.js';
 
 @Injectable()
 export class ResourceRootsService implements OnModuleInit {
-  private readonly configPath = join(process.cwd(), 'resource-roots.json');
+  private readonly configPath = join(getBackendRoot(), 'resource-roots.json');
   private roots: ResourceRoot[] = [];
 
   constructor(private readonly eventEmitter: EventEmitter2) {}
@@ -30,7 +31,7 @@ export class ResourceRootsService implements OnModuleInit {
       {
         id: 'default',
         name: '默认资源存储',
-        path: 'storage',
+        path: 'data',
       },
     ];
     await this.saveConfig();
@@ -61,7 +62,7 @@ export class ResourceRootsService implements OnModuleInit {
     if (isAbsolute(root.path)) {
       return root.path;
     }
-    return resolve(process.cwd(), root.path);
+    return resolve(getBackendRoot(), root.path);
   }
 
   async addRoot(root: ResourceRoot) {

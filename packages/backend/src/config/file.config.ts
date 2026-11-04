@@ -1,6 +1,7 @@
 import { registerAs } from '@nestjs/config';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { getBackendRoot } from '../common/utils/backend-root.util.js';
 
 export interface FileConfig {
   root: string;
@@ -14,18 +15,21 @@ export interface FileConfig {
   chunkFileSizeLimit: number;
 }
 
-export const fileConfigFactory = registerAs('files', (): FileConfig => ({
-  root: process.env.FILE_ROOT
-    ? join(process.env.FILE_ROOT)
-    : join(process.cwd(), 'storage') || '',
+export const fileConfigFactory = registerAs('files', (): FileConfig => {
+  const backendRoot = getBackendRoot();
+  return {
+    root: process.env.FILE_ROOT
+      ? join(process.env.FILE_ROOT)
+      : join(backendRoot, 'data') || '',
   maxCount: Number(process.env.UPLOAD_MAX_COUNT ?? 20),
   defaultCategory: process.env.DEFAULT_CATEGORY ?? 'TemporaryFile',
   imageExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.tiff'],
   uploadTempDir: process.env.UPLOAD_TEMP_DIR
     ? join(process.env.UPLOAD_TEMP_DIR)
     : join(tmpdir(), 'vakao-static-hub', 'uploads'),
-  /** 100MB：明显大于默认 5MB 分片，又不会让单块 buffer 吃爆 Node */
-  chunkFileSizeLimit: Number(
-    process.env.CHUNK_FILE_SIZE_LIMIT ?? 100 * 1024 * 1024,
-  ),
-}));
+    /** 100MB：明显大于默认 5MB 分片，又不会让单块 buffer 吃爆 Node */
+    chunkFileSizeLimit: Number(
+      process.env.CHUNK_FILE_SIZE_LIMIT ?? 100 * 1024 * 1024,
+    ),
+  };
+});

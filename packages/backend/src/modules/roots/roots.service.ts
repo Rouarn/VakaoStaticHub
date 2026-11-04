@@ -16,6 +16,7 @@ import {
   resolve,
 } from 'node:path';
 import { homedir } from 'node:os';
+import { getBackendRoot } from '#/common/utils/backend-root.util.js';
 import { ResourceRootsService } from '#/infra/resource-roots/resource-roots.service.js';
 import {
   CreateResourceRootDto,
@@ -51,9 +52,9 @@ const BROWSE_BOUND_PRIORITY: Record<BrowseBoundSource, number> = {
 export class RootsService {
   constructor(private readonly resourceRoots: ResourceRootsService) {}
 
-  /** 相对路径按进程工作目录解析，绝对路径原样保留 */
+  /** 相对路径按 backend 包根目录解析，绝对路径原样保留 */
   private resolvePath(path: string): string {
-    return isAbsolute(path) ? path : resolve(process.cwd(), path);
+    return isAbsolute(path) ? path : resolve(getBackendRoot(), path);
   }
 
   private assertRootId(id: string) {
@@ -390,7 +391,7 @@ export class RootsService {
     }
 
     // 相对路径按进程工作目录解析（与根目录 path 的解析规则一致），
-    // 因此编辑形如 "storage" 的相对根目录时也能直接定位；
+    // 因此编辑形如 "data" 的相对根目录时也能直接定位；
     // 越界仍由下方 realpath + 边界判断兜底，相对路径不会扩大可访问范围
     const target = raw ? resolve(raw) : homedir();
     const allowed = await this.allowedBrowseRealPaths();

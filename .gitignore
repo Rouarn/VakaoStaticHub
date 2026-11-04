@@ -2,12 +2,10 @@
 dist
 node_modules
 build
-storage
-software-update
+# 运行时数据目录（data 下含 vakao.db、uploads、software-update 等子目录）
+packages/backend/data/
 deploy
 resource-roots.json
-# 后端源码目录 infra/storage 需入库（上方 storage 仅忽略运行期存储目录）
-!packages/backend/src/infra/storage/
 
 # TypeScript incremental build info
 *.tsbuildinfo

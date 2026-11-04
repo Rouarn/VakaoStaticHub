@@ -5,6 +5,7 @@
  */
 
 import { isAbsolute, normalize, resolve, sep } from 'path';
+import { getBackendRoot } from './backend-root.util.js';
 
 /**
  * 安全路径拼接函数
@@ -19,7 +20,7 @@ export function safeJoin(rootPath: string, parts: string[]): string {
   // 将根路径解析为绝对路径
   const resolvedRoot = isAbsolute(rootPath)
     ? rootPath
-    : resolve(process.cwd(), rootPath);
+    : resolve(getBackendRoot(), rootPath);
 
   // 拼接目标路径
   const target = resolve(resolvedRoot, ...parts);

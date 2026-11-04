@@ -16,14 +16,16 @@ import { mkdir, access, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { DataSource } from 'typeorm';
+import { getBackendRoot } from '../common/utils/backend-root.util.js';
 import { DATABASE_ENTITIES } from '../infra/database/database-entities.js';
 import { syncSchema } from '../infra/database/ensure-schema.js';
 
 const log = (message: string) => console.log(`[db:sync] ${message}`);
 
 async function main(): Promise<void> {
+  const backendRoot = getBackendRoot();
   const dbPath = resolve(
-    process.env.DB_PATH ?? join(process.cwd(), 'storage', 'vakao.db'),
+    process.env.DB_PATH ?? join(backendRoot, 'data', 'vakao.db'),
   );
   log(`数据库文件：${dbPath}`);
 

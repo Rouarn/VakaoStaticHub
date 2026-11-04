@@ -2,8 +2,8 @@
  * APP 版本实体
  * 存储安卓安装包版本的元数据，支撑多应用的在线更新、发布与下架
  *
- * 存储结构：software-update 资源根（与 storage 同级）下按应用分目录——
- *   software-update/{appKey}/v{versionCode}_{versionName}.apk
+ * 存储结构：software-update 资源根（data 下的子目录，位于 packages/backend/data/software-update/）
+ *   按应用分目录——software-update/{appKey}/v{versionCode}_{versionName}.apk
  * appKey 即 software-update 根下的资源分类（如 xiaolv、xiaolan），每个应用独立维护版本序列
  */
 
@@ -52,7 +52,7 @@ export class AppVersionEntity {
   @Column({ type: 'varchar', length: 64 })
   checksum!: string;
 
-  /** 存储资源根目录 ID（软件更新专用根，与 storage 同级） */
+  /** 存储资源根目录 ID（软件更新专用根，data/software-update 子目录） */
   @Column({ type: 'varchar', length: 64, default: 'software-update' })
   storageRootId!: string;
 
