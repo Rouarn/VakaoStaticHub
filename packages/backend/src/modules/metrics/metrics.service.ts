@@ -141,7 +141,7 @@ export class MetricsService {
 
   /**
    * 健康检查段：数据库可达性 + 数据库文件大小
-   * 数据库文件是 sqljs 持久化目标，未配置路径或文件不可读时 sizeBytes 为 null
+   * 数据库文件是 better-sqlite3 持久化目标，未配置路径或文件不可读时 sizeBytes 为 null
    */
   private async getHealthMetrics(): Promise<HealthMetrics> {
     const dbPath = this.configService.get<string>('db.path') ?? null;

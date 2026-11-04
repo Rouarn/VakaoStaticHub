@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch, watchEffect } from 'vue';
 import { NButton, NIcon, NSelect, NProgress, useMessage } from 'naive-ui';
 import {
   CloudUploadOutline,
@@ -69,6 +69,21 @@ const cancelAllRequested = ref(false);
 const controllers = new Map<string, AbortController>();
 const uploadIds = new Map<string, string>();
 let seq = 0;
+
+const listRef = ref<HTMLElement | null>(null);
+const taskRefs: HTMLElement[] = [];
+
+// —— 自动跟随当前上传文件 ——
+// watchEffect 会在 tasks 任何属性变化时重新求值（包含 status、percent 等）
+// 无脑滚：只要有正在上传的任务，就把它滚到视口中心
+watchEffect(() => {
+  if (!listRef.value) return;
+  const idx = tasks.value.findIndex((t) => t.status === 'uploading');
+  if (idx < 0) return;
+  nextTick(() => {
+    taskRefs[idx]?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  });
+});
 
 const categoryOptions = computed(() =>
   props.categories.map((c) => ({ label: c.name, value: c.name })),
@@ -634,12 +649,14 @@ async function clearAll() {
     </div>
 
     <div
+      ref="listRef"
       v-if="tasks.length"
       class="flex flex-col gap-2 max-h-70 overflow-y-auto pr-1"
     >
       <div
-        v-for="task in tasks"
+        v-for="(task, index) in tasks"
         :key="task.id"
+        :ref="(el) => taskRefs[index] = el as HTMLElement"
         class="glass-panel px-3 py-2 flex flex-col gap-1.5"
       >
         <div class="flex items-center gap-2">

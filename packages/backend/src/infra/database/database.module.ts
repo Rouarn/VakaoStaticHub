@@ -28,9 +28,9 @@ import { DatabaseBootstrapService } from './database-bootstrap.service.js';
           }
         }
         return {
-          type: 'sqljs' as const,
-          location: database,
-          autoSave: true,
+          type: 'better-sqlite3' as const,
+          database,
+          enableWAL: true,
           synchronize: false,
           entities: DATABASE_ENTITIES,
         };

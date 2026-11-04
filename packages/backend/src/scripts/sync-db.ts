@@ -39,9 +39,9 @@ async function main(): Promise<void> {
   await mkdir(dirname(dbPath), { recursive: true });
 
   const dataSource = new DataSource({
-    type: 'sqljs',
-    location: dbPath,
-    autoSave: true,
+    type: 'better-sqlite3',
+    database: dbPath,
+    enableWAL: true,
     synchronize: false,
     entities: DATABASE_ENTITIES,
   });

@@ -49,7 +49,7 @@ export interface HealthMetrics {
   status: 'ok' | 'degraded';
   database: {
     ok: boolean;
-    /** sqljs 数据库文件路径 */
+    /** SQLite 数据库文件路径 */
     path: string | null;
     /** 数据库文件字节数；文件不存在/不可读时为 null */
     sizeBytes: number | null;

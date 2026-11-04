@@ -210,97 +210,96 @@ onMounted(() => void load());
           <NButton size="small" @click="clearFilters">清空筛选</NButton>
         </EmptyState>
 
-        <div v-else class="flex flex-col gap-3">
-          <section class="glass-panel px-4 py-2">
-            <div class="overflow-x-auto">
-              <table
-                class="app-table w-full min-w-760px border-collapse text-12px"
-              >
-                <thead>
-                  <tr class="text-left text-11px text-ink-sub">
-                    <th class="py-2 pr-3 font-500 w-40">时间</th>
-                    <th class="py-2 px-2 font-500 w-32">操作人</th>
-                    <th class="py-2 px-2 font-500 w-40">动作</th>
-                    <th class="py-2 px-2 font-500 w-28">资源</th>
-                    <th class="py-2 px-2 font-500">IP</th>
-                    <th class="py-2 pl-2 font-500 text-right w-20">详情</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="log in data.items"
-                    :key="log.id"
-                    class="border-t border-glass-border/60 dark:border-glass-border-dark/60 hover:bg-brand-500/5 cursor-pointer"
-                    @click="openDetail(log)"
+        <section v-else class="glass-panel px-4 py-2">
+          <div class="overflow-x-auto">
+            <table
+              class="app-table w-full min-w-760px border-collapse text-12px"
+            >
+              <thead>
+                <tr class="text-left text-11px text-ink-sub">
+                  <th class="py-2 pr-3 font-500 w-40">时间</th>
+                  <th class="py-2 px-2 font-500 w-32">操作人</th>
+                  <th class="py-2 px-2 font-500 w-40">动作</th>
+                  <th class="py-2 px-2 font-500 w-28">资源</th>
+                  <th class="py-2 px-2 font-500">IP</th>
+                  <th class="py-2 pl-2 font-500 text-right w-20">详情</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="log in data.items"
+                  :key="log.id"
+                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60 hover:bg-brand-500/5 cursor-pointer"
+                  @click="openDetail(log)"
+                >
+                  <td
+                    class="py-2.5 pr-3 text-ink-sub tabular-nums whitespace-nowrap"
                   >
-                    <td
-                      class="py-2.5 pr-3 text-ink-sub tabular-nums whitespace-nowrap"
+                    {{ formatDateTime(log.createdAt) }}
+                  </td>
+                  <td class="py-2.5 px-2">
+                    <span
+                      class="text-ink truncate max-w-28"
+                      :title="log.username"
                     >
-                      {{ formatDateTime(log.createdAt) }}
-                    </td>
-                    <td class="py-2.5 px-2">
-                      <span
-                        class="text-ink truncate max-w-28"
-                        :title="log.username"
-                      >
-                        {{ log.username }}
-                      </span>
-                    </td>
-                    <td class="py-2.5 px-2">
-                      <NTag
-                        size="tiny"
-                        :bordered="false"
-                        type="info"
-                        :title="log.action"
-                        >{{ ACTION_LABELS[log.action] ?? log.action }}</NTag
-                      >
-                    </td>
-                    <td class="py-2.5 px-2 max-w-44">
-                      <p class="m-0 text-12px text-ink-sub">
-                        {{
-                          RESOURCE_TYPE_LABELS[log.resourceType] ??
-                          log.resourceType
-                        }}
-                      </p>
-                      <p
-                        v-if="log.resourceId"
-                        class="m-0 text-10px text-ink-sub font-mono truncate"
-                        :title="log.resourceId"
-                      >
-                        #{{ log.resourceId }}
-                      </p>
-                    </td>
-                    <td class="py-2.5 px-2 text-ink-sub font-mono text-11px">
-                      {{ log.ip ?? '—' }}
-                    </td>
-                    <td class="py-2.5 pl-2 text-right">
-                      <NButton size="tiny" quaternary @click="openDetail(log)">
-                        <template #icon
-                          ><NIcon><EyeOutline /></NIcon
-                        ></template>
-                      </NButton>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <footer
-            class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end"
-          >
-            <NPagination
-              :page-slot="5"
-              v-model:page="page"
-              v-model:page-size="pageSize"
-              :item-count="data.total"
-              :page-sizes="[20, 50, 100]"
-              show-size-picker
-            />
-          </footer>
-        </div>
+                      {{ log.username }}
+                    </span>
+                  </td>
+                  <td class="py-2.5 px-2">
+                    <NTag
+                      size="tiny"
+                      :bordered="false"
+                      type="info"
+                      :title="log.action"
+                      >{{ ACTION_LABELS[log.action] ?? log.action }}</NTag
+                    >
+                  </td>
+                  <td class="py-2.5 px-2 max-w-44">
+                    <p class="m-0 text-12px text-ink-sub">
+                      {{
+                        RESOURCE_TYPE_LABELS[log.resourceType] ??
+                        log.resourceType
+                      }}
+                    </p>
+                    <p
+                      v-if="log.resourceId"
+                      class="m-0 text-10px text-ink-sub font-mono truncate"
+                      :title="log.resourceId"
+                    >
+                      #{{ log.resourceId }}
+                    </p>
+                  </td>
+                  <td class="py-2.5 px-2 text-ink-sub font-mono text-11px">
+                    {{ log.ip ?? '—' }}
+                  </td>
+                  <td class="py-2.5 pl-2 text-right">
+                    <NButton size="tiny" quaternary @click="openDetail(log)">
+                      <template #icon
+                        ><NIcon><EyeOutline /></NIcon
+                      ></template>
+                    </NButton>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </NSpin>
     </div>
+
+    <!-- 固定底部的分页工具栏 -->
+    <footer
+      class="glass-panel shrink-0 px-4 py-2 flex items-center justify-end"
+    >
+      <NPagination
+        :page-slot="5"
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :item-count="data.total"
+        :page-sizes="[20, 50, 100]"
+        show-size-picker
+      />
+    </footer>
 
     <!-- 详情抽屉 -->
     <NDrawer
