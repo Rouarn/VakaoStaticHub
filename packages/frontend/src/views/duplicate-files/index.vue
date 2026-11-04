@@ -333,246 +333,247 @@ onMounted(async () => {
     </div>
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-    <NSpin :show="loading">
-      <ErrorState v-if="error" :message="error" @retry="() => load()" />
+      <NSpin :show="loading">
+        <ErrorState v-if="error" :message="error" @retry="() => load()" />
 
-      <EmptyState
-        v-else-if="!loading && groups.length === 0"
-        :icon="CopyOutline"
-        title="没有检测到重复文件"
-        :description="
-          scan
-            ? `已扫描 ${scan.hashedCount} 个文件，未发现内容哈希相同的重复组，存储空间很干净。`
-            : '选择根目录后点击「重新扫描」开始检测。'
-        "
-      >
-        <NButton size="small" @click="() => load()">重新扫描</NButton>
-      </EmptyState>
-
-      <div v-else class="flex flex-col gap-4">
-        <div class="grid gap-3 grid-cols-3">
-          <div class="glass-card px-4 py-3">
-            <p class="m-0 text-11px text-ink-sub">重复组</p>
-            <p class="m-0 mt-1 text-18px font-600 text-ink">
-              {{ scan?.groupCount ?? 0 }}
-            </p>
-          </div>
-          <div class="glass-card px-4 py-3">
-            <p class="m-0 text-11px text-ink-sub">重复文件总数</p>
-            <p class="m-0 mt-1 text-18px font-600 text-ink">
-              {{ scan?.duplicateFileCount ?? 0 }}
-            </p>
-          </div>
-          <div class="glass-card px-4 py-3">
-            <p class="m-0 text-11px text-ink-sub">本次补算哈希</p>
-            <p class="m-0 mt-1 text-18px font-600 text-ink">
-              {{ scan?.hashedCount ?? 0 }}
-            </p>
-          </div>
-        </div>
-
-        <section
-          v-for="group in groups"
-          :key="group.contentHash"
-          class="glass-panel px-4 py-3 flex flex-col gap-3"
+        <EmptyState
+          v-else-if="!loading && groups.length === 0"
+          :icon="CopyOutline"
+          title="没有检测到重复文件"
+          :description="
+            scan
+              ? `已扫描 ${scan.hashedCount} 个文件，未发现内容哈希相同的重复组，存储空间很干净。`
+              : '选择根目录后点击「重新扫描」开始检测。'
+          "
         >
-          <div class="flex items-center gap-3 flex-wrap">
-            <div
-              class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
-            >
-              <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
-                ><CopyOutline
-              /></NIcon>
-            </div>
-            <div class="min-w-0 flex-1">
-              <p
-                class="m-0 text-13px text-ink font-600 truncate"
-                :title="group.files[keepOf(group)]?.name"
-              >
-                {{ group.files[keepOf(group)]?.name ?? '重复文件组' }}
-              </p>
-              <p class="m-0 mt-0.5 text-11px text-ink-sub">
-                单文件 {{ formatBytes(group.size) }} · {{ group.count }} 个副本
-                · 可释放 {{ formatBytes(group.size * (group.count - 1)) }} ·
-                <span class="font-mono" :title="group.contentHash">{{
-                  truncateMiddle(group.contentHash, 14, 10)
-                }}</span>
+          <NButton size="small" @click="() => load()">重新扫描</NButton>
+        </EmptyState>
+
+        <div v-else class="flex flex-col gap-4">
+          <div class="grid gap-3 grid-cols-3">
+            <div class="glass-card px-4 py-3">
+              <p class="m-0 text-11px text-ink-sub">重复组</p>
+              <p class="m-0 mt-1 text-18px font-600 text-ink">
+                {{ scan?.groupCount ?? 0 }}
               </p>
             </div>
-            <div class="flex items-center gap-1.5">
-              <NButton size="tiny" @click="toggleExpand(group.contentHash)">
-                <template #icon>
-                  <NIcon>
-                    <ChevronDownOutline
-                      v-if="expanded.has(group.contentHash)"
-                    />
-                    <ChevronForwardOutline v-else />
-                  </NIcon>
-                </template>
-                {{ expanded.has(group.contentHash) ? '收起对比' : '展开对比' }}
-              </NButton>
-              <NButton
-                size="tiny"
-                type="error"
-                quaternary
-                @click="openCleanup(group)"
-              >
-                <template #icon
-                  ><NIcon><TrashOutline /></NIcon
-                ></template>
-                清理本组
-              </NButton>
+            <div class="glass-card px-4 py-3">
+              <p class="m-0 text-11px text-ink-sub">重复文件总数</p>
+              <p class="m-0 mt-1 text-18px font-600 text-ink">
+                {{ scan?.duplicateFileCount ?? 0 }}
+              </p>
+            </div>
+            <div class="glass-card px-4 py-3">
+              <p class="m-0 text-11px text-ink-sub">本次补算哈希</p>
+              <p class="m-0 mt-1 text-18px font-600 text-ink">
+                {{ scan?.hashedCount ?? 0 }}
+              </p>
             </div>
           </div>
 
-          <!-- 默认展示摘要，展开后对比 -->
-          <div
-            v-if="!expanded.has(group.contentHash)"
-            class="flex flex-wrap items-start gap-2"
+          <section
+            v-for="group in groups"
+            :key="group.contentHash"
+            class="glass-panel px-4 py-3 flex flex-col gap-3"
           >
-            <button
-              v-for="(file, index) in group.files"
-              :key="`${file.rootId}-${file.category}-${file.relPath}`"
-              type="button"
-              class="group relative w-14 text-left bg-transparent border-none p-0 cursor-pointer"
-              :title="`${file.name}\n${rootName(file.rootId)} / ${file.category}`"
-              @click="openPreview(group, index)"
-            >
-              <span
-                class="block w-14 h-14 rounded-lg overflow-hidden border border-[var(--mat-line)] bg-[var(--mat-chip)]"
-                :class="
-                  index === keepOf(group)
-                    ? 'ring-2 ring-brand-500/70'
-                    : ''
-                "
+            <div class="flex items-center gap-3 flex-wrap">
+              <div
+                class="glass-chip w-9 h-9 flex items-center justify-center shrink-0"
               >
-                <img
-                  v-if="isImageFile(file)"
-                  :src="thumbOf(file)"
-                  :alt="file.name"
-                  loading="lazy"
-                  decoding="async"
-                  class="w-full h-full object-cover transition-transform group-hover:scale-105"
-                />
+                <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
+                  ><CopyOutline
+                /></NIcon>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p
+                  class="m-0 text-13px text-ink font-600 truncate"
+                  :title="group.files[keepOf(group)]?.name"
+                >
+                  {{ group.files[keepOf(group)]?.name ?? '重复文件组' }}
+                </p>
+                <p class="m-0 mt-0.5 text-11px text-ink-sub">
+                  单文件 {{ formatBytes(group.size) }} ·
+                  {{ group.count }} 个副本 · 可释放
+                  {{ formatBytes(group.size * (group.count - 1)) }} ·
+                  <span class="font-mono" :title="group.contentHash">{{
+                    truncateMiddle(group.contentHash, 14, 10)
+                  }}</span>
+                </p>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <NButton size="tiny" @click="toggleExpand(group.contentHash)">
+                  <template #icon>
+                    <NIcon>
+                      <ChevronDownOutline
+                        v-if="expanded.has(group.contentHash)"
+                      />
+                      <ChevronForwardOutline v-else />
+                    </NIcon>
+                  </template>
+                  {{
+                    expanded.has(group.contentHash) ? '收起对比' : '展开对比'
+                  }}
+                </NButton>
+                <NButton
+                  size="tiny"
+                  type="error"
+                  quaternary
+                  @click="openCleanup(group)"
+                >
+                  <template #icon
+                    ><NIcon><TrashOutline /></NIcon
+                  ></template>
+                  清理本组
+                </NButton>
+              </div>
+            </div>
+
+            <!-- 默认展示摘要，展开后对比 -->
+            <div
+              v-if="!expanded.has(group.contentHash)"
+              class="flex flex-wrap items-start gap-2"
+            >
+              <button
+                v-for="(file, index) in group.files"
+                :key="`${file.rootId}-${file.category}-${file.relPath}`"
+                type="button"
+                class="group relative w-14 text-left bg-transparent border-none p-0 cursor-pointer"
+                :title="`${file.name}\n${rootName(file.rootId)} / ${file.category}`"
+                @click="openPreview(group, index)"
+              >
                 <span
-                  v-else
-                  class="w-full h-full flex items-center justify-center text-10px font-600 text-ink-sub"
+                  class="block w-14 h-14 rounded-lg overflow-hidden border border-[var(--mat-line)] bg-[var(--mat-chip)]"
+                  :class="
+                    index === keepOf(group) ? 'ring-2 ring-brand-500/70' : ''
+                  "
                 >
-                  {{ extOf(file) }}
+                  <img
+                    v-if="isImageFile(file)"
+                    :src="thumbOf(file)"
+                    :alt="file.name"
+                    loading="lazy"
+                    decoding="async"
+                    class="w-full h-full object-cover transition-transform group-hover:scale-105"
+                  />
+                  <span
+                    v-else
+                    class="w-full h-full flex items-center justify-center text-10px font-600 text-ink-sub"
+                  >
+                    {{ extOf(file) }}
+                  </span>
                 </span>
-              </span>
-              <span
-                v-if="index === keepOf(group)"
-                class="absolute left-1 top-1 rounded bg-brand-600 px-1 text-9px text-white leading-4"
-                >保留</span
-              >
-              <span
-                class="mt-1 block text-10px text-ink-sub truncate max-w-14"
-                >{{ file.name }}</span
-              >
-            </button>
-          </div>
-
-          <div v-else class="overflow-x-auto">
-            <table
-              class="app-table w-full min-w-720px border-collapse text-12px"
-            >
-              <thead>
-                <tr class="text-left text-11px text-ink-sub">
-                  <th class="py-2 pr-3 font-500">保留</th>
-                  <th class="py-2 px-2 font-500">文件</th>
-                  <th class="py-2 px-2 font-500">根目录 / 分类</th>
-                  <th class="py-2 px-2 font-500 text-right">大小</th>
-                  <th class="py-2 pl-2 font-500 text-right">修改时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(file, index) in group.files"
-                  :key="`${file.rootId}-${file.category}-${file.relPath}`"
-                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
-                  :class="index === keepOf(group) ? 'bg-brand-500/8' : ''"
+                <span
+                  v-if="index === keepOf(group)"
+                  class="absolute left-1 top-1 rounded bg-brand-600 px-1 text-9px text-white leading-4"
+                  >保留</span
                 >
-                  <td class="py-2 pr-3">
-                    <NButton
-                      size="tiny"
-                      :type="index === keepOf(group) ? 'primary' : 'default'"
-                      :quaternary="index !== keepOf(group)"
-                      @click="setKeep(group, index)"
-                    >
-                      {{ index === keepOf(group) ? '保留此件' : '改为保留' }}
-                    </NButton>
-                  </td>
-                  <td class="py-2 px-2 min-w-0">
-                    <div class="flex items-center gap-2 min-w-0">
-                      <button
-                        type="button"
-                        class="w-10 h-10 rounded-md overflow-hidden border border-[var(--mat-line)] bg-[var(--mat-chip)] shrink-0 p-0 cursor-pointer"
-                        :title="`预览 ${file.name}`"
-                        @click="openPreview(group, index)"
-                      >
-                        <img
-                          v-if="isImageFile(file)"
-                          :src="thumbOf(file)"
-                          :alt="file.name"
-                          loading="lazy"
-                          decoding="async"
-                          class="w-full h-full object-cover"
-                        />
-                        <span
-                          v-else
-                          class="w-full h-full flex items-center justify-center text-9px font-600 text-ink-sub"
-                          >{{ extOf(file) }}</span
-                        >
-                      </button>
-                      <div class="min-w-0">
-                        <p
-                          class="m-0 text-ink truncate max-w-260px"
-                          :title="file.relPath"
-                        >
-                          {{ file.name }}
-                        </p>
-                        <p
-                          class="m-0 text-10px text-ink-sub truncate max-w-260px"
-                        >
-                          {{ file.relPath }}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="py-2 px-2 text-ink-sub">
-                    {{ rootName(file.rootId) }} / {{ file.category }}
-                  </td>
-                  <td class="py-2 px-2 text-right tabular-nums">
-                    {{ formatBytes(file.size) }}
-                  </td>
-                  <td class="py-2 pl-2 text-right text-ink-sub">
-                    {{ formatTime(file.mtime) }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+                <span
+                  class="mt-1 block text-10px text-ink-sub truncate max-w-14"
+                  >{{ file.name }}</span
+                >
+              </button>
+            </div>
 
-        <footer
-          class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex flex-wrap items-center justify-end gap-2"
-        >
-          <span class="mr-auto text-11px text-ink-sub">
-            共 {{ groupCount }} 组 · 服务端分页
-          </span>
-          <NPagination
-        :page-slot="5"
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :item-count="groupCount"
-            :page-sizes="[5, 10, 20]"
-            show-size-picker
-            @update:page-size="onPageSizeChange"
-          />
-        </footer>
-      </div>
-    </NSpin>
+            <div v-else class="overflow-x-auto">
+              <table
+                class="app-table w-full min-w-720px border-collapse text-12px"
+              >
+                <thead>
+                  <tr class="text-left text-11px text-ink-sub">
+                    <th class="py-2 pr-3 font-500">保留</th>
+                    <th class="py-2 px-2 font-500">文件</th>
+                    <th class="py-2 px-2 font-500">根目录 / 分类</th>
+                    <th class="py-2 px-2 font-500 text-right">大小</th>
+                    <th class="py-2 pl-2 font-500 text-right">修改时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(file, index) in group.files"
+                    :key="`${file.rootId}-${file.category}-${file.relPath}`"
+                    class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
+                    :class="index === keepOf(group) ? 'bg-brand-500/8' : ''"
+                  >
+                    <td class="py-2 pr-3">
+                      <NButton
+                        size="tiny"
+                        :type="index === keepOf(group) ? 'primary' : 'default'"
+                        :quaternary="index !== keepOf(group)"
+                        @click="setKeep(group, index)"
+                      >
+                        {{ index === keepOf(group) ? '保留此件' : '改为保留' }}
+                      </NButton>
+                    </td>
+                    <td class="py-2 px-2 min-w-0">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          class="w-10 h-10 rounded-md overflow-hidden border border-[var(--mat-line)] bg-[var(--mat-chip)] shrink-0 p-0 cursor-pointer"
+                          :title="`预览 ${file.name}`"
+                          @click="openPreview(group, index)"
+                        >
+                          <img
+                            v-if="isImageFile(file)"
+                            :src="thumbOf(file)"
+                            :alt="file.name"
+                            loading="lazy"
+                            decoding="async"
+                            class="w-full h-full object-cover"
+                          />
+                          <span
+                            v-else
+                            class="w-full h-full flex items-center justify-center text-9px font-600 text-ink-sub"
+                            >{{ extOf(file) }}</span
+                          >
+                        </button>
+                        <div class="min-w-0">
+                          <p
+                            class="m-0 text-ink truncate max-w-260px"
+                            :title="file.relPath"
+                          >
+                            {{ file.name }}
+                          </p>
+                          <p
+                            class="m-0 text-10px text-ink-sub truncate max-w-260px"
+                          >
+                            {{ file.relPath }}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="py-2 px-2 text-ink-sub">
+                      {{ rootName(file.rootId) }} / {{ file.category }}
+                    </td>
+                    <td class="py-2 px-2 text-right tabular-nums">
+                      {{ formatBytes(file.size) }}
+                    </td>
+                    <td class="py-2 pl-2 text-right text-ink-sub">
+                      {{ formatTime(file.mtime) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <footer
+            class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex flex-wrap items-center justify-end gap-2"
+          >
+            <span class="mr-auto text-11px text-ink-sub">
+              共 {{ groupCount }} 组 · 服务端分页
+            </span>
+            <NPagination
+              :page-slot="5"
+              v-model:page="page"
+              v-model:page-size="pageSize"
+              :item-count="groupCount"
+              :page-sizes="[5, 10, 20]"
+              show-size-picker
+              @update:page-size="onPageSizeChange"
+            />
+          </footer>
+        </div>
+      </NSpin>
     </div>
 
     <!-- 清理确认 -->

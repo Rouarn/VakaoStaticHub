@@ -199,7 +199,9 @@ function rootShareLabel(totalSize: number | null): string {
     </PageHeader>
 
     <!-- 状态条 -->
-    <section class="glass-panel shrink-0 px-4 py-3 flex items-center gap-3 flex-wrap">
+    <section
+      class="glass-panel shrink-0 px-4 py-3 flex items-center gap-3 flex-wrap"
+    >
       <div
         class="w-2.5 h-2.5 rounded-full shrink-0"
         :class="healthy ? 'bg-emerald-500' : 'bg-red-500'"
@@ -225,223 +227,229 @@ function rootShareLabel(totalSize: number | null): string {
     </section>
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-    <NSpin :show="loading">
-      <ErrorState v-if="!data && error" :message="error" @retry="load()" />
+      <NSpin :show="loading">
+        <ErrorState v-if="!data && error" :message="error" @retry="load()" />
 
-      <EmptyState
-        v-else-if="!loading && !data"
-        :icon="SpeedometerOutline"
-        title="暂无系统指标"
-        description="后端 /metrics 返回空数据，请确认服务已启动并完成登录鉴权。"
-      >
-        <NButton size="small" type="primary" @click="load()">重新获取</NButton>
-      </EmptyState>
-
-      <div v-else-if="data" class="flex flex-col gap-3">
-        <div
-          v-if="error"
-          class="glass-panel border-l-4 border-l-red-500 px-4 py-2 flex items-center gap-2 text-12px"
+        <EmptyState
+          v-else-if="!loading && !data"
+          :icon="SpeedometerOutline"
+          title="暂无系统指标"
+          description="后端 /metrics 返回空数据，请确认服务已启动并完成登录鉴权。"
         >
-          <NIcon :size="15" class="text-red-500"><AlertCircleOutline /></NIcon>
-          <span class="text-ink-sub"
-            >本次刷新失败：{{ error }}（下方展示的是上次成功的数据）</span
+          <NButton size="small" type="primary" @click="load()"
+            >重新获取</NButton
           >
-        </div>
+        </EmptyState>
 
-        <div class="metrics-strip">
-          <StatCard
-            label="健康状态"
-            :value="healthy ? '正常' : '异常'"
-            :hint="
-              data.health.database.ok
-                ? 'health 段：数据库探测正常'
-                : 'health 段：数据库探测失败'
-            "
-            :icon="healthy ? CheckmarkCircleOutline : AlertCircleOutline"
-          />
-          <StatCard
-            label="运行时长"
-            :value="formatUptime(data.uptime)"
-            hint="自进程启动至今"
-            :icon="TimeOutline"
-          />
-          <StatCard
-            label="内存 RSS"
-            :value="formatBytes(data.memory.rss)"
-            :hint="`堆已用 ${heapPercent}%`"
-            :icon="HardwareChipOutline"
-          />
-          <StatCard
-            :label="`QPS（近 ${data.qps.windowSeconds} 秒）`"
-            :value="data.qps.perSecond.toFixed(2)"
-            :hint="`窗口内 ${data.qps.requests} 次请求`"
-            :icon="PulseOutline"
-          />
-          <StatCard
-            label="存储用量"
-            :value="formatBytesOrDash(data.storage.totalSize)"
-            :hint="`${data.storage.fileCount.toLocaleString()} 个文件 · ${rootItems.length} 个根目录`"
-            :icon="SaveOutline"
-          />
-          <StatCard
-            label="数据库"
-            :value="data.health.database.ok ? '已连接' : '不可用'"
-            :hint="`数据库文件 ${formatBytesOrDash(data.health.database.sizeBytes)}`"
-            :icon="ServerOutline"
-          />
-          <StatCard
-            label="活跃分享"
-            :value="data.shares.active.toLocaleString()"
-            :hint="`共 ${data.shares.total} · 已过期 ${data.shares.expired}`"
-            :icon="ShareSocialOutline"
-          />
-          <StatCard
-            label="应用版本"
-            :value="data.apps.published.toLocaleString()"
-            :hint="`灰度 ${data.apps.gray} · 草稿 ${data.apps.draft} · 下架 ${data.apps.offline}`"
-            :icon="RocketOutline"
-          />
-        </div>
-
-        <div class="grid gap-4 lg:grid-cols-2">
-          <!-- 内存 -->
-          <section class="glass-panel px-5 py-4 flex flex-col gap-3">
-            <div class="flex items-center gap-2">
-              <h2 class="m-0 text-13px font-600 text-ink">内存占用</h2>
-              <span class="ml-auto text-11px text-ink-sub">
-                heapUsed / heapTotal {{ heapPercent }}%
-              </span>
-            </div>
-            <BarList
-              :items="memoryItems"
-              :value-formatter="formatBytes"
-              :max="data.memory.rss"
-            />
-            <div
-              class="h-2 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
-            >
-              <div
-                class="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 transition-all duration-500"
-                :style="{ width: `${heapPercent}%` }"
-              />
-            </div>
-            <p class="m-0 text-10px text-ink-sub">
-              数据来自
-              process.memoryUsage()，用于观察进程内存趋势，非系统总内存占用。
-            </p>
-          </section>
-
-          <!-- 24h 升级事件 -->
-          <section class="glass-panel px-5 py-4 flex flex-col gap-3">
-            <div class="flex items-center gap-2">
-              <h2 class="m-0 text-13px font-600 text-ink">
-                最近 24 小时升级事件
-              </h2>
-              <span class="ml-auto text-11px text-ink-sub">
-                共 {{ upgradeEventTotal.toLocaleString() }} 次
-                <template v-if="upgradeEventMissingCount > 0">
-                  · {{ upgradeEventMissingCount }} 类无数据
-                </template>
-              </span>
-            </div>
-            <BarList
-              v-if="upgradeEventItems.length > 0"
-              :items="upgradeEventItems"
-            />
-            <div
-              v-else
-              class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-6 text-center text-12px text-ink-sub"
-            >
-              最近 24 小时没有客户端上报升级事件（无数据的事件类型由后端返回
-              null）
-            </div>
-          </section>
-        </div>
-
-        <!-- 根目录 -->
-        <section class="glass-panel px-5 py-4 flex flex-col gap-3">
-          <div class="flex items-center gap-2 flex-wrap">
-            <h2 class="m-0 text-13px font-600 text-ink">资源根目录用量</h2>
-            <span class="ml-auto text-11px text-ink-sub">
-              最大：{{
-                largestRoot
-                  ? `${largestRoot.name} · ${formatBytesOrDash(largestRoot.totalSize)}`
-                  : '—'
-              }}
-            </span>
-          </div>
+        <div v-else-if="data" class="flex flex-col gap-3">
           <div
-            v-if="rootItems.length === 0"
-            class="py-6 text-center text-12px text-ink-sub"
+            v-if="error"
+            class="glass-panel border-l-4 border-l-red-500 px-4 py-2 flex items-center gap-2 text-12px"
           >
-            暂无资源根目录
+            <NIcon :size="15" class="text-red-500"
+              ><AlertCircleOutline
+            /></NIcon>
+            <span class="text-ink-sub"
+              >本次刷新失败：{{ error }}（下方展示的是上次成功的数据）</span
+            >
           </div>
-          <div v-else class="overflow-x-auto">
-            <table class="app-table w-full min-w-600px border-collapse text-12px">
-              <thead>
-                <tr class="text-left text-11px text-ink-sub">
-                  <th class="py-2 pr-3 font-500">根目录</th>
-                  <th class="py-2 px-2 font-500 w-32">标识</th>
-                  <th class="py-2 px-2 font-500 text-right w-28">文件数</th>
-                  <th class="py-2 px-2 font-500 text-right w-32">占用</th>
-                  <th class="py-2 pl-2 font-500 w-40">占总存储</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="root in rootItems"
-                  :key="root.rootId"
-                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
-                >
-                  <td
-                    class="py-2 pr-3 text-ink truncate max-w-240px"
-                    :title="root.name"
-                  >
-                    {{ root.name }}
-                  </td>
-                  <td
-                    class="py-2 px-2 text-ink-sub font-mono text-11px whitespace-nowrap"
-                  >
-                    {{ root.rootId }}
-                  </td>
-                  <td class="py-2 px-2 text-right tabular-nums">
-                    {{ root.fileCount.toLocaleString() }}
-                  </td>
-                  <td class="py-2 px-2 text-right tabular-nums">
-                    {{ formatBytesOrDash(root.totalSize) }}
-                  </td>
-                  <td class="py-2 pl-2">
-                    <div class="flex items-center gap-2">
-                      <div
-                        class="flex-1 h-1.5 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
-                      >
-                        <div
-                          class="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
-                          :style="{
-                            width: `${rootShare(root.totalSize) ?? 0}%`,
-                          }"
-                        />
-                      </div>
-                      <span
-                        class="text-11px text-ink-sub tabular-nums w-12 text-right"
-                      >
-                        {{ rootShareLabel(root.totalSize) }}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
 
-        <p class="m-0 text-10px text-ink-sub">
-          说明：health
-          段由后端独立返回数据库可达性与数据库文件大小（未落盘或不可读时为
-          null）；存储用量只统计文件库索引内的文件，无索引数据时显示「—」。
-        </p>
-      </div>
-    </NSpin>
+          <div class="metrics-strip">
+            <StatCard
+              label="健康状态"
+              :value="healthy ? '正常' : '异常'"
+              :hint="
+                data.health.database.ok
+                  ? 'health 段：数据库探测正常'
+                  : 'health 段：数据库探测失败'
+              "
+              :icon="healthy ? CheckmarkCircleOutline : AlertCircleOutline"
+            />
+            <StatCard
+              label="运行时长"
+              :value="formatUptime(data.uptime)"
+              hint="自进程启动至今"
+              :icon="TimeOutline"
+            />
+            <StatCard
+              label="内存 RSS"
+              :value="formatBytes(data.memory.rss)"
+              :hint="`堆已用 ${heapPercent}%`"
+              :icon="HardwareChipOutline"
+            />
+            <StatCard
+              :label="`QPS（近 ${data.qps.windowSeconds} 秒）`"
+              :value="data.qps.perSecond.toFixed(2)"
+              :hint="`窗口内 ${data.qps.requests} 次请求`"
+              :icon="PulseOutline"
+            />
+            <StatCard
+              label="存储用量"
+              :value="formatBytesOrDash(data.storage.totalSize)"
+              :hint="`${data.storage.fileCount.toLocaleString()} 个文件 · ${rootItems.length} 个根目录`"
+              :icon="SaveOutline"
+            />
+            <StatCard
+              label="数据库"
+              :value="data.health.database.ok ? '已连接' : '不可用'"
+              :hint="`数据库文件 ${formatBytesOrDash(data.health.database.sizeBytes)}`"
+              :icon="ServerOutline"
+            />
+            <StatCard
+              label="活跃分享"
+              :value="data.shares.active.toLocaleString()"
+              :hint="`共 ${data.shares.total} · 已过期 ${data.shares.expired}`"
+              :icon="ShareSocialOutline"
+            />
+            <StatCard
+              label="应用版本"
+              :value="data.apps.published.toLocaleString()"
+              :hint="`灰度 ${data.apps.gray} · 草稿 ${data.apps.draft} · 下架 ${data.apps.offline}`"
+              :icon="RocketOutline"
+            />
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-2">
+            <!-- 内存 -->
+            <section class="glass-panel px-5 py-4 flex flex-col gap-3">
+              <div class="flex items-center gap-2">
+                <h2 class="m-0 text-13px font-600 text-ink">内存占用</h2>
+                <span class="ml-auto text-11px text-ink-sub">
+                  heapUsed / heapTotal {{ heapPercent }}%
+                </span>
+              </div>
+              <BarList
+                :items="memoryItems"
+                :value-formatter="formatBytes"
+                :max="data.memory.rss"
+              />
+              <div
+                class="h-2 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
+              >
+                <div
+                  class="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300 transition-all duration-500"
+                  :style="{ width: `${heapPercent}%` }"
+                />
+              </div>
+              <p class="m-0 text-10px text-ink-sub">
+                数据来自
+                process.memoryUsage()，用于观察进程内存趋势，非系统总内存占用。
+              </p>
+            </section>
+
+            <!-- 24h 升级事件 -->
+            <section class="glass-panel px-5 py-4 flex flex-col gap-3">
+              <div class="flex items-center gap-2">
+                <h2 class="m-0 text-13px font-600 text-ink">
+                  最近 24 小时升级事件
+                </h2>
+                <span class="ml-auto text-11px text-ink-sub">
+                  共 {{ upgradeEventTotal.toLocaleString() }} 次
+                  <template v-if="upgradeEventMissingCount > 0">
+                    · {{ upgradeEventMissingCount }} 类无数据
+                  </template>
+                </span>
+              </div>
+              <BarList
+                v-if="upgradeEventItems.length > 0"
+                :items="upgradeEventItems"
+              />
+              <div
+                v-else
+                class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-6 text-center text-12px text-ink-sub"
+              >
+                最近 24 小时没有客户端上报升级事件（无数据的事件类型由后端返回
+                null）
+              </div>
+            </section>
+          </div>
+
+          <!-- 根目录 -->
+          <section class="glass-panel px-5 py-4 flex flex-col gap-3">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="m-0 text-13px font-600 text-ink">资源根目录用量</h2>
+              <span class="ml-auto text-11px text-ink-sub">
+                最大：{{
+                  largestRoot
+                    ? `${largestRoot.name} · ${formatBytesOrDash(largestRoot.totalSize)}`
+                    : '—'
+                }}
+              </span>
+            </div>
+            <div
+              v-if="rootItems.length === 0"
+              class="py-6 text-center text-12px text-ink-sub"
+            >
+              暂无资源根目录
+            </div>
+            <div v-else class="overflow-x-auto">
+              <table
+                class="app-table w-full min-w-600px border-collapse text-12px"
+              >
+                <thead>
+                  <tr class="text-left text-11px text-ink-sub">
+                    <th class="py-2 pr-3 font-500">根目录</th>
+                    <th class="py-2 px-2 font-500 w-32">标识</th>
+                    <th class="py-2 px-2 font-500 text-right w-28">文件数</th>
+                    <th class="py-2 px-2 font-500 text-right w-32">占用</th>
+                    <th class="py-2 pl-2 font-500 w-40">占总存储</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="root in rootItems"
+                    :key="root.rootId"
+                    class="border-t border-glass-border/60 dark:border-glass-border-dark/60"
+                  >
+                    <td
+                      class="py-2 pr-3 text-ink truncate max-w-240px"
+                      :title="root.name"
+                    >
+                      {{ root.name }}
+                    </td>
+                    <td
+                      class="py-2 px-2 text-ink-sub font-mono text-11px whitespace-nowrap"
+                    >
+                      {{ root.rootId }}
+                    </td>
+                    <td class="py-2 px-2 text-right tabular-nums">
+                      {{ root.fileCount.toLocaleString() }}
+                    </td>
+                    <td class="py-2 px-2 text-right tabular-nums">
+                      {{ formatBytesOrDash(root.totalSize) }}
+                    </td>
+                    <td class="py-2 pl-2">
+                      <div class="flex items-center gap-2">
+                        <div
+                          class="flex-1 h-1.5 rounded-full bg-ink-sub/10 dark:bg-ink-dark-sub/15 overflow-hidden"
+                        >
+                          <div
+                            class="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
+                            :style="{
+                              width: `${rootShare(root.totalSize) ?? 0}%`,
+                            }"
+                          />
+                        </div>
+                        <span
+                          class="text-11px text-ink-sub tabular-nums w-12 text-right"
+                        >
+                          {{ rootShareLabel(root.totalSize) }}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <p class="m-0 text-10px text-ink-sub">
+            说明：health
+            段由后端独立返回数据库可达性与数据库文件大小（未落盘或不可读时为
+            null）；存储用量只统计文件库索引内的文件，无索引数据时显示「—」。
+          </p>
+        </div>
+      </NSpin>
     </div>
   </div>
 </template>

@@ -76,7 +76,6 @@ export interface SystemMetrics {
   users: number;
 }
 
-
 /** 侧栏计数（轻量聚合，避免为两个徽标拉取完整系统指标） */
 export interface SidebarCounts {
   files: number;

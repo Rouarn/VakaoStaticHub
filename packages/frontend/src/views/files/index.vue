@@ -18,6 +18,7 @@ import {
   ListOutline,
   RefreshOutline,
   SearchOutline,
+  ServerOutline,
   SettingsOutline,
   ShareSocialOutline,
   SwapHorizontalOutline,
@@ -44,6 +45,7 @@ import UploadPanel from './components/upload-panel.vue';
 import RenameFileModal from './components/rename-file-modal.vue';
 import MoveFileModal from './components/move-file-modal.vue';
 import QuickShareModal from './components/quick-share-modal.vue';
+import RootManagerModal from './components/root-manager-modal.vue';
 import ShareQrModal from '@/views/shares/components/share-qr-modal.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
@@ -59,6 +61,7 @@ const message = useMessage();
 
 const defaultCategory = ref('TemporaryFile');
 const manageShow = ref(false);
+const rootMgrShow = ref(false);
 
 const rootId = computed(() => appStore.activeRootId);
 const category = computed(
@@ -429,10 +432,7 @@ function onShareCreated(link: ShareLink) {
 <template>
   <div class="h-full flex flex-col gap-3 animate-fade-up">
     <!-- 页头 + 工具条（对齐原型：topbar + toolbar 两段） -->
-    <PageHeader
-      title="文件库"
-      :description="headerDescription"
-    >
+    <PageHeader title="文件库" :description="headerDescription">
       <template #actions>
         <NButton size="small" quaternary @click="reload">
           <template #icon
@@ -453,6 +453,13 @@ function onShareCreated(link: ShareLink) {
     <div
       class="flex flex-nowrap sm:flex-wrap items-center gap-2 overflow-x-auto scrollbar-hidden pb-1"
     >
+      <NSelect
+        :value="rootId"
+        :options="rootOptions"
+        size="small"
+        class="w-36 sm:w-40 shrink-0"
+        @update:value="onRootChange"
+      />
       <button
         v-for="c in categories"
         :key="c.name"
@@ -483,16 +490,17 @@ function onShareCreated(link: ShareLink) {
         <NIcon :size="13"><SettingsOutline /></NIcon>
         管理分类
       </button>
+      <button
+        type="button"
+        class="shrink-0 h-7 px-3 rounded-full border border-solid border-[var(--mat-line)] bg-[var(--mat-chip)] text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink flex items-center gap-1.5"
+        @click="rootMgrShow = true"
+      >
+        <NIcon :size="13"><ServerOutline /></NIcon>
+        管理根目录
+      </button>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      <NSelect
-        :value="rootId"
-        :options="rootOptions"
-        size="small"
-        class="w-full sm:w-40"
-        @update:value="onRootChange"
-      />
       <NInput
         v-model:value="q"
         size="small"
@@ -675,6 +683,9 @@ function onShareCreated(link: ShareLink) {
         <CategoryPanel embedded />
       </div>
     </NModal>
+
+    <!-- 根目录管理 -->
+    <RootManagerModal v-model:show="rootMgrShow" />
 
     <!-- 上传 -->
     <NModal

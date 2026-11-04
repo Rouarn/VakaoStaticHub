@@ -886,7 +886,9 @@ onMounted(async () => {
                           class="font-mono text-11.5px text-ink truncate"
                           :title="link.token"
                         >
-                          {{ link.token.slice(0, 8) }}…{{ link.token.slice(-6) }}
+                          {{ link.token.slice(0, 8) }}…{{
+                            link.token.slice(-6)
+                          }}
                         </span>
                         <NTag
                           v-if="link.hasPassword"
@@ -926,12 +928,17 @@ onMounted(async () => {
                     </td>
                     <td class="num">
                       {{ link.accessCount }}
-                      <span v-if="link.maxAccesses !== null" class="text-ink-sub">
+                      <span
+                        v-if="link.maxAccesses !== null"
+                        class="text-ink-sub"
+                      >
                         / {{ link.maxAccesses }}</span
                       >
                     </td>
                     <td class="num">
-                      {{ link.expiresAt ? formatDateTime(link.expiresAt) : '永久' }}
+                      {{
+                        link.expiresAt ? formatDateTime(link.expiresAt) : '永久'
+                      }}
                     </td>
                     <td class="pr-4">
                       <div class="flex items-center justify-end gap-3">

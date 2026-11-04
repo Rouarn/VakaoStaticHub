@@ -304,176 +304,185 @@ onMounted(() => void load());
     </PageHeader>
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-    <NSpin :show="loading">
-      <ErrorState v-if="error" :message="error" @retry="load" />
+      <NSpin :show="loading">
+        <ErrorState v-if="error" :message="error" @retry="load" />
 
-      <EmptyState
-        v-else-if="!loading && users.length === 0"
-        :icon="PeopleOutline"
-        title="还没有任何账号"
-        description="创建一个登录账号后即可进入文件库、分享与 APP 版本管理等模块。"
-      >
-        <NButton size="small" type="primary" @click="openCreate">
-          <template #icon
-            ><NIcon><PersonAddOutline /></NIcon
-          ></template>
-          创建第一个账号
-        </NButton>
-      </EmptyState>
+        <EmptyState
+          v-else-if="!loading && users.length === 0"
+          :icon="PeopleOutline"
+          title="还没有任何账号"
+          description="创建一个登录账号后即可进入文件库、分享与 APP 版本管理等模块。"
+        >
+          <NButton size="small" type="primary" @click="openCreate">
+            <template #icon
+              ><NIcon><PersonAddOutline /></NIcon
+            ></template>
+            创建第一个账号
+          </NButton>
+        </EmptyState>
 
-      <div v-else class="flex flex-col gap-3">
-        <section class="glass-panel px-4 py-2">
-          <div class="flex items-center gap-2 flex-wrap text-11px text-ink-sub">
-            <span>共 {{ users.length }} 个账号</span>
-            <span class="opacity-40">·</span>
-            <span>当前登录：{{ authStore.user?.username ?? '—' }}</span>
-            <span class="ml-auto">管理员 {{ adminCount }} 个</span>
-          </div>
-          <div class="overflow-x-auto mt-2">
-            <table class="app-table w-full min-w-720px border-collapse text-12px">
-              <thead>
-                <tr class="text-left text-11px text-ink-sub">
-                  <th class="py-2 pr-3 font-500">用户</th>
-                  <th class="py-2 px-2 font-500 w-24">角色</th>
-                  <th class="py-2 px-2 font-500 w-20">ID</th>
-                  <th class="py-2 px-2 font-500 w-44">创建时间</th>
-                  <th class="py-2 pl-2 font-500 text-right w-64">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="user in pagedUsers"
-                  :key="user.id"
-                  class="border-t border-glass-border/60 dark:border-glass-border-dark/60 hover:bg-brand-500/5"
-                >
-                  <td class="py-2.5 pr-3">
-                    <div class="flex items-center gap-2 min-w-0">
-                      <span
-                        class="glass-chip w-7 h-7 flex items-center justify-center text-12px font-600 text-brand-600 dark:text-brand-400 uppercase shrink-0"
-                      >
-                        {{ user.username.slice(0, 1) }}
-                      </span>
-                      <span class="text-ink truncate" :title="user.username">
-                        {{ user.username }}
-                      </span>
+        <div v-else class="flex flex-col gap-3">
+          <section class="glass-panel px-4 py-2">
+            <div
+              class="flex items-center gap-2 flex-wrap text-11px text-ink-sub"
+            >
+              <span>共 {{ users.length }} 个账号</span>
+              <span class="opacity-40">·</span>
+              <span>当前登录：{{ authStore.user?.username ?? '—' }}</span>
+              <span class="ml-auto">管理员 {{ adminCount }} 个</span>
+            </div>
+            <div class="overflow-x-auto mt-2">
+              <table
+                class="app-table w-full min-w-720px border-collapse text-12px"
+              >
+                <thead>
+                  <tr class="text-left text-11px text-ink-sub">
+                    <th class="py-2 pr-3 font-500">用户</th>
+                    <th class="py-2 px-2 font-500 w-24">角色</th>
+                    <th class="py-2 px-2 font-500 w-20">ID</th>
+                    <th class="py-2 px-2 font-500 w-44">创建时间</th>
+                    <th class="py-2 pl-2 font-500 text-right w-64">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="user in pagedUsers"
+                    :key="user.id"
+                    class="border-t border-glass-border/60 dark:border-glass-border-dark/60 hover:bg-brand-500/5"
+                  >
+                    <td class="py-2.5 pr-3">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span
+                          class="glass-chip w-7 h-7 flex items-center justify-center text-12px font-600 text-brand-600 dark:text-brand-400 uppercase shrink-0"
+                        >
+                          {{ user.username.slice(0, 1) }}
+                        </span>
+                        <span class="text-ink truncate" :title="user.username">
+                          {{ user.username }}
+                        </span>
+                        <NTag
+                          v-if="user.id === currentUserId"
+                          size="tiny"
+                          :bordered="false"
+                          type="success"
+                        >
+                          当前登录
+                        </NTag>
+                      </div>
+                    </td>
+                    <td class="py-2.5 px-2">
                       <NTag
-                        v-if="user.id === currentUserId"
                         size="tiny"
                         :bordered="false"
-                        type="success"
+                        :type="ROLE_META[user.role].type"
                       >
-                        当前登录
+                        {{ ROLE_META[user.role].label }}
                       </NTag>
-                    </div>
-                  </td>
-                  <td class="py-2.5 px-2">
-                    <NTag
-                      size="tiny"
-                      :bordered="false"
-                      :type="ROLE_META[user.role].type"
+                    </td>
+                    <td class="py-2.5 px-2 text-ink-sub tabular-nums">
+                      #{{ user.id }}
+                    </td>
+                    <td
+                      class="py-2.5 px-2 text-ink-sub tabular-nums whitespace-nowrap"
                     >
-                      {{ ROLE_META[user.role].label }}
-                    </NTag>
-                  </td>
-                  <td class="py-2.5 px-2 text-ink-sub tabular-nums">
-                    #{{ user.id }}
-                  </td>
-                  <td
-                    class="py-2.5 px-2 text-ink-sub tabular-nums whitespace-nowrap"
-                  >
-                    {{ formatDateTime(user.createdAt) }}
-                  </td>
-                  <td class="py-2.5 pl-2">
-                    <div class="flex items-center justify-end gap-1 flex-wrap">
-                      <NButton
-                        v-if="user.id === currentUserId"
-                        size="tiny"
-                        quaternary
-                        @click="openChangeSelf"
+                      {{ formatDateTime(user.createdAt) }}
+                    </td>
+                    <td class="py-2.5 pl-2">
+                      <div
+                        class="flex items-center justify-end gap-1 flex-wrap"
                       >
-                        <template #icon
-                          ><NIcon><KeyOutline /></NIcon
-                        ></template>
-                        修改我的密码
-                      </NButton>
-                      <NButton
-                        v-else-if="isAdmin"
-                        size="tiny"
-                        quaternary
-                        @click="openResetOther(user)"
-                      >
-                        <template #icon
-                          ><NIcon><KeyOutline /></NIcon
-                        ></template>
-                        重置密码
-                      </NButton>
-                      <NTooltip v-else trigger="hover">
-                        <template #trigger>
-                          <span>
-                            <NButton size="tiny" quaternary disabled>
-                              <template #icon
-                                ><NIcon><LockClosedOutline /></NIcon
-                              ></template>
-                              重置密码
-                            </NButton>
-                          </span>
-                        </template>
-                        仅管理员可以重置他人密码
-                      </NTooltip>
+                        <NButton
+                          v-if="user.id === currentUserId"
+                          size="tiny"
+                          quaternary
+                          @click="openChangeSelf"
+                        >
+                          <template #icon
+                            ><NIcon><KeyOutline /></NIcon
+                          ></template>
+                          修改我的密码
+                        </NButton>
+                        <NButton
+                          v-else-if="isAdmin"
+                          size="tiny"
+                          quaternary
+                          @click="openResetOther(user)"
+                        >
+                          <template #icon
+                            ><NIcon><KeyOutline /></NIcon
+                          ></template>
+                          重置密码
+                        </NButton>
+                        <NTooltip v-else trigger="hover">
+                          <template #trigger>
+                            <span>
+                              <NButton size="tiny" quaternary disabled>
+                                <template #icon
+                                  ><NIcon><LockClosedOutline /></NIcon
+                                ></template>
+                                重置密码
+                              </NButton>
+                            </span>
+                          </template>
+                          仅管理员可以重置他人密码
+                        </NTooltip>
 
-                      <NTooltip v-if="deleteBlockReason(user)" trigger="hover">
-                        <template #trigger>
-                          <span>
-                            <NButton size="tiny" quaternary disabled>
-                              <template #icon
-                                ><NIcon><TrashOutline /></NIcon
-                              ></template>
-                              删除
-                            </NButton>
-                          </span>
-                        </template>
-                        {{ deleteBlockReason(user) }}
-                      </NTooltip>
-                      <NButton
-                        v-else
-                        size="tiny"
-                        quaternary
-                        type="error"
-                        @click="askDelete(user)"
-                      >
-                        <template #icon
-                          ><NIcon><TrashOutline /></NIcon
-                        ></template>
-                        删除
-                      </NButton>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+                        <NTooltip
+                          v-if="deleteBlockReason(user)"
+                          trigger="hover"
+                        >
+                          <template #trigger>
+                            <span>
+                              <NButton size="tiny" quaternary disabled>
+                                <template #icon
+                                  ><NIcon><TrashOutline /></NIcon
+                                ></template>
+                                删除
+                              </NButton>
+                            </span>
+                          </template>
+                          {{ deleteBlockReason(user) }}
+                        </NTooltip>
+                        <NButton
+                          v-else
+                          size="tiny"
+                          quaternary
+                          type="error"
+                          @click="askDelete(user)"
+                        >
+                          <template #icon
+                            ><NIcon><TrashOutline /></NIcon
+                          ></template>
+                          删除
+                        </NButton>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-        <footer
-          v-if="users.length > pageSize"
-          class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end"
-        >
-          <NPagination
-        :page-slot="5"
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :item-count="users.length"
-            :page-sizes="[10, 20, 50]"
-            show-size-picker
-          />
-        </footer>
+          <footer
+            v-if="users.length > pageSize"
+            class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end"
+          >
+            <NPagination
+              :page-slot="5"
+              v-model:page="page"
+              v-model:page-size="pageSize"
+              :item-count="users.length"
+              :page-sizes="[10, 20, 50]"
+              show-size-picker
+            />
+          </footer>
 
-        <p class="m-0 text-10px text-ink-sub">
-          说明：删除规则由后端权威校验（不能删除当前登录账号、至少保留一个管理员），
-          页面上的禁用提示只是提前告知。
-        </p>
-      </div>
-    </NSpin>
+          <p class="m-0 text-10px text-ink-sub">
+            说明：删除规则由后端权威校验（不能删除当前登录账号、至少保留一个管理员），
+            页面上的禁用提示只是提前告知。
+          </p>
+        </div>
+      </NSpin>
     </div>
 
     <!-- 创建账号 -->

@@ -869,216 +869,218 @@ onMounted(async () => {
     </section>
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-    <NSpin :show="loading">
-      <ErrorState v-if="error" :message="error" @retry="loadVersions" />
+      <NSpin :show="loading">
+        <ErrorState v-if="error" :message="error" @retry="loadVersions" />
 
-      <EmptyState
-        v-else-if="!loading && versions.length === 0"
-        :icon="CloudUploadOutline"
-        title="还没有版本记录"
-        :description="
-          apps.length === 0
-            ? '先创建一个应用，再上传 APK 生成第一个草稿版本。'
-            : '上传 APK 后会生成草稿版本，确认无误再发布全量或灰度。'
-        "
-      >
-        <NButton v-if="apps.length === 0" size="small" @click="openCreateApp"
-          >新建应用</NButton
+        <EmptyState
+          v-else-if="!loading && versions.length === 0"
+          :icon="CloudUploadOutline"
+          title="还没有版本记录"
+          :description="
+            apps.length === 0
+              ? '先创建一个应用，再上传 APK 生成第一个草稿版本。'
+              : '上传 APK 后会生成草稿版本，确认无误再发布全量或灰度。'
+          "
         >
-        <NButton v-else size="small" type="primary" @click="openUpload"
-          >上传 APK</NButton
-        >
-      </EmptyState>
+          <NButton v-if="apps.length === 0" size="small" @click="openCreateApp"
+            >新建应用</NButton
+          >
+          <NButton v-else size="small" type="primary" @click="openUpload"
+            >上传 APK</NButton
+          >
+        </EmptyState>
 
-      <div v-else class="flex flex-col gap-3">
-        <article
-          v-for="version in versions"
-          :key="version.id"
-          class="glass-card px-4 py-3 flex flex-col gap-2.5"
-        >
-          <div class="flex items-start gap-3 flex-wrap">
-            <div class="min-w-0 flex-1">
-              <p class="m-0 text-13px font-600 text-ink truncate">
-                {{ version.appKey }} · v{{ version.versionName }}
-                <span class="text-11px text-ink-sub font-normal"
-                  >vc {{ version.versionCode }}</span
+        <div v-else class="flex flex-col gap-3">
+          <article
+            v-for="version in versions"
+            :key="version.id"
+            class="glass-card px-4 py-3 flex flex-col gap-2.5"
+          >
+            <div class="flex items-start gap-3 flex-wrap">
+              <div class="min-w-0 flex-1">
+                <p class="m-0 text-13px font-600 text-ink truncate">
+                  {{ version.appKey }} · v{{ version.versionName }}
+                  <span class="text-11px text-ink-sub font-normal"
+                    >vc {{ version.versionCode }}</span
+                  >
+                </p>
+                <p class="m-0 mt-0.5 text-11px text-ink-sub">
+                  {{ formatBytes(version.packageSize) }} ·
+                  {{ version.platform }} · 发布
+                  {{ formatDateTime(version.publishTime) }}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <NTag
+                  size="small"
+                  :type="statusMetaOf(version).tag"
+                  :bordered="false"
                 >
-              </p>
-              <p class="m-0 mt-0.5 text-11px text-ink-sub">
-                {{ formatBytes(version.packageSize) }} ·
-                {{ version.platform }} · 发布
-                {{ formatDateTime(version.publishTime) }}
-              </p>
+                  {{ statusMetaOf(version).label }}
+                </NTag>
+                <NTag
+                  v-if="offlineReasonLabel(version)"
+                  size="small"
+                  :bordered="false"
+                  :type="version.offlineReason === 'auto' ? 'default' : 'error'"
+                >
+                  {{ offlineReasonLabel(version) }}
+                </NTag>
+                <NTag
+                  v-if="version.forceUpdate === 1"
+                  size="small"
+                  :bordered="false"
+                  type="error"
+                >
+                  强制更新
+                </NTag>
+                <NTag
+                  v-if="version.status === APP_VERSION_STATUS.GRAY"
+                  size="small"
+                  :bordered="false"
+                  type="warning"
+                >
+                  灰度 {{ version.grayPercent }}%
+                  <template v-if="version.grayAutoIncrement === 1">
+                    · 自动递增</template
+                  >
+                </NTag>
+                <NTag
+                  v-if="version.scheduledPublishAt"
+                  size="small"
+                  :bordered="false"
+                >
+                  定时 {{ formatDateTime(version.scheduledPublishAt) }}
+                </NTag>
+              </div>
+            </div>
+
+            <div
+              class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
+            >
+              <span class="inline-flex items-center gap-1 font-mono">
+                SHA-256 {{ truncateMiddle(version.checksum, 12, 10) }}
+                <button
+                  class="border-none bg-transparent cursor-pointer text-brand-600 dark:text-brand-400"
+                  @click="copyChecksum(version.checksum)"
+                >
+                  <NIcon :size="12"><CopyOutline /></NIcon>
+                </button>
+              </span>
+              <span v-if="version.minVersionCode > 0"
+                >minVersionCode {{ version.minVersionCode }}</span
+              >
+              <span
+                v-if="version.updateLog"
+                class="min-w-0 truncate"
+                :title="version.updateLog"
+              >
+                更新说明：{{ version.updateLog }}
+              </span>
+              <a
+                :href="getApkDownloadUrl(version.id)"
+                class="text-brand-600 dark:text-brand-400 inline-flex items-center gap-1"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <NIcon :size="12"><DocumentTextOutline /></NIcon>
+                下载 APK
+              </a>
             </div>
 
             <div class="flex items-center gap-1.5 flex-wrap">
-              <NTag
-                size="small"
-                :type="statusMetaOf(version).tag"
-                :bordered="false"
+              <NButton
+                v-if="version.status !== APP_VERSION_STATUS.PUBLISHED"
+                size="tiny"
+                type="primary"
+                @click="openPublish(version)"
               >
-                {{ statusMetaOf(version).label }}
-              </NTag>
-              <NTag
-                v-if="offlineReasonLabel(version)"
-                size="small"
-                :bordered="false"
-                :type="version.offlineReason === 'auto' ? 'default' : 'error'"
+                <template #icon
+                  ><NIcon><PlayOutline /></NIcon
+                ></template>
+                {{
+                  version.status === APP_VERSION_STATUS.OFFLINE
+                    ? '重新发布'
+                    : '发布'
+                }}
+              </NButton>
+              <NButton
+                v-if="canEdit(version)"
+                size="tiny"
+                @click="openEdit(version)"
               >
-                {{ offlineReasonLabel(version) }}
-              </NTag>
-              <NTag
-                v-if="version.forceUpdate === 1"
-                size="small"
-                :bordered="false"
+                <template #icon
+                  ><NIcon><CreateOutline /></NIcon
+                ></template>
+                编辑
+              </NButton>
+              <NButton size="tiny" quaternary @click="openDetail(version)">
+                <template #icon
+                  ><NIcon><InformationCircleOutline /></NIcon
+                ></template>
+                详情
+              </NButton>
+              <NButton size="tiny" @click="openForce(version)">
+                <template #icon
+                  ><NIcon><KeyOutline /></NIcon
+                ></template>
+                强更配置
+              </NButton>
+              <NButton
+                v-if="canRollback(version)"
+                size="tiny"
+                @click="openRollback(version)"
+              >
+                <template #icon
+                  ><NIcon><ArrowUndoOutline /></NIcon
+                ></template>
+                回滚
+              </NButton>
+              <NButton
+                v-if="canRollback(version)"
+                size="tiny"
+                quaternary
                 type="error"
+                @click="openOffline(version)"
               >
-                强制更新
-              </NTag>
-              <NTag
-                v-if="version.status === APP_VERSION_STATUS.GRAY"
-                size="small"
-                :bordered="false"
-                type="warning"
+                <template #icon
+                  ><NIcon><BanOutline /></NIcon
+                ></template>
+                下架
+              </NButton>
+              <NButton
+                v-if="canDelete(version)"
+                size="tiny"
+                quaternary
+                type="error"
+                class="ml-auto"
+                @click="openDelete(version)"
               >
-                灰度 {{ version.grayPercent }}%
-                <template v-if="version.grayAutoIncrement === 1">
-                  · 自动递增</template
-                >
-              </NTag>
-              <NTag
-                v-if="version.scheduledPublishAt"
-                size="small"
-                :bordered="false"
-              >
-                定时 {{ formatDateTime(version.scheduledPublishAt) }}
-              </NTag>
+                <template #icon
+                  ><NIcon><TrashOutline /></NIcon
+                ></template>
+                删除
+              </NButton>
             </div>
-          </div>
+          </article>
 
-          <div
-            class="flex flex-wrap items-center gap-x-4 gap-y-1 text-11px text-ink-sub"
+          <footer
+            class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end"
           >
-            <span class="inline-flex items-center gap-1 font-mono">
-              SHA-256 {{ truncateMiddle(version.checksum, 12, 10) }}
-              <button
-                class="border-none bg-transparent cursor-pointer text-brand-600 dark:text-brand-400"
-                @click="copyChecksum(version.checksum)"
-              >
-                <NIcon :size="12"><CopyOutline /></NIcon>
-              </button>
-            </span>
-            <span v-if="version.minVersionCode > 0"
-              >minVersionCode {{ version.minVersionCode }}</span
-            >
-            <span
-              v-if="version.updateLog"
-              class="min-w-0 truncate"
-              :title="version.updateLog"
-            >
-              更新说明：{{ version.updateLog }}
-            </span>
-            <a
-              :href="getApkDownloadUrl(version.id)"
-              class="text-brand-600 dark:text-brand-400 inline-flex items-center gap-1"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <NIcon :size="12"><DocumentTextOutline /></NIcon>
-              下载 APK
-            </a>
-          </div>
-
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <NButton
-              v-if="version.status !== APP_VERSION_STATUS.PUBLISHED"
-              size="tiny"
-              type="primary"
-              @click="openPublish(version)"
-            >
-              <template #icon
-                ><NIcon><PlayOutline /></NIcon
-              ></template>
-              {{
-                version.status === APP_VERSION_STATUS.OFFLINE
-                  ? '重新发布'
-                  : '发布'
-              }}
-            </NButton>
-            <NButton
-              v-if="canEdit(version)"
-              size="tiny"
-              @click="openEdit(version)"
-            >
-              <template #icon
-                ><NIcon><CreateOutline /></NIcon
-              ></template>
-              编辑
-            </NButton>
-            <NButton size="tiny" quaternary @click="openDetail(version)">
-              <template #icon
-                ><NIcon><InformationCircleOutline /></NIcon
-              ></template>
-              详情
-            </NButton>
-            <NButton size="tiny" @click="openForce(version)">
-              <template #icon
-                ><NIcon><KeyOutline /></NIcon
-              ></template>
-              强更配置
-            </NButton>
-            <NButton
-              v-if="canRollback(version)"
-              size="tiny"
-              @click="openRollback(version)"
-            >
-              <template #icon
-                ><NIcon><ArrowUndoOutline /></NIcon
-              ></template>
-              回滚
-            </NButton>
-            <NButton
-              v-if="canRollback(version)"
-              size="tiny"
-              quaternary
-              type="error"
-              @click="openOffline(version)"
-            >
-              <template #icon
-                ><NIcon><BanOutline /></NIcon
-              ></template>
-              下架
-            </NButton>
-            <NButton
-              v-if="canDelete(version)"
-              size="tiny"
-              quaternary
-              type="error"
-              class="ml-auto"
-              @click="openDelete(version)"
-            >
-              <template #icon
-                ><NIcon><TrashOutline /></NIcon
-              ></template>
-              删除
-            </NButton>
-          </div>
-        </article>
-
-        <footer class="glass-panel sticky bottom-0 z-10 px-4 py-2 flex items-center justify-end">
-          <NPagination
-        :page-slot="5"
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :item-count="total"
-            :page-sizes="[10, 20, 50]"
-            show-size-picker
-            @update:page="loadVersions"
-            @update:page-size="changeFilter"
-          />
-        </footer>
-      </div>
-    </NSpin>
+            <NPagination
+              :page-slot="5"
+              v-model:page="page"
+              v-model:page-size="pageSize"
+              :item-count="total"
+              :page-sizes="[10, 20, 50]"
+              show-size-picker
+              @update:page="loadVersions"
+              @update:page-size="changeFilter"
+            />
+          </footer>
+        </div>
+      </NSpin>
     </div>
 
     <NDrawer
@@ -1112,9 +1114,7 @@ onMounted(async () => {
               >
             </div>
 
-            <dl
-              class="m-0 grid grid-cols-[86px_1fr] gap-x-3 gap-y-2 text-12px"
-            >
+            <dl class="m-0 grid grid-cols-[86px_1fr] gap-x-3 gap-y-2 text-12px">
               <dt class="text-ink-sub">平台</dt>
               <dd class="m-0 text-ink">{{ detail.platform }}</dd>
 

@@ -55,8 +55,8 @@ const emit = defineEmits<{
 
 const kind = computed(() => getFileKind(props.file.name));
 /** 角标与音频封面共用的扩展名文本（如 JPG / MP3） */
-const extLabel = computed(
-  () => (getExtension(props.file.name) || 'FILE').toUpperCase(),
+const extLabel = computed(() =>
+  (getExtension(props.file.name) || 'FILE').toUpperCase(),
 );
 const urlParams = computed(() => ({
   rootId: props.rootId,

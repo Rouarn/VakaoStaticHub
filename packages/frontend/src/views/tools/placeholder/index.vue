@@ -260,222 +260,222 @@ async function download() {
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1">
       <div class="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)] items-start">
-      <!-- 配置面板 -->
-      <section class="glass-panel px-4 py-4 flex flex-col gap-3">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <span class="text-11px text-ink-sub mr-1">常用尺寸</span>
-          <NButton
-            v-for="preset in presets"
-            :key="preset.label"
-            size="tiny"
-            quaternary
-            @click="applyPreset(preset.width, preset.height)"
+        <!-- 配置面板 -->
+        <section class="glass-panel px-4 py-4 flex flex-col gap-3">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-11px text-ink-sub mr-1">常用尺寸</span>
+            <NButton
+              v-for="preset in presets"
+              :key="preset.label"
+              size="tiny"
+              quaternary
+              @click="applyPreset(preset.width, preset.height)"
+            >
+              {{ preset.label }}
+            </NButton>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-11px text-ink-sub mr-1">接口形态</span>
+            <NButton
+              size="tiny"
+              :type="endpointMode === 'custom' ? 'primary' : 'default'"
+              @click="endpointMode = 'custom'"
+            >
+              自定义宽高
+            </NButton>
+            <NButton
+              size="tiny"
+              :type="endpointMode === 'default' ? 'primary' : 'default'"
+              @click="endpointMode = 'default'"
+            >
+              默认 300×150
+            </NButton>
+            <NButton
+              size="tiny"
+              :type="endpointMode === 'square' ? 'primary' : 'default'"
+              @click="endpointMode = 'square'"
+            >
+              方形 {{ SQUARE_SIZE }}
+            </NButton>
+          </div>
+          <p
+            v-if="endpointMode !== 'custom'"
+            class="m-0 text-10px text-ink-sub"
           >
-            {{ preset.label }}
-          </NButton>
-        </div>
+            当前使用
+            <code class="font-mono">{{
+              endpointMode === 'default' ? '/placeholder' : '/placeholder/512'
+            }}</code>
+            ，宽高由接口固定；文字与配色仍通过 query 生效。
+          </p>
 
-        <div class="flex flex-wrap items-center gap-1.5">
-          <span class="text-11px text-ink-sub mr-1">接口形态</span>
-          <NButton
-            size="tiny"
-            :type="endpointMode === 'custom' ? 'primary' : 'default'"
-            @click="endpointMode = 'custom'"
+          <div class="grid grid-cols-2 gap-2">
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">宽度（1~4096）</label>
+              <NInputNumber
+                v-model:value="form.width"
+                size="small"
+                :min="1"
+                :max="4096"
+                :step="10"
+                @update:value="endpointMode = 'custom'"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">高度（1~4096）</label>
+              <NInputNumber
+                v-model:value="form.height"
+                size="small"
+                :min="1"
+                :max="4096"
+                :step="10"
+                @update:value="endpointMode = 'custom'"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1">
+            <label class="text-11px text-ink-sub"
+              >文字（留空显示「宽×高」）</label
+            >
+            <NInput
+              v-model:value="form.text"
+              size="small"
+              placeholder="例如：封面占位"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">背景色</label>
+              <NColorPicker
+                v-model:value="form.bgColor"
+                size="small"
+                :modes="['hex']"
+                :show-alpha="false"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">文字色</label>
+              <NColorPicker
+                v-model:value="form.textColor"
+                size="small"
+                :modes="['hex']"
+                :show-alpha="false"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">字体</label>
+              <NSelect
+                v-model:value="form.fontFamily"
+                size="small"
+                :options="fontFamilyOptions"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">字重</label>
+              <NSelect
+                v-model:value="form.fontWeight"
+                size="small"
+                :options="fontWeightOptions"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">字号（留空自动）</label>
+              <NInputNumber
+                v-model:value="form.fontSize"
+                size="small"
+                clearable
+                :min="1"
+                :max="4096"
+                placeholder="自动：短边 20%"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">下载格式</label>
+              <NSelect
+                v-model:value="form.format"
+                size="small"
+                :options="formatOptions"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap pt-1">
+            <NTag size="tiny" :bordered="false" type="info">
+              {{ form.width }}×{{ form.height }}
+            </NTag>
+            <NTag size="tiny" :bordered="false">
+              字号
+              {{
+                form.fontSize ??
+                Math.floor(Math.min(form.width, form.height) * 0.2)
+              }}
+            </NTag>
+          </div>
+        </section>
+
+        <!-- 预览 -->
+        <section class="glass-panel px-4 py-4 flex flex-col gap-3 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h2 class="m-0 text-13px font-600 text-ink">实时预览</h2>
+            <NButton size="tiny" quaternary @click="reloadPreview">
+              <template #icon
+                ><NIcon><RefreshOutline /></NIcon
+              ></template>
+              刷新
+            </NButton>
+            <span class="ml-auto text-11px text-ink-sub">
+              预览始终为后端 SVG；PNG/JPEG 在下载时栅格化
+            </span>
+          </div>
+
+          <div
+            class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/40 dark:bg-black/20 min-h-280px flex items-center justify-center p-4 overflow-hidden"
           >
-            自定义宽高
-          </NButton>
-          <NButton
-            size="tiny"
-            :type="endpointMode === 'default' ? 'primary' : 'default'"
-            @click="endpointMode = 'default'"
-          >
-            默认 300×150
-          </NButton>
-          <NButton
-            size="tiny"
-            :type="endpointMode === 'square' ? 'primary' : 'default'"
-            @click="endpointMode = 'square'"
-          >
-            方形 {{ SQUARE_SIZE }}
-          </NButton>
-        </div>
-        <p
-          v-if="endpointMode !== 'custom'"
-          class="m-0 text-10px text-ink-sub"
-        >
-          当前使用
-          <code class="font-mono">{{
-            endpointMode === 'default' ? '/placeholder' : '/placeholder/512'
-          }}</code>
-          ，宽高由接口固定；文字与配色仍通过 query 生效。
-        </p>
-
-        <div class="grid grid-cols-2 gap-2">
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">宽度（1~4096）</label>
-            <NInputNumber
-              v-model:value="form.width"
-              size="small"
-              :min="1"
-              :max="4096"
-              :step="10"
-              @update:value="endpointMode = 'custom'"
+            <img
+              v-if="!previewError"
+              :key="url"
+              :src="url"
+              :alt="`占位图 ${previewSize.width}x${previewSize.height}`"
+              class="max-w-full max-h-360px object-contain rounded-md shadow-sm"
+              @error="previewError = true"
             />
+            <div v-else class="flex flex-col items-center gap-2 text-center">
+              <NIcon :size="26" class="text-ink-sub"><ImageOutline /></NIcon>
+              <p class="m-0 text-12px text-ink-sub">
+                预览加载失败，请检查尺寸是否在 1~4096 之间
+              </p>
+              <NButton size="tiny" @click="reloadPreview">重试</NButton>
+            </div>
           </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">高度（1~4096）</label>
-            <NInputNumber
-              v-model:value="form.height"
-              size="small"
-              :min="1"
-              :max="4096"
-              :step="10"
-              @update:value="endpointMode = 'custom'"
-            />
+
+          <div class="flex items-center gap-2 min-w-0">
+            <NIcon :size="14" class="text-ink-sub shrink-0"
+              ><LinkOutline
+            /></NIcon>
+            <NInput :value="url" size="small" readonly class="font-mono" />
+            <NButton size="small" quaternary @click="copyUrl">
+              <template #icon
+                ><NIcon><CopyOutline /></NIcon
+              ></template>
+            </NButton>
           </div>
-        </div>
 
-        <div class="flex flex-col gap-1">
-          <label class="text-11px text-ink-sub"
-            >文字（留空显示「宽×高」）</label
-          >
-          <NInput
-            v-model:value="form.text"
-            size="small"
-            placeholder="例如：封面占位"
-          />
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">背景色</label>
-            <NColorPicker
-              v-model:value="form.bgColor"
-              size="small"
-              :modes="['hex']"
-              :show-alpha="false"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">文字色</label>
-            <NColorPicker
-              v-model:value="form.textColor"
-              size="small"
-              :modes="['hex']"
-              :show-alpha="false"
-            />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">字体</label>
-            <NSelect
-              v-model:value="form.fontFamily"
-              size="small"
-              :options="fontFamilyOptions"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">字重</label>
-            <NSelect
-              v-model:value="form.fontWeight"
-              size="small"
-              :options="fontWeightOptions"
-            />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">字号（留空自动）</label>
-            <NInputNumber
-              v-model:value="form.fontSize"
-              size="small"
-              clearable
-              :min="1"
-              :max="4096"
-              placeholder="自动：短边 20%"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">下载格式</label>
-            <NSelect
-              v-model:value="form.format"
-              size="small"
-              :options="formatOptions"
-            />
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 flex-wrap pt-1">
-          <NTag size="tiny" :bordered="false" type="info">
-            {{ form.width }}×{{ form.height }}
-          </NTag>
-          <NTag size="tiny" :bordered="false">
-            字号
-            {{
-              form.fontSize ??
-              Math.floor(Math.min(form.width, form.height) * 0.2)
-            }}
-          </NTag>
-        </div>
-      </section>
-
-      <!-- 预览 -->
-      <section class="glass-panel px-4 py-4 flex flex-col gap-3 min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
-          <h2 class="m-0 text-13px font-600 text-ink">实时预览</h2>
-          <NButton size="tiny" quaternary @click="reloadPreview">
-            <template #icon
-              ><NIcon><RefreshOutline /></NIcon
-            ></template>
-            刷新
-          </NButton>
-          <span class="ml-auto text-11px text-ink-sub">
-            预览始终为后端 SVG；PNG/JPEG 在下载时栅格化
-          </span>
-        </div>
-
-        <div
-          class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/40 dark:bg-black/20 min-h-280px flex items-center justify-center p-4 overflow-hidden"
-        >
-          <img
-            v-if="!previewError"
-            :key="url"
-            :src="url"
-            :alt="`占位图 ${previewSize.width}x${previewSize.height}`"
-            class="max-w-full max-h-360px object-contain rounded-md shadow-sm"
-            @error="previewError = true"
-          />
-          <div v-else class="flex flex-col items-center gap-2 text-center">
-            <NIcon :size="26" class="text-ink-sub"><ImageOutline /></NIcon>
-            <p class="m-0 text-12px text-ink-sub">
-              预览加载失败，请检查尺寸是否在 1~4096 之间
-            </p>
-            <NButton size="tiny" @click="reloadPreview">重试</NButton>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 min-w-0">
-          <NIcon :size="14" class="text-ink-sub shrink-0"
-            ><LinkOutline
-          /></NIcon>
-          <NInput :value="url" size="small" readonly class="font-mono" />
-          <NButton size="small" quaternary @click="copyUrl">
-            <template #icon
-              ><NIcon><CopyOutline /></NIcon
-            ></template>
-          </NButton>
-        </div>
-
-        <p class="m-0 text-10px text-ink-sub">
-          接口：GET /placeholder/:width/:height（query: text / bgColor /
-          textColor / fontFamily / fontWeight / fontSize）。后端仅返回
-          image/svg+xml。
-        </p>
-      </section>
-    </div>
+          <p class="m-0 text-10px text-ink-sub">
+            接口：GET /placeholder/:width/:height（query: text / bgColor /
+            textColor / fontFamily / fontWeight / fontSize）。后端仅返回
+            image/svg+xml。
+          </p>
+        </section>
+      </div>
     </div>
   </div>
 </template>

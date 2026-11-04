@@ -80,8 +80,18 @@ const navEntries = computed<SideItem[]>(() => {
 
 /** 静态工具项：不在路由表里，直接给预览页提供入口 */
 const STATIC_TOOLS: SideItem[] = [
-  { name: 'local-file-preview', title: '本地预览', icon: EyeOutline, group: '工具' },
-  { name: 'external-preview', title: '外部预览', icon: OpenOutline, group: '工具' },
+  {
+    name: 'local-file-preview',
+    title: '本地预览',
+    icon: EyeOutline,
+    group: '工具',
+  },
+  {
+    name: 'external-preview',
+    title: '外部预览',
+    icon: OpenOutline,
+    group: '工具',
+  },
 ];
 
 /** 分组顺序（分组信息来自路由 meta.group，避免菜单与路由漂移） */

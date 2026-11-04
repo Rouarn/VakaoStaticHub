@@ -153,8 +153,10 @@ watch(() => route.fullPath, applyQuery);
     >
       <template #actions>
         <NButton v-if="target" size="small" quaternary @click="clear">
-          <template #icon
-            ><NIcon><CloseOutline /></NIcon>
+          <template #icon>
+            <NIcon>
+              <CloseOutline />
+            </NIcon>
           </template>
           关闭预览
         </NButton>
@@ -171,7 +173,9 @@ watch(() => route.fullPath, applyQuery);
           @keyup.enter="open()"
         >
           <template #prefix>
-            <NIcon :size="15" class="text-ink-sub"><LinkOutline /></NIcon>
+            <NIcon :size="15" class="text-ink-sub">
+              <LinkOutline />
+            </NIcon>
           </template>
         </NInput>
       </div>
@@ -202,13 +206,17 @@ watch(() => route.fullPath, applyQuery);
               quaternary
               circle
             >
-              <template #icon
-                ><NIcon><DownloadOutline /></NIcon>
+              <template #icon>
+                <NIcon>
+                  <DownloadOutline />
+                </NIcon>
               </template>
             </NButton>
             <NButton size="small" quaternary circle @click="clear">
-              <template #icon
-                ><NIcon><CloseOutline /></NIcon>
+              <template #icon>
+                <NIcon>
+                  <CloseOutline />
+                </NIcon>
               </template>
             </NButton>
           </div>
@@ -248,7 +256,7 @@ watch(() => route.fullPath, applyQuery);
   </div>
 
   <!-- 外部：独立整页，不显示页头/输入，只认 URL 参数 -->
-  <div v-else class="fixed inset-0 z-10 overflow-hidden bg-[#0b0b10] text-white">
+  <div v-else class="fixed inset-0 z-10 overflow-hidden text-white">
     <div
       v-if="invalid"
       class="h-full w-full flex flex-col items-center justify-center gap-3 px-6 text-center"

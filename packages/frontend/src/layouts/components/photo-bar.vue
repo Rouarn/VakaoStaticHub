@@ -44,9 +44,14 @@ const photoPath = computed(() =>
     class="shrink-0 flex items-center gap-2 h-8 px-1 text-11px select-none"
   >
     <div class="flex items-center gap-1.5 min-w-0 text-ink-sub">
-      <span class="truncate max-w-24 sm:max-w-40" :title="rootName">{{ rootName }}</span>
+      <span class="truncate max-w-24 sm:max-w-40" :title="rootName">{{
+        rootName
+      }}</span>
       <span class="opacity-40">/</span>
-      <span class="truncate max-w-28 sm:max-w-44" :title="category || '全部分类'">
+      <span
+        class="truncate max-w-28 sm:max-w-44"
+        :title="category || '全部分类'"
+      >
         {{ category || '全部分类' }}
       </span>
     </div>

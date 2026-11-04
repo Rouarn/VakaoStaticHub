@@ -24,7 +24,10 @@ const group = computed(() => route.meta.group ?? '');
     class="glass-panel shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-3 min-h-12 sm:min-h-13 flex-wrap"
   >
     <div class="min-w-0 flex items-baseline gap-2 sm:gap-2.5 flex-wrap">
-      <span v-if="group" class="hidden sm:inline text-11px text-ink-sub shrink-0">
+      <span
+        v-if="group"
+        class="hidden sm:inline text-11px text-ink-sub shrink-0"
+      >
         {{ group }} /
       </span>
       <h1
@@ -32,7 +35,10 @@ const group = computed(() => route.meta.group ?? '');
       >
         {{ title }}
       </h1>
-      <p v-if="description" class="hidden sm:block m-0 text-12px text-ink-sub truncate">
+      <p
+        v-if="description"
+        class="hidden sm:block m-0 text-12px text-ink-sub truncate"
+      >
         {{ description }}
       </p>
     </div>

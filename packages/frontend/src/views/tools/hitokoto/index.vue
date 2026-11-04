@@ -206,233 +206,234 @@ const jsonPreview = computed(() => {
 
     <div class="flex-1 min-h-0 overflow-y-auto pr-1">
       <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_340px] items-start">
-      <div class="flex flex-col gap-4 min-w-0">
-        <!-- 参数面板 -->
-        <section class="glass-panel px-4 py-4 flex flex-col gap-3">
-          <h2 class="m-0 text-13px font-600 text-ink">参数调试</h2>
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub"
-              >分类（不选表示全部分类，参数 c=a|b|c）</label
-            >
-            <NSelect
-              v-model:value="categories"
-              multiple
-              clearable
-              size="small"
-              :options="CATEGORY_OPTIONS"
-              placeholder="全部分类"
-            />
-          </div>
-          <div class="flex items-center gap-3 flex-wrap">
-            <span class="text-11px text-ink-sub">返回编码（encode）</span>
-            <NRadioGroup v-model:value="encode" size="small">
-              <NRadioButton value="json">json（默认）</NRadioButton>
-              <NRadioButton value="text">text（纯文本）</NRadioButton>
-            </NRadioGroup>
-          </div>
-
-          <div class="flex flex-col gap-1">
-            <label class="text-11px text-ink-sub">请求地址</label>
-            <div class="flex items-center gap-2 min-w-0">
-              <NIcon :size="14" class="text-ink-sub shrink-0"
-                ><LinkOutline
-              /></NIcon>
-              <NInput
-                :value="requestUrl"
+        <div class="flex flex-col gap-4 min-w-0">
+          <!-- 参数面板 -->
+          <section class="glass-panel px-4 py-4 flex flex-col gap-3">
+            <h2 class="m-0 text-13px font-600 text-ink">参数调试</h2>
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub"
+                >分类（不选表示全部分类，参数 c=a|b|c）</label
+              >
+              <NSelect
+                v-model:value="categories"
+                multiple
+                clearable
                 size="small"
-                readonly
-                class="font-mono"
+                :options="CATEGORY_OPTIONS"
+                placeholder="全部分类"
               />
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+              <span class="text-11px text-ink-sub">返回编码（encode）</span>
+              <NRadioGroup v-model:value="encode" size="small">
+                <NRadioButton value="json">json（默认）</NRadioButton>
+                <NRadioButton value="text">text（纯文本）</NRadioButton>
+              </NRadioGroup>
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <label class="text-11px text-ink-sub">请求地址</label>
+              <div class="flex items-center gap-2 min-w-0">
+                <NIcon :size="14" class="text-ink-sub shrink-0"
+                  ><LinkOutline
+                /></NIcon>
+                <NInput
+                  :value="requestUrl"
+                  size="small"
+                  readonly
+                  class="font-mono"
+                />
+                <NButton
+                  size="small"
+                  quaternary
+                  @click="copyText(requestUrl, '请求地址已复制')"
+                >
+                  <template #icon
+                    ><NIcon><CopyOutline /></NIcon
+                  ></template>
+                </NButton>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+              <NButton size="small" :loading="loading" @click="send"
+                >请求一言</NButton
+              >
               <NButton
                 size="small"
                 quaternary
                 @click="copyText(requestUrl, '请求地址已复制')"
               >
-                <template #icon
-                  ><NIcon><CopyOutline /></NIcon
-                ></template>
+                复制地址
               </NButton>
             </div>
-          </div>
+          </section>
 
-          <div class="flex items-center gap-2 flex-wrap">
-            <NButton size="small" :loading="loading" @click="send"
-              >请求一言</NButton
-            >
-            <NButton
-              size="small"
-              quaternary
-              @click="copyText(requestUrl, '请求地址已复制')"
-            >
-              复制地址
-            </NButton>
-          </div>
-        </section>
-
-        <!-- 结果 -->
-        <section class="glass-panel px-4 py-4 flex flex-col gap-3">
-          <div class="flex items-center gap-2">
-            <h2 class="m-0 text-13px font-600 text-ink">响应结果</h2>
-            <NTag
-              v-if="encode === 'json' && result"
-              size="tiny"
-              :bordered="false"
-              type="info"
-            >
-              {{ result.type ?? '未标注类型' }}
-            </NTag>
-            <span class="ml-auto text-11px text-ink-sub"
-              >原样透传，不走后端信封</span
-            >
-          </div>
-
-          <NSpin :show="loading">
-            <div
-              v-if="error"
-              class="rounded-xl border border-red-400/40 bg-red-500/5 px-4 py-4 flex flex-col gap-2"
-            >
-              <p class="m-0 text-13px font-600 text-ink">
-                {{ errorKind ? ERROR_LABEL[errorKind] : '请求失败' }}
-              </p>
-              <p class="m-0 text-12px text-ink-sub whitespace-pre-line">
-                {{ error }}
-              </p>
-              <div class="flex items-center gap-2">
-                <NButton size="tiny" @click="send">重试</NButton>
-                <span class="text-10px text-ink-sub">
-                  {{
-                    errorKind === 'proxy-disabled'
-                      ? '后端未启用一言代理（503）：检查 HITOKOTO_API_URL 是否为空或被显式禁用'
-                      : errorKind === 'network'
-                        ? '网络问题：确认后端服务与网络连通，而非代理配置问题'
-                        : '若持续失败，请确认后端代理目标可达'
-                  }}
-                </span>
-              </div>
+          <!-- 结果 -->
+          <section class="glass-panel px-4 py-4 flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+              <h2 class="m-0 text-13px font-600 text-ink">响应结果</h2>
+              <NTag
+                v-if="encode === 'json' && result"
+                size="tiny"
+                :bordered="false"
+                type="info"
+              >
+                {{ result.type ?? '未标注类型' }}
+              </NTag>
+              <span class="ml-auto text-11px text-ink-sub"
+                >原样透传，不走后端信封</span
+              >
             </div>
 
-            <div
-              v-else-if="displaySentence || rawText"
-              class="rounded-2xl bg-gradient-to-br from-brand-500/10 to-brand-300/10 dark:from-brand-700/20 dark:to-brand-900/20 px-6 py-6 flex flex-col gap-3"
-            >
-              <p class="m-0 text-18px leading-7 font-500 text-ink">
-                {{ displaySentence }}
-              </p>
-              <div class="flex items-center gap-2 flex-wrap">
-                <span v-if="displayFrom" class="text-12px text-ink-sub"
-                  >—— {{ displayFrom }}</span
+            <NSpin :show="loading">
+              <div
+                v-if="error"
+                class="rounded-xl border border-red-400/40 bg-red-500/5 px-4 py-4 flex flex-col gap-2"
+              >
+                <p class="m-0 text-13px font-600 text-ink">
+                  {{ errorKind ? ERROR_LABEL[errorKind] : '请求失败' }}
+                </p>
+                <p class="m-0 text-12px text-ink-sub whitespace-pre-line">
+                  {{ error }}
+                </p>
+                <div class="flex items-center gap-2">
+                  <NButton size="tiny" @click="send">重试</NButton>
+                  <span class="text-10px text-ink-sub">
+                    {{
+                      errorKind === 'proxy-disabled'
+                        ? '后端未启用一言代理（503）：检查 HITOKOTO_API_URL 是否为空或被显式禁用'
+                        : errorKind === 'network'
+                          ? '网络问题：确认后端服务与网络连通，而非代理配置问题'
+                          : '若持续失败，请确认后端代理目标可达'
+                    }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                v-else-if="displaySentence || rawText"
+                class="rounded-2xl bg-gradient-to-br from-brand-500/10 to-brand-300/10 dark:from-brand-700/20 dark:to-brand-900/20 px-6 py-6 flex flex-col gap-3"
+              >
+                <p class="m-0 text-18px leading-7 font-500 text-ink">
+                  {{ displaySentence }}
+                </p>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span v-if="displayFrom" class="text-12px text-ink-sub"
+                    >—— {{ displayFrom }}</span
+                  >
+                  <NButton
+                    size="tiny"
+                    quaternary
+                    class="ml-auto"
+                    @click="copyText(displaySentence, '一言已复制')"
+                  >
+                    <template #icon
+                      ><NIcon><CopyOutline /></NIcon
+                    ></template>
+                    复制
+                  </NButton>
+                </div>
+              </div>
+
+              <EmptyState
+                v-else-if="!loading"
+                flat
+                :icon="ChatbubbleOutline"
+                title="还没有请求结果"
+                description="选择分类与编码后点击「请求一言」，响应会展示在这里并写入本地历史。"
+              >
+                <NButton size="small" type="primary" @click="send"
+                  >立即请求</NButton
                 >
+              </EmptyState>
+            </NSpin>
+
+            <div v-if="rawText" class="flex flex-col gap-1.5">
+              <div class="flex items-center gap-2">
+                <p class="m-0 text-12px font-600 text-ink">原始响应</p>
                 <NButton
                   size="tiny"
                   quaternary
                   class="ml-auto"
-                  @click="copyText(displaySentence, '一言已复制')"
+                  @click="copyText(rawText, '原始响应已复制')"
+                >
+                  复制原始响应
+                </NButton>
+              </div>
+              <pre
+                class="m-0 max-h-64 overflow-auto rounded-xl bg-black/4 dark:bg-black/30 border border-glass-border dark:border-glass-border-dark p-3 text-11px leading-5 text-ink-sub font-mono whitespace-pre-wrap break-all"
+                >{{ jsonPreview }}</pre>
+            </div>
+          </section>
+        </div>
+
+        <!-- 历史记录 -->
+        <section class="glass-panel px-4 py-4 flex flex-col gap-3 min-w-0">
+          <div class="flex items-center gap-2">
+            <h2 class="m-0 text-13px font-600 text-ink">历史记录</h2>
+            <NTag size="tiny" :bordered="false">{{ history.length }}</NTag>
+            <NButton
+              v-if="history.length > 0"
+              size="tiny"
+              quaternary
+              class="ml-auto"
+              @click="clearHistory"
+            >
+              <template #icon
+                ><NIcon><TrashOutline /></NIcon
+              ></template>
+              清空
+            </NButton>
+          </div>
+
+          <div
+            v-if="history.length === 0"
+            class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-8 flex flex-col items-center gap-2 text-center"
+          >
+            <NIcon :size="22" class="text-ink-sub"><TimeOutline /></NIcon>
+            <p class="m-0 text-12px text-ink-sub">
+              请求过的一言会保存在本地，最多保留 30 条
+            </p>
+          </div>
+
+          <ul
+            v-else
+            class="m-0 p-0 list-none flex flex-col gap-2 max-h-640px overflow-y-auto pr-1"
+          >
+            <li
+              v-for="(item, index) in history"
+              :key="`${item.at}-${index}`"
+              class="glass-card px-3 py-2.5 flex flex-col gap-1 group"
+            >
+              <p class="m-0 text-12px text-ink leading-5">{{ item.text }}</p>
+              <div
+                class="flex items-center gap-2 text-10px text-ink-sub flex-wrap"
+              >
+                <span v-if="item.from || item.fromWho" class="truncate">
+                  —— {{ item.fromWho ? `${item.fromWho} · ` : ''
+                  }}{{ item.from }}
+                </span>
+                <span class="tabular-nums">{{ formatDateTime(item.at) }}</span>
+                <NButton
+                  size="tiny"
+                  quaternary
+                  class="ml-auto"
+                  @click="copyText(item.text, '历史一言已复制')"
                 >
                   <template #icon
                     ><NIcon><CopyOutline /></NIcon
                   ></template>
-                  复制
                 </NButton>
               </div>
-            </div>
+            </li>
+          </ul>
 
-            <EmptyState
-              v-else-if="!loading"
-              flat
-              :icon="ChatbubbleOutline"
-              title="还没有请求结果"
-              description="选择分类与编码后点击「请求一言」，响应会展示在这里并写入本地历史。"
-            >
-              <NButton size="small" type="primary" @click="send"
-                >立即请求</NButton
-              >
-            </EmptyState>
-          </NSpin>
-
-          <div v-if="rawText" class="flex flex-col gap-1.5">
-            <div class="flex items-center gap-2">
-              <p class="m-0 text-12px font-600 text-ink">原始响应</p>
-              <NButton
-                size="tiny"
-                quaternary
-                class="ml-auto"
-                @click="copyText(rawText, '原始响应已复制')"
-              >
-                复制原始响应
-              </NButton>
-            </div>
-            <pre
-              class="m-0 max-h-64 overflow-auto rounded-xl bg-black/4 dark:bg-black/30 border border-glass-border dark:border-glass-border-dark p-3 text-11px leading-5 text-ink-sub font-mono whitespace-pre-wrap break-all"
-              >{{ jsonPreview }}</pre>
-          </div>
+          <p class="m-0 text-10px text-ink-sub">
+            历史记录仅保存在当前浏览器 localStorage，不会上传服务器。
+          </p>
         </section>
       </div>
-
-      <!-- 历史记录 -->
-      <section class="glass-panel px-4 py-4 flex flex-col gap-3 min-w-0">
-        <div class="flex items-center gap-2">
-          <h2 class="m-0 text-13px font-600 text-ink">历史记录</h2>
-          <NTag size="tiny" :bordered="false">{{ history.length }}</NTag>
-          <NButton
-            v-if="history.length > 0"
-            size="tiny"
-            quaternary
-            class="ml-auto"
-            @click="clearHistory"
-          >
-            <template #icon
-              ><NIcon><TrashOutline /></NIcon
-            ></template>
-            清空
-          </NButton>
-        </div>
-
-        <div
-          v-if="history.length === 0"
-          class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-8 flex flex-col items-center gap-2 text-center"
-        >
-          <NIcon :size="22" class="text-ink-sub"><TimeOutline /></NIcon>
-          <p class="m-0 text-12px text-ink-sub">
-            请求过的一言会保存在本地，最多保留 30 条
-          </p>
-        </div>
-
-        <ul
-          v-else
-          class="m-0 p-0 list-none flex flex-col gap-2 max-h-640px overflow-y-auto pr-1"
-        >
-          <li
-            v-for="(item, index) in history"
-            :key="`${item.at}-${index}`"
-            class="glass-card px-3 py-2.5 flex flex-col gap-1 group"
-          >
-            <p class="m-0 text-12px text-ink leading-5">{{ item.text }}</p>
-            <div
-              class="flex items-center gap-2 text-10px text-ink-sub flex-wrap"
-            >
-              <span v-if="item.from || item.fromWho" class="truncate">
-                —— {{ item.fromWho ? `${item.fromWho} · ` : '' }}{{ item.from }}
-              </span>
-              <span class="tabular-nums">{{ formatDateTime(item.at) }}</span>
-              <NButton
-                size="tiny"
-                quaternary
-                class="ml-auto"
-                @click="copyText(item.text, '历史一言已复制')"
-              >
-                <template #icon
-                  ><NIcon><CopyOutline /></NIcon
-                ></template>
-              </NButton>
-            </div>
-          </li>
-        </ul>
-
-        <p class="m-0 text-10px text-ink-sub">
-          历史记录仅保存在当前浏览器 localStorage，不会上传服务器。
-        </p>
-      </section>
-    </div>
     </div>
   </div>
 </template>
