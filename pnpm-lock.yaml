@@ -12,8 +12,8 @@ importers:
         specifier: ^9.39.5
         version: 9.39.5
       '@vakao-ui/scripts-utils':
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.3
+        version: 0.0.3
       concurrently:
         specifier: ^10.0.6
         version: 10.0.6
@@ -1420,8 +1420,8 @@ packages:
     peerDependencies:
       axios: '>=1.0.0'
 
-  '@vakao-ui/scripts-utils@0.0.2':
-    resolution: {integrity: sha512-4rdfj/Q4cNBp5gSX9muW8umUCPMkZZPsITOOx0BdPtgQOiJdNwJVSjY3pMuEhPZ3eag10xtpcVfZKWuB2RKucA==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao-ui/scripts-utils/-/@vakao-ui/scripts-utils-0.0.2.tgz}
+  '@vakao-ui/scripts-utils@0.0.3':
+    resolution: {integrity: sha512-ss52FJBvLqB8QdZwe8D7MGOB88cwQFIFhGEXYW/phq4t3peOqmUFGQUSX13WoNb8hLgonpT3vlHV9xhWeDbyGg==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao-ui/scripts-utils/-/@vakao-ui/scripts-utils-0.0.3.tgz}
     engines: {node: '>=18'}
 
   '@vicons/ionicons5@0.13.0':
@@ -4701,7 +4701,7 @@ snapshots:
     dependencies:
       axios: 1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
 
-  '@vakao-ui/scripts-utils@0.0.2': {}
+  '@vakao-ui/scripts-utils@0.0.3': {}
 
   '@vicons/ionicons5@0.13.0': {}
 

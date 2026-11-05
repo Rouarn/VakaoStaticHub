@@ -10,5 +10,5 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
-  - '@vakao-ui/scripts-utils@0.0.2'
+  - '@vakao-ui/scripts-utils@0.0.2 || 0.0.3'
   - '@vakao-ui/axios@0.0.2'
