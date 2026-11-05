@@ -1,3 +1,4 @@
+import { exec } from 'node:child_process';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -26,6 +27,21 @@ export default defineConfig({
       types: [{ from: 'vue-router', names: ['RouterLink', 'RouterView'] }],
       resolvers: [NaiveUiResolver()],
     }),
+    // 在 dev server 监听成功后，用 Chrome 打开（而非系统默认浏览器）
+    {
+      name: 'open-chrome-on-dev',
+      configureServer(server) {
+        server.httpServer?.once('listening', () => {
+          const addr = server.httpServer?.address();
+          if (!addr || typeof addr === 'string') return;
+          const host = addr.address === '0.0.0.0' ? 'localhost' : addr.address;
+          //延迟2秒，确保服务器启动完成
+          setTimeout(() => {
+            exec(`open -a "Google Chrome" http://${host}:${addr.port}`);
+          }, 2000);
+        });
+      },
+    },
   ],
   resolve: {
     alias: {
@@ -57,6 +73,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 9867,
+    open: false, // 关闭内置打开行为，改用 listening 事件精确指定 Chrome
     proxy: {
       '/static': { target: 'http://localhost:9865', changeOrigin: true },
       // Swagger UI 页面(/docs)、其静态资源(/docs/*)与 OpenAPI JSON(/docs-json)
