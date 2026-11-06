@@ -216,15 +216,6 @@ export default defineConfig({
           box-shadow: none !important;
         }
 
-        /* API 文档：让 NSpin 内容撑满，目录与详情各自滚动 */
-        .api-docs-spin,
-        .api-docs-spin > .n-spin-content {
-          height: 100%;
-        }
-        .api-docs-pane > * {
-          flex-shrink: 0;
-        }
-
         /* ===== 指标条（原型：共享边框的 4 列指标，而不是 4 张浮卡） ===== */
         .metrics-strip {
           display: grid;

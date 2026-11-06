@@ -104,7 +104,6 @@ packages/client/
     │   ├── audit-logs/index.vue    # 操作审计日志筛选与详情
     │   ├── system-status/index.vue # QPS / 内存 / 存储 / 分享 / 版本 / 24h 升级事件
     │   ├── users/index.vue         # 用户列表、创建、角色、重置密码、删除
-    │   ├── api-docs/index.vue      # API 文档页（菜单隐藏，仅 URL 直达）
     │   └── tools/
     │       ├── placeholder/index.vue # 占位图生成器
     │       └── hitokoto/index.vue    # 一言
@@ -137,7 +136,7 @@ packages/client/
     │   ├── shares.ts                 # 分享列表/创建/编辑/撤销/访问日志/公开信息/解锁/集合
     │   ├── app-update.ts             # 应用/版本/发布/回滚/客户端检查下载上报/漏斗统计
     │   ├── audit-logs.ts / metrics.ts / users.ts
-    │   ├── placeholder.ts / hitokoto.ts / docs.ts
+    │   ├── placeholder.ts / hitokoto.ts
     ├── stores/modules/
     │   ├── auth.ts                   # accessToken / user / 持久化 / clearAuth
     │   ├── app.ts                    # activeRootId 等全局 UI 状态
@@ -176,7 +175,6 @@ packages/client/
 | `/system-status`      | 系统状态     | 是       | QPS、内存、存储、分享、版本、24h 升级事件                 |
 | `/tools/placeholder`  | 占位图生成   | 是       | 可视化配置 + 实时预览                                     |
 | `/tools/hitokoto`     | 一言         | 是       | 随机短句展示                                              |
-| `/api-docs`           | API 文档     | 是       | iframe 嵌入本地 API 文档页（菜单隐藏，仅 URL 直达）       |
 | `/:pathMatch(.*)*`    | 404 兜底     | -        | 重定向 `/files`                                           |
 
 侧边栏只展示 `meta.sidebar: true` 的路由（纯图标 + Tooltip）；`meta.categoryPanel: true` 的路由（当前为 `/files`）才会在布局中渲染第二个分类面板。
@@ -263,7 +261,6 @@ packages/client/
 - **系统状态**：运行时长、60s QPS、内存、存储、活跃分享、版本分布、24h 升级事件，30 秒自动刷新。
 - **用户管理**：列表、创建、角色、重置密码、删除（禁止删除自己且至少保留一个管理员）。
 - **工具**：占位图生成（SVG 参数 + 多格式导出/复制）、一言（经后端代理）。
-- **API 文档**：路由 `sidebar: false`，菜单不展示，仅可通过 URL 直达；新 Go 服务端不再提供 Swagger，该页仅保留入口占位。
 
 ---
 

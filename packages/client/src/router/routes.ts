@@ -13,7 +13,6 @@ import {
   DocumentTextOutline,
   SpeedometerOutline,
   ConstructOutline,
-  CodeSlashOutline,
   ImageOutline,
   ChatbubbleEllipsesOutline,
 } from '@vicons/ionicons5';
@@ -175,18 +174,6 @@ const protectedChildren: RouteRecordRaw[] = [
         meta: { title: '一言', group: '工具', icon: ChatbubbleEllipsesOutline },
       },
     ],
-  },
-  {
-    path: 'api-docs',
-    name: 'api-docs',
-    component: () => import('@/views/api-docs/index.vue'),
-    meta: {
-      // 隐藏入口：页面文件保留，菜单不再展示，仅可通过 URL 直达
-      title: 'API 文档',
-      group: '系统',
-      sidebar: false,
-      icon: CodeSlashOutline,
-    },
   },
   {
     // 内部预览：在 DefaultLayout 内容区，保留输入框，可 URL 直达
