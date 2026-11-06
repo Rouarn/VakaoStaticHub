@@ -11,7 +11,8 @@ import (
 func (s *Store) ListRoots(ctx context.Context) ([]model.ResourceRoot, error) {
 	rows, err := s.Reader.QueryContext(ctx,
 		`SELECT id, name, path, description, sort_order, created_at, updated_at
-		 FROM resource_roots ORDER BY sort_order, name`)
+		 FROM resource_roots
+		 ORDER BY CASE WHEN id = 'default' THEN 0 ELSE 1 END, created_at, rowid`)
 	if err != nil {
 		return nil, err
 	}

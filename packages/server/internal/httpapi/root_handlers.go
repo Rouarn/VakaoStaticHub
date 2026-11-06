@@ -342,7 +342,7 @@ func (s *Server) browseBounds(ctx context.Context) ([]model.BrowseBound, []model
 		seen[real] = struct{}{}
 		bounds = append(bounds, model.BrowseBound{Path: real, Label: item.label, Source: item.source})
 	}
-	sort.SliceStable(shortcuts, func(i, j int) bool { return shortcuts[i].Label < shortcuts[j].Label })
+	// 快捷入口沿用 ListRoots 的顺序（默认根在前，其余按创建时间升序）
 	return bounds, shortcuts, nil
 }
 
