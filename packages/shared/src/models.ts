@@ -118,14 +118,14 @@ export interface BrowseShortcut {
 }
 
 export interface FileItem {
-  /** 文件索引 id，用于拼接内容直链 `/v1/i/{id}` */
+  /** 文件索引 id，仅用于内部标识，不再出现在对外地址里 */
   id: number;
   name: string;
   path: string;
   size: number;
   mtime: number;
-  /** 内容版本（`size-mtimeMs`），拼图片地址时作为缓存版本参数 */
-  version: string;
+  /** 内容短码（sha256 前 12 位），用于拼接内容直链 `/v1/i/{code}` */
+  code: string;
 }
 
 /** 文件管理相关的服务端下发配置 */

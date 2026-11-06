@@ -29,7 +29,7 @@ export interface UsageStatsResult {
 
 /** 重复文件组中的单个文件 */
 export interface DuplicateFileItem {
-  /** 文件索引 id，用于拼接内容直链 `/v1/i/{id}` */
+  /** 文件索引 id，仅用于内部标识 */
   id: number;
   rootId: string;
   category: string;
@@ -37,8 +37,8 @@ export interface DuplicateFileItem {
   name: string;
   size: number;
   mtime: number;
-  /** 内容版本（`size-mtimeMs`），拼图片地址时作为缓存版本参数 */
-  version: string;
+  /** 内容短码（sha256 前 8 位），重复文件共享同一个短码 */
+  code: string;
 }
 
 /** 内容哈希相同的重复文件组 */

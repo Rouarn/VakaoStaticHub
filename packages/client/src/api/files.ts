@@ -25,7 +25,7 @@ interface ServerFileEntry {
   extension: string;
   size: number;
   mtime: string;
-  version: string;
+  code: string;
   contentHash?: string;
   url: string;
 }
@@ -58,7 +58,7 @@ function toFileItem(entry: ServerFileEntry): FileItem {
     path: entry.relPath,
     size: entry.size,
     mtime: new Date(entry.mtime).getTime(),
-    version: entry.version,
+    code: entry.code,
   };
 }
 
@@ -210,7 +210,7 @@ export async function getDuplicateFiles(params: DuplicateFilesQuery = {}) {
         name: string;
         size: number;
         mtime: string;
-        version: string;
+        code: string;
       }>;
     }>
   >('/files/duplicates', {
@@ -231,7 +231,7 @@ export async function getDuplicateFiles(params: DuplicateFilesQuery = {}) {
       name: file.name,
       size: file.size,
       mtime: new Date(file.mtime).getTime(),
-      version: file.version,
+      code: file.code,
     })),
   }));
 

@@ -57,10 +57,10 @@ const extLabel = computed(() =>
   (getExtension(props.file.name) || 'FILE').toUpperCase(),
 );
 const previewUrl = computed(() =>
-  buildFileUrl({ fileId: props.file.id, version: props.file.version }),
+  buildFileUrl({ code: props.file.code }),
 );
 const thumbUrl = computed(() =>
-  buildThumbUrl({ fileId: props.file.id, version: props.file.version }, 480),
+  buildThumbUrl({ code: props.file.code }, 480),
 );
 
 const ICON_BY_KIND: Record<string, Component> = {

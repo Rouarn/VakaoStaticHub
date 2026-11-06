@@ -301,10 +301,9 @@ const previewTargets = ref<PreviewTarget[]>([]);
 function toTarget(file: FileItem): PreviewTarget {
   return {
     filename: file.name,
-    src: buildFileUrl({ fileId: file.id, version: file.version }),
+    src: buildFileUrl({ code: file.code }),
     downloadSrc: buildFileUrl({
-      fileId: file.id,
-      version: file.version,
+      code: file.code,
       download: true,
     }),
     size: file.size,
@@ -328,7 +327,7 @@ function openPreview(file: FileItem) {
 
 // —— 复制直链 ——
 async function copyLink(file: FileItem) {
-  const url = buildFileUrl({ fileId: file.id, version: file.version });
+  const url = buildFileUrl({ code: file.code });
   try {
     await navigator.clipboard.writeText(url);
     message.success('直链已复制');

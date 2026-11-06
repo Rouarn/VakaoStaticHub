@@ -82,7 +82,7 @@ var contractEntries = []ContractEntry{
 	{Route{"POST", "/v1/files/batch-move", User, "批量移动文件到其他分类"}, true},
 	{Route{"PATCH", "/v1/files/rename", User, "重命名单个文件"}, true},
 	{Route{"DELETE", "/v1/files", User, "删除单个文件（rootId、category、path）"}, true},
-	{Route{"GET", "/v1/i/{fileId}", Public, "按 id 读取文件内容或缩略图（Range、w、h、format=jpeg|webp、q、download）"}, true},
+	{Route{"GET", "/v1/i/{code}", Public, "按内容短码读取文件内容或缩略图（Range、w、h、format=jpeg|webp、q、download）"}, true},
 
 	// 上传
 	{Route{"POST", "/v1/files/upload", User, "multipart 表单上传（files[]）"}, true},

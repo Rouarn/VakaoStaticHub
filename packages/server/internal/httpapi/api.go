@@ -190,7 +190,7 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /v1/files/batch-move", s.user(s.handleBatchMove))
 	s.mux.Handle("PATCH /v1/files/rename", s.user(s.handleRenameFile))
 	s.mux.Handle("DELETE /v1/files", s.user(s.handleDeleteFile))
-	s.mux.Handle("GET /v1/i/{fileId}", s.public(s.handleFileContent))
+	s.mux.Handle("GET /v1/i/{code}", s.public(s.handleFileContent))
 	s.mux.Handle("GET /v1/i/photo", s.public(s.handleRandomPhoto))
 	s.mux.Handle("GET /v1/i/placeholder", s.public(s.handlePlaceholder))
 	s.mux.Handle("GET /v1/i/placeholder/{width}/{height}", s.public(s.handlePlaceholder))

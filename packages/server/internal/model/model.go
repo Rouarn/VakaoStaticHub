@@ -32,8 +32,9 @@ type FileEntry struct {
 	Extension string    `json:"extension"`
 	Size      int64     `json:"size"`
 	MTime     time.Time `json:"mtime"`
-	// Version 由 size 与 mtime(毫秒) 拼成，供前端拼图片地址时打破缓存。
-	Version     string    `json:"version"`
+	// Code 是内容短码（sha256 前 12 位），图片地址 `/v1/i/{code}` 用它定位文件；
+	// 短码按记录唯一，内容或路径变化时都会随之变化。
+	Code        string    `json:"code"`
 	ContentHash string    `json:"contentHash,omitempty"`
 	URL         string    `json:"url"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -62,8 +63,8 @@ type DuplicateFile struct {
 	Name     string    `json:"name"`
 	Size     int64     `json:"size"`
 	MTime    time.Time `json:"mtime"`
-	// Version 同 FileEntry.Version，用于前端图片地址做缓存版本。
-	Version string `json:"version"`
+	// Code 同 FileEntry.Code：内容短码，按记录唯一；去重分组仍按完整 sha256。
+	Code string `json:"code"`
 }
 
 type DuplicateGroup struct {

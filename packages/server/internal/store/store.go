@@ -42,6 +42,10 @@ func Open(path string) (*Store, error) {
 		_ = writer.Close()
 		return nil, err
 	}
+	if err := s.ensureShortCodes(context.Background()); err != nil {
+		_ = writer.Close()
+		return nil, err
+	}
 
 	reader, err := sql.Open("sqlite", dsn(path, true))
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -57,7 +58,7 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request, _ *Curr
 		return internalError(err)
 	}
 	for i := range items {
-		items[i].URL = fileContentURL(items[i].ID)
+		items[i].URL = fileContentURL(items[i].Code)
 	}
 	writeJSON(w, model.Page[model.FileEntry]{
 		Items:    items,
@@ -436,7 +437,7 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 		if err != nil {
 			return internalError(err)
 		}
-		entry.URL = fileContentURL(entry.ID)
+		entry.URL = fileContentURL(entry.Code)
 		writeJSON(w, entry)
 		return nil
 	}
@@ -457,7 +458,7 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 	if err != nil {
 		return internalError(err)
 	}
-	entry.URL = fileContentURL(entry.ID)
+	entry.URL = fileContentURL(entry.Code)
 	s.audit(r, user, "file.rename", "file", root.ID+"/"+category+"/"+targetRel,
 		map[string]any{"from": rel})
 	writeJSON(w, entry)
@@ -496,15 +497,15 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, user *
 	return nil
 }
 
+// shortCodePattern 限定内容短码的形态：sha256 前 12 位十六进制字符。
+var shortCodePattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
+
 func (s *Server) handleFileContent(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
-	id, err := parseInt64(pathValue(r, "fileId"), "文件 id")
-	if err != nil {
-		return err
+	code := strings.ToLower(strings.TrimSpace(pathValue(r, "code")))
+	if !shortCodePattern.MatchString(code) {
+		return notFound("文件不存在")
 	}
-	if id <= 0 {
-		return badRequest("文件 id 无效")
-	}
-	entry, err := s.store.FileByID(r.Context(), id)
+	entry, err := s.store.FileByShortCode(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return notFound("文件不存在")
@@ -676,8 +677,8 @@ func isEmptyDir(path string) bool {
 	return true
 }
 
-func fileContentURL(id int64) string {
-	return "/v1/i/" + strconv.FormatInt(id, 10)
+func fileContentURL(code string) string {
+	return "/v1/i/" + code
 }
 
 func serveOriginal(w http.ResponseWriter, r *http.Request, path string, info os.FileInfo, download bool) error {
@@ -689,7 +690,8 @@ func serveOriginal(w http.ResponseWriter, r *http.Request, path string, info os.
 
 	header := w.Header()
 	header.Set("ETag", `W/"`+strconv.FormatInt(info.Size(), 10)+`-`+strconv.FormatInt(info.ModTime().UnixMilli(), 10)+`"`)
-	header.Set("Cache-Control", "public, max-age=3600")
+	// 地址与内容短码绑定：内容变化即换地址，可按内容不可变长期缓存。
+	header.Set("Cache-Control", "public, max-age=31536000, immutable")
 	header.Set("Content-Disposition", contentDisposition(info.Name(), download))
 	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(info.Name())), ".")
 	if extension == "html" || extension == "htm" || extension == "svg" {
@@ -714,9 +716,8 @@ func serveThumbnail(w http.ResponseWriter, r *http.Request, result media.Result)
 	header := w.Header()
 	header.Set("Content-Type", result.ContentType)
 	header.Set("ETag", result.ETag)
-	// 缩略图 URL 带 v 版本参数后可安全缓存，但 id 复用/重建后的
-	// 旧地址仍可能命中，这里把 TTL 控制在 1 小时以缩短错位窗口。
-	header.Set("Cache-Control", "public, max-age=3600")
+	// 缩略图地址由内容短码构成，内容变化即换地址，可按内容不可变长期缓存。
+	header.Set("Cache-Control", "public, max-age=31536000, immutable")
 	header.Set("Content-Disposition", "inline")
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }

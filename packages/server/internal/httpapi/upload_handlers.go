@@ -127,7 +127,7 @@ func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot
 	if err != nil {
 		return model.FileEntry{}, errors.New("文件已保存，但索引更新失败")
 	}
-	entry.URL = fileContentURL(entry.ID)
+	entry.URL = fileContentURL(entry.Code)
 	return entry, nil
 }
 
@@ -284,7 +284,7 @@ func (s *Server) handleCompleteChunk(w http.ResponseWriter, r *http.Request, use
 		return internalError(err)
 	}
 	_ = s.uploads.Remove(id)
-	entry.URL = fileContentURL(entry.ID)
+	entry.URL = fileContentURL(entry.Code)
 	writeJSON(w, entry)
 	s.audit(r, user, "file.upload", "file", entry.RelPath, map[string]any{
 		"rootId": root.ID, "category": session.Category, "size": size,

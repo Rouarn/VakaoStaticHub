@@ -37,29 +37,17 @@ export function getApiBaseUrl(): string {
 }
 
 export interface FileUrlParams {
-  /** 文件索引 id（列表 / 上传响应中的 id） */
-  fileId: number | string;
-  /**
-   * 内容版本（`size-mtimeMs`）。索引重建导致 id 指向别的文件、
-   * 或同一路径文件被替换时，带 v 的地址必然变化，旧缓存不会命中。
-   */
-  version?: string;
+  /** 内容短码（sha256 前 12 位），由后端随文件返回 */
+  code: string;
   /** true 时追加 `download=1`，强制浏览器下载 */
   download?: boolean;
 }
 
-/** 文件直链：`<origin>/v1/i/<fileId>[?download=1][&v=<version>]` */
-export function buildFileUrl({
-  fileId,
-  version,
-  download,
-}: FileUrlParams): string {
-  const id = encodeURIComponent(String(fileId));
-  const query: string[] = [];
-  if (download) query.push('download=1');
-  if (version) query.push(`v=${encodeURIComponent(version)}`);
-  const qs = query.length > 0 ? `?${query.join('&')}` : '';
-  return `${getApiOrigin()}${API_PREFIX}/i/${id}${qs}`;
+/** 文件直链：`<origin>/v1/i/<code>[?download=1]` */
+export function buildFileUrl({ code, download }: FileUrlParams): string {
+  const encoded = encodeURIComponent(code);
+  const qs = download ? '?download=1' : '';
+  return `${getApiOrigin()}${API_PREFIX}/i/${encoded}${qs}`;
 }
 
 /** 图片缩略图：文件直链 + 后端缩放参数，默认输出 JPEG */
@@ -127,16 +115,14 @@ export function toAbsoluteUrl(pathname: string): string {
   return `${window.location.origin}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
 }
 
-/** 独立预览页地址：`/file-preview?id=<fileId>&name=<原文件名>`，文件名用于判定预览类型 */
+/** 独立预览页地址：`/file-preview?code=<code>&name=<原文件名>`，文件名用于判定预览类型 */
 export function buildFilePreviewPageUrl({
-  fileId,
+  code,
   name,
   download,
-  version,
 }: FileUrlParams & { name?: string }): string {
-  const query = new URLSearchParams({ id: String(fileId) });
+  const query = new URLSearchParams({ code });
   if (name) query.set('name', name);
   if (download) query.set('download', '1');
-  if (version) query.set('v', version);
   return `${window.location.origin}/file-preview?${query.toString()}`;
 }

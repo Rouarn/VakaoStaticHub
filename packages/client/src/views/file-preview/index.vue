@@ -119,15 +119,14 @@ function applyQuery() {
     return;
   }
 
-  const { id, name, v } = route.query;
-  if (typeof id === 'string' && id) {
-    const version = typeof v === 'string' && v ? v : undefined;
-    const src = buildFileUrl({ fileId: id, version });
+  const { code, name } = route.query;
+  if (typeof code === 'string' && code) {
+    const src = buildFileUrl({ code });
     if (isInternal.value) url.value = src;
     setTarget(
       src,
-      buildFileUrl({ fileId: id, version, download: true }),
-      typeof name === 'string' && name ? name : `file-${id}`,
+      buildFileUrl({ code, download: true }),
+      typeof name === 'string' && name ? name : `file-${code}`,
     );
   }
 }
