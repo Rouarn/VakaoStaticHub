@@ -145,8 +145,8 @@ watch(() => route.fullPath, applyQuery);
 </script>
 
 <template>
-  <!-- 内部：DefaultLayout 内容区，保留输入工具栏 -->
   <div v-if="isInternal" class="h-full flex flex-col gap-3 animate-fade-up">
+    <!-- 内部：DefaultLayout 内容区，保留输入工具栏 -->
     <PageHeader
       title="本地预览"
       description="输入文件地址在内容区直接预览；也支持 ?file= 参数直达"
@@ -255,8 +255,8 @@ watch(() => route.fullPath, applyQuery);
     </section>
   </div>
 
-  <!-- 外部：独立整页，不显示页头/输入，只认 URL 参数 -->
   <div v-else class="fixed inset-0 z-10 overflow-hidden text-white">
+    <!-- 外部：独立整页，不显示页头/输入，只认 URL 参数 -->
     <div
       v-if="invalid"
       class="h-full w-full flex flex-col items-center justify-center gap-3 px-6 text-center"
