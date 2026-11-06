@@ -32,7 +32,7 @@ interface RootCategoryEntry extends CategoryEntry {
 }
 
 /** 同 key 的重复请求在 @vakao-ui/axios 内会被后发请求取消，因此按 rootId 去重 */
-const categoryInflight = new Map<string, Promise<void>>();
+const categoryInflight = new Map<string, Promise<boolean>>();
 let rootsInflight: Promise<void> | null = null;
 
 /** 请求取消（被同 key 请求取代）不是错误，不应污染错误态 */
@@ -78,8 +78,11 @@ export const useCategoryStore = defineStore('category', {
       }
     },
 
-    /** 拉取某个根目录的分类列表 + 计数（并发调用复用同一请求） */
-    async loadCategories(rootId: string, opts: { silent?: boolean } = {}) {
+    /** 拉取某个根目录的分类列表 + 计数（并发调用复用同一请求），返回是否加载成功 */
+    async loadCategories(
+      rootId: string,
+      opts: { silent?: boolean } = {},
+    ): Promise<boolean> {
       const existing = categoryInflight.get(rootId);
       if (existing) return existing;
 
@@ -109,6 +112,7 @@ export const useCategoryStore = defineStore('category', {
               totalSize: counts.get(name)?.totalSize ?? 0,
             })),
           ];
+          return true;
         } catch (e) {
           if (!isCanceled(e)) {
             this.error = getErrorMessage(e, '分类加载失败');
@@ -116,6 +120,7 @@ export const useCategoryStore = defineStore('category', {
               (entry) => entry.rootId !== rootId,
             );
           }
+          return false;
         } finally {
           this.loading = false;
           this.refreshing = false;
@@ -123,7 +128,7 @@ export const useCategoryStore = defineStore('category', {
       })();
       categoryInflight.set(rootId, task);
       try {
-        await task;
+        return await task;
       } finally {
         categoryInflight.delete(rootId);
       }
@@ -154,11 +159,15 @@ export const useCategoryStore = defineStore('category', {
         return false;
       }
 
-      if (this.categoriesOf(saved.rootId).length === 0) {
-        await this.loadCategories(saved.rootId);
-      }
+      let loaded = this.categoriesOf(saved.rootId).length > 0;
+      if (!loaded) loaded = await this.loadCategories(saved.rootId);
       const list = this.categoriesOf(saved.rootId);
-      if (list.length === 0) return false;
+      if (list.length === 0) {
+        // 接口成功返回空列表说明记录已确定失效，直接清掉；
+        // 加载失败时保留记录，等下次进入页面再判断
+        if (loaded) app.setActiveCategory(null);
+        return false;
+      }
       if (!list.some((entry) => entry.name === saved.category)) {
         app.setActiveCategory(null);
         return false;
