@@ -363,9 +363,12 @@ onMounted(async () => {
               : '选择根目录后点击「重新扫描」开始检测。'
           "
         >
-          <NButton size="small" :loading="refreshing" @click="rescan"
-            >重新扫描</NButton
-          >
+          <RefreshButton
+            text="重新扫描"
+            :loading="refreshing"
+            :success="justRefreshed"
+            @click="rescan"
+          />
         </EmptyState>
 
         <div v-else class="flex flex-col gap-4">
