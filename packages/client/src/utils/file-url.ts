@@ -76,20 +76,27 @@ export function buildThumbUrl(params: FileUrlParams, size = 320): string {
 }
 
 /**
- * 随机图片窗口地址：`<origin>/api/v1/public/photo?rootId=..&category=..`
+ * 随机图片地址：`<origin>/api/v1/public/photo?rootId=..&category=..`
  *
- * 按根目录 / 分类随机返回一张图片（302 跳转到文件直链）。
+ * 后端直接从随机池返回图片字节流；省略 rootId / category
+ * 时范围依次扩大到「整个根目录」「全部分类」。
+ * `cacheBust` 只用于打破浏览器缓存，不参与后端过滤。
  */
 export function buildRandomPhotoUrl({
   rootId,
   category,
+  cacheBust,
 }: {
-  rootId: string;
+  rootId?: string | null;
   category?: string | null;
+  cacheBust?: string | number;
 }): string {
-  const query = new URLSearchParams({ rootId });
+  const query = new URLSearchParams();
+  if (rootId) query.set('rootId', rootId);
   if (category) query.set('category', category);
-  return `${getApiBaseUrl()}/public/photo?${query.toString()}`;
+  if (cacheBust !== undefined) query.set('_t', String(cacheBust));
+  const suffix = query.toString();
+  return `${getApiBaseUrl()}/public/photo${suffix ? `?${suffix}` : ''}`;
 }
 
 /** 分享页地址（前端路由，不是后端接口） */
