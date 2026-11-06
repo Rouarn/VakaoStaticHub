@@ -1119,15 +1119,23 @@ onMounted(async () => {
               >
                 当前分类没有文件，请先在文件库上传
               </div>
-              <label
+              <div
                 v-for="file in fileItems"
                 v-else
                 :key="file.path"
-                class="flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-glass-border/50 dark:border-glass-border-dark/50 last:border-b-0 hover:bg-brand-500/6"
+                role="checkbox"
+                :aria-checked="selectedPaths.includes(file.path)"
+                tabindex="0"
+                class="flex items-center gap-2 px-3 py-2.5 min-h-11 cursor-pointer border-b border-glass-border/50 dark:border-glass-border-dark/50 last:border-b-0 hover:bg-brand-500/6 focus-visible:outline-none focus-visible:bg-brand-500/10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500/40 select-none"
+                @click="togglePath(file.path)"
+                @keydown.space.prevent="togglePath(file.path)"
+                @keydown.enter.prevent="togglePath(file.path)"
               >
                 <NCheckbox
+                  class="pointer-events-none"
                   :checked="selectedPaths.includes(file.path)"
-                  @update:checked="togglePath(file.path)"
+                  :focusable="false"
+                  aria-hidden="true"
                 />
                 <span class="min-w-0 flex-1">
                   <span
@@ -1140,7 +1148,7 @@ onMounted(async () => {
                     {{ formatBytes(file.size) }} · {{ formatTime(file.mtime) }}
                   </span>
                 </span>
-              </label>
+              </div>
             </div>
             <ListLoading :show="filesLoading" :text="filesLoadingText" />
           </div>
