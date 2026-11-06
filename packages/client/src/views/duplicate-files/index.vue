@@ -365,6 +365,7 @@ onMounted(async () => {
         >
           <RefreshButton
             text="重新扫描"
+            :quaternary="false"
             :loading="refreshing"
             :success="justRefreshed"
             @click="rescan"

@@ -205,9 +205,14 @@ onMounted(() => void load());
           title="还没有可统计的资源"
           description="资源根目录为空，上传文件后这里会显示各根目录与分类的容量占用。"
         >
-          <NButton size="small" type="primary" @click="load()"
-            >重新统计</NButton
-          >
+          <RefreshButton
+            text="重新统计"
+            type="primary"
+            :quaternary="false"
+            :loading="refreshing"
+            :success="justRefreshed"
+            @click="refreshStats"
+          />
         </EmptyState>
 
         <div v-else-if="data" class="flex flex-col gap-4">

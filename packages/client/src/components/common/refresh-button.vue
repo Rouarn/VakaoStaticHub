@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { NButton, NIcon } from 'naive-ui';
+import type { ButtonProps } from 'naive-ui';
 import { CheckmarkOutline, RefreshOutline } from '@vicons/ionicons5';
 
 /**
@@ -16,15 +17,27 @@ withDefaults(
     success?: boolean;
     text?: string;
     quaternary?: boolean;
+    type?: ButtonProps['type'];
   }>(),
-  { loading: false, success: false, text: '刷新', quaternary: true },
+  {
+    loading: false,
+    success: false,
+    text: '刷新',
+    quaternary: true,
+    type: undefined,
+  },
 );
 
 const emit = defineEmits<{ click: [] }>();
 </script>
 
 <template>
-  <NButton size="small" :quaternary="quaternary" @click="emit('click')">
+  <NButton
+    size="small"
+    :quaternary="quaternary"
+    :type="type"
+    @click="emit('click')"
+  >
     <template #icon>
       <NIcon v-if="success && !loading"><CheckmarkOutline /></NIcon>
       <NIcon v-else :class="{ 'refresh-spin': loading }">

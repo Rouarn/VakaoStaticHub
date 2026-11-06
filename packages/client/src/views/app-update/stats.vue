@@ -125,6 +125,20 @@ async function refreshStats() {
   );
 }
 
+/** 空态「扩大到 90 天」：同样走刷新反馈，不用遮罩 */
+async function expandTo90() {
+  range.value = [Date.now() - 90 * 86_400_000, Date.now()];
+  await refresh(async () => {
+    error.value = '';
+    try {
+      await fetchStats();
+    } catch (e) {
+      error.value = getErrorMessage(e, '漏斗统计加载失败');
+      throw e;
+    }
+  }, '漏斗统计刷新失败');
+}
+
 const sum = (key: keyof FunnelStatItem) =>
   data.value.items.reduce((total, item) => {
     const value = item[key];
@@ -261,12 +275,22 @@ onMounted(async () => {
               : '换一个时间范围，或确认客户端已上报 check / download / install 事件。'
           "
         >
-          <NButton v-if="!appKey" size="small" @click="loadApps()"
-            >刷新应用列表</NButton
-          >
-          <NButton v-else size="small" @click="applyPreset(90)"
-            >扩大到 90 天</NButton
-          >
+          <RefreshButton
+            v-if="!appKey"
+            text="刷新应用列表"
+            :quaternary="false"
+            :loading="refreshing"
+            :success="justRefreshed"
+            @click="refreshStats"
+          />
+          <RefreshButton
+            v-else
+            text="扩大到 90 天"
+            :quaternary="false"
+            :loading="refreshing"
+            :success="justRefreshed"
+            @click="expandTo90"
+          />
         </EmptyState>
 
         <div v-else class="flex flex-col gap-4">
