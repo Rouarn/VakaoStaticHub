@@ -1,6 +1,6 @@
 {
   "name": "vakao-static-hub",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "scripts": {
     "bootstrap": "pnpm install && go -C packages/server mod download",
