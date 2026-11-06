@@ -29,6 +29,23 @@ type FileFilter struct {
 	PageSize int
 }
 
+const (
+	// DefaultRootID 是默认资源根目录的固定 id。
+	DefaultRootID = "default"
+	// PackageCategoryName 是默认根下承载 APP 安装包的目录名。
+	// 它同时是独立的资源根（software-update），默认根下不再重复展示。
+	PackageCategoryName = "software-update"
+)
+
+// hidePackageCategory 返回默认根下隐藏软件包分类的 SQL 条件与参数。
+// 其他根目录不受影响。
+func hidePackageCategory(rootID string) (string, []any) {
+	if rootID == DefaultRootID {
+		return "category <> ?", []any{PackageCategoryName}
+	}
+	return "", nil
+}
+
 var fileSortColumns = map[string]string{
 	"name":    "name",
 	"size":    "size",
@@ -39,6 +56,10 @@ var fileSortColumns = map[string]string{
 func (s *Store) ListFiles(ctx context.Context, filter FileFilter) ([]model.FileEntry, int, error) {
 	where := []string{"root_id = ?"}
 	args := []any{filter.RootID}
+	if clause, clauseArgs := hidePackageCategory(filter.RootID); clause != "" {
+		where = append(where, clause)
+		args = append(args, clauseArgs...)
+	}
 	if filter.Category != "" {
 		where = append(where, "category = ?")
 		args = append(args, filter.Category)
@@ -290,9 +311,15 @@ func (s *Store) DeleteRootEntries(ctx context.Context, rootID string) error {
 }
 
 func (s *Store) CategoryStats(ctx context.Context, rootID string) ([]model.CategoryInfo, error) {
-	rows, err := s.Reader.QueryContext(ctx,
-		`SELECT category, COUNT(1), COALESCE(SUM(size), 0)
-		 FROM file_entries WHERE root_id = ? GROUP BY category ORDER BY category`, rootID)
+	query := `SELECT category, COUNT(1), COALESCE(SUM(size), 0)
+		 FROM file_entries WHERE root_id = ?`
+	args := []any{rootID}
+	if clause, clauseArgs := hidePackageCategory(rootID); clause != "" {
+		query += " AND " + clause
+		args = append(args, clauseArgs...)
+	}
+	query += " GROUP BY category ORDER BY category"
+	rows, err := s.Reader.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -313,8 +340,9 @@ func (s *Store) StorageStats(ctx context.Context) ([]model.StorageStat, error) {
 	rows, err := s.Reader.QueryContext(ctx,
 		`SELECT f.root_id, COALESCE(r.name, f.root_id), f.category, COUNT(1), COALESCE(SUM(f.size), 0)
 		 FROM file_entries f LEFT JOIN resource_roots r ON r.id = f.root_id
+		 WHERE NOT (f.root_id = ? AND f.category = ?)
 		 GROUP BY f.root_id, f.category
-		 ORDER BY f.root_id, f.category`)
+		 ORDER BY f.root_id, f.category`, DefaultRootID, PackageCategoryName)
 	if err != nil {
 		return nil, err
 	}
@@ -332,8 +360,8 @@ func (s *Store) StorageStats(ctx context.Context) ([]model.StorageStat, error) {
 }
 
 func (s *Store) DuplicateGroups(ctx context.Context, rootID string, page, pageSize int) ([]model.DuplicateGroup, int, error) {
-	where := "content_hash <> ''"
-	args := []any{}
+	where := "content_hash <> '' AND NOT (root_id = ? AND category = ?)"
+	args := []any{DefaultRootID, PackageCategoryName}
 	if rootID != "" {
 		where += " AND root_id = ?"
 		args = append(args, rootID)
@@ -381,8 +409,10 @@ func (s *Store) DuplicateGroups(ctx context.Context, rootID string, page, pageSi
 func (s *Store) duplicateFiles(ctx context.Context, hash string, size int64) ([]model.DuplicateFile, error) {
 	rows, err := s.Reader.QueryContext(ctx,
 		`SELECT id, root_id, category, rel_path, name, size, mtime_ms
-		 FROM file_entries WHERE content_hash = ? AND size = ? ORDER BY root_id, category, rel_path`,
-		hash, size)
+		 FROM file_entries
+		 WHERE content_hash = ? AND size = ? AND NOT (root_id = ? AND category = ?)
+		 ORDER BY root_id, category, rel_path`,
+		hash, size, DefaultRootID, PackageCategoryName)
 	if err != nil {
 		return nil, err
 	}

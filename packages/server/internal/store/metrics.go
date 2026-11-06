@@ -12,8 +12,10 @@ func (s *Store) StorageTotals(ctx context.Context) (int, int64, error) {
 		count int
 		size  int64
 	)
+	// software-update 同时被默认根与独立根索引，统计时只保留独立根的一份
 	err := s.Reader.QueryRowContext(ctx,
-		"SELECT COUNT(1), COALESCE(SUM(size), 0) FROM file_entries").Scan(&count, &size)
+		`SELECT COUNT(1), COALESCE(SUM(size), 0) FROM file_entries
+		 WHERE NOT (root_id = ? AND category = ?)`, DefaultRootID, PackageCategoryName).Scan(&count, &size)
 	return count, size, err
 }
 
@@ -23,8 +25,11 @@ func (s *Store) RootMetrics(ctx context.Context) ([]model.RootMetrics, error) {
 		`SELECT r.id, r.name,
 		        COALESCE(COUNT(f.id), 0), COALESCE(SUM(f.size), 0)
 		 FROM resource_roots r
-		 LEFT JOIN file_entries f ON f.root_id = r.id
-		 GROUP BY r.id, r.name ORDER BY r.sort_order, r.id`)
+		 LEFT JOIN file_entries f
+		   ON f.root_id = r.id AND NOT (r.id = ? AND f.category = ?)
+		 GROUP BY r.id, r.name
+		 ORDER BY CASE WHEN r.id = 'default' THEN 0 ELSE 1 END, r.created_at, r.rowid`,
+		DefaultRootID, PackageCategoryName)
 	if err != nil {
 		return nil, err
 	}

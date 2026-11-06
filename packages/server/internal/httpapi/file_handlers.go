@@ -95,6 +95,10 @@ func (s *Server) handleListCategories(w http.ResponseWriter, r *http.Request, _ 
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
+		// software-update 是独立的资源根，默认根下不重复展示为分类
+		if rootID == store.DefaultRootID && entry.Name() == store.PackageCategoryName {
+			continue
+		}
 		name := entry.Name()
 		seen[name] = struct{}{}
 		if stat, ok := byName[name]; ok {
