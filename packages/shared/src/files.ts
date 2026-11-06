@@ -37,6 +37,8 @@ export interface DuplicateFileItem {
   name: string;
   size: number;
   mtime: number;
+  /** 内容版本（`size-mtimeMs`），拼图片地址时作为缓存版本参数 */
+  version: string;
 }
 
 /** 内容哈希相同的重复文件组 */

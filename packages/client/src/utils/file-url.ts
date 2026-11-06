@@ -39,14 +39,27 @@ export function getApiBaseUrl(): string {
 export interface FileUrlParams {
   /** 文件索引 id（列表 / 上传响应中的 id） */
   fileId: number | string;
-  /** true 时追加 `?download=1`，强制浏览器下载 */
+  /**
+   * 内容版本（`size-mtimeMs`）。索引重建导致 id 指向别的文件、
+   * 或同一路径文件被替换时，带 v 的地址必然变化，旧缓存不会命中。
+   */
+  version?: string;
+  /** true 时追加 `download=1`，强制浏览器下载 */
   download?: boolean;
 }
 
-/** 文件直链：`<origin>/v1/i/<fileId>` */
-export function buildFileUrl({ fileId, download }: FileUrlParams): string {
+/** 文件直链：`<origin>/v1/i/<fileId>[?download=1][&v=<version>]` */
+export function buildFileUrl({
+  fileId,
+  version,
+  download,
+}: FileUrlParams): string {
   const id = encodeURIComponent(String(fileId));
-  return `${getApiOrigin()}${API_PREFIX}/i/${id}${download ? '?download=1' : ''}`;
+  const query: string[] = [];
+  if (download) query.push('download=1');
+  if (version) query.push(`v=${encodeURIComponent(version)}`);
+  const qs = query.length > 0 ? `?${query.join('&')}` : '';
+  return `${getApiOrigin()}${API_PREFIX}/i/${id}${qs}`;
 }
 
 /** 图片缩略图：文件直链 + 后端缩放参数，默认输出 JPEG */
@@ -119,9 +132,11 @@ export function buildFilePreviewPageUrl({
   fileId,
   name,
   download,
+  version,
 }: FileUrlParams & { name?: string }): string {
   const query = new URLSearchParams({ id: String(fileId) });
   if (name) query.set('name', name);
   if (download) query.set('download', '1');
+  if (version) query.set('v', version);
   return `${window.location.origin}/file-preview?${query.toString()}`;
 }

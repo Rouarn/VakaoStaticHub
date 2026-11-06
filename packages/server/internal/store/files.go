@@ -4,10 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"vakao-static-hub/server/internal/model"
 )
+
+// fileVersion 用文件大小与修改时间（毫秒）拼出缓存版本串，
+// 文件被替换或索引重新分配 id 时前端图片地址都会随之变化。
+func fileVersion(size, mtimeMS int64) string {
+	return fmt.Sprintf("%d-%d", size, mtimeMS)
+}
 
 // FileMeta 是判断文件在索引扫描时是否需要
 // 重新计算哈希所需的最小记录。
@@ -144,6 +151,7 @@ func scanFileEntry(row rowScanner) (model.FileEntry, error) {
 		return model.FileEntry{}, err
 	}
 	entry.MTime = Time(mtimeMS)
+	entry.Version = fileVersion(entry.Size, mtimeMS)
 	entry.CreatedAt = Time(createdAt)
 	entry.UpdatedAt = Time(updatedAt)
 	return entry, nil
@@ -428,6 +436,7 @@ func (s *Store) duplicateFiles(ctx context.Context, hash string, size int64) ([]
 			return nil, err
 		}
 		file.MTime = Time(mtimeMS)
+		file.Version = fileVersion(file.Size, mtimeMS)
 		files = append(files, file)
 	}
 	return files, rows.Err()

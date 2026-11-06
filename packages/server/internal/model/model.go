@@ -24,14 +24,16 @@ type ResourceRoot struct {
 }
 
 type FileEntry struct {
-	ID          int64     `json:"id"`
-	RootID      string    `json:"rootId"`
-	Category    string    `json:"category"`
-	RelPath     string    `json:"relPath"`
-	Name        string    `json:"name"`
-	Extension   string    `json:"extension"`
-	Size        int64     `json:"size"`
-	MTime       time.Time `json:"mtime"`
+	ID        int64     `json:"id"`
+	RootID    string    `json:"rootId"`
+	Category  string    `json:"category"`
+	RelPath   string    `json:"relPath"`
+	Name      string    `json:"name"`
+	Extension string    `json:"extension"`
+	Size      int64     `json:"size"`
+	MTime     time.Time `json:"mtime"`
+	// Version 由 size 与 mtime(毫秒) 拼成，供前端拼图片地址时打破缓存。
+	Version     string    `json:"version"`
 	ContentHash string    `json:"contentHash,omitempty"`
 	URL         string    `json:"url"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -60,6 +62,8 @@ type DuplicateFile struct {
 	Name     string    `json:"name"`
 	Size     int64     `json:"size"`
 	MTime    time.Time `json:"mtime"`
+	// Version 同 FileEntry.Version，用于前端图片地址做缓存版本。
+	Version string `json:"version"`
 }
 
 type DuplicateGroup struct {

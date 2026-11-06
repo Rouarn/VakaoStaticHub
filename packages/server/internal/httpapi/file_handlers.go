@@ -714,7 +714,9 @@ func serveThumbnail(w http.ResponseWriter, r *http.Request, result media.Result)
 	header := w.Header()
 	header.Set("Content-Type", result.ContentType)
 	header.Set("ETag", result.ETag)
-	header.Set("Cache-Control", "public, max-age=86400")
+	// 缩略图 URL 带 v 版本参数后可安全缓存，但 id 复用/重建后的
+	// 旧地址仍可能命中，这里把 TTL 控制在 1 小时以缩短错位窗口。
+	header.Set("Cache-Control", "public, max-age=3600")
 	header.Set("Content-Disposition", "inline")
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }

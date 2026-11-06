@@ -56,9 +56,11 @@ const kind = computed(() => getFileKind(props.file.name));
 const extLabel = computed(() =>
   (getExtension(props.file.name) || 'FILE').toUpperCase(),
 );
-const previewUrl = computed(() => buildFileUrl({ fileId: props.file.id }));
+const previewUrl = computed(() =>
+  buildFileUrl({ fileId: props.file.id, version: props.file.version }),
+);
 const thumbUrl = computed(() =>
-  buildThumbUrl({ fileId: props.file.id }, 480),
+  buildThumbUrl({ fileId: props.file.id, version: props.file.version }, 480),
 );
 
 const ICON_BY_KIND: Record<string, Component> = {

@@ -124,6 +124,8 @@ export interface FileItem {
   path: string;
   size: number;
   mtime: number;
+  /** 内容版本（`size-mtimeMs`），拼图片地址时作为缓存版本参数 */
+  version: string;
 }
 
 /** 文件管理相关的服务端下发配置 */

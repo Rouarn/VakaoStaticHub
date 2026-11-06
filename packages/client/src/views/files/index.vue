@@ -121,6 +121,8 @@ const viewMode = ref<'grid' | 'list'>('grid');
 const loading = ref(false);
 const error = ref('');
 const selected = ref<Set<string>>(new Set());
+/** 内容区滚动容器：翻页后回到顶部 */
+const scrollRef = ref<HTMLElement | null>(null);
 
 const sortOptions = [
   { label: '修改时间', value: 'mtime' },
@@ -238,7 +240,16 @@ watch(category, () => {
   scheduleLoad();
 });
 
-watch([page, pageSize, sort, order], () => scheduleLoad());
+watch([page, pageSize, sort, order], () => {
+  // 先清空当前页再发请求：否则页码已经变了、列表还是上一页，
+  // 快速翻页时会长时间看到「页码与内容不一致」。
+  items.value = [];
+  selected.value = new Set();
+  error.value = '';
+  loading.value = true;
+  scrollRef.value?.scrollTo({ top: 0 });
+  scheduleLoad();
+});
 
 // 当前根目录扫描结束（成功或失败）后自动刷新一次列表
 watch(
@@ -290,8 +301,12 @@ const previewTargets = ref<PreviewTarget[]>([]);
 function toTarget(file: FileItem): PreviewTarget {
   return {
     filename: file.name,
-    src: buildFileUrl({ fileId: file.id }),
-    downloadSrc: buildFileUrl({ fileId: file.id, download: true }),
+    src: buildFileUrl({ fileId: file.id, version: file.version }),
+    downloadSrc: buildFileUrl({
+      fileId: file.id,
+      version: file.version,
+      download: true,
+    }),
     size: file.size,
   };
 }
@@ -313,7 +328,7 @@ function openPreview(file: FileItem) {
 
 // —— 复制直链 ——
 async function copyLink(file: FileItem) {
-  const url = buildFileUrl({ fileId: file.id });
+  const url = buildFileUrl({ fileId: file.id, version: file.version });
   try {
     await navigator.clipboard.writeText(url);
     message.success('直链已复制');
@@ -642,7 +657,7 @@ function onShareCreated(link: ShareLink) {
     </div>
 
     <!-- 内容区 -->
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
+    <div ref="scrollRef" class="flex-1 min-h-0 overflow-y-auto pr-1">
       <NSpin :show="loading">
         <div v-if="error" class="glass-panel px-6 py-10 text-center">
           <p class="m-0 text-13px text-ink-sub">{{ error }}</p>
@@ -734,6 +749,7 @@ function onShareCreated(link: ShareLink) {
         v-model:page-size="pageSize"
         :item-count="total"
         :page-sizes="[24, 48, 96, 200]"
+        :disabled="loading"
         show-size-picker
       />
     </footer>
