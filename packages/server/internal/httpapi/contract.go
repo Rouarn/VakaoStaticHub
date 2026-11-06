@@ -129,6 +129,6 @@ var contractEntries = []ContractEntry{
 
 	// 杂项公开辅助接口
 	{Route{"GET", "/api/v1/public/hitokoto", Public, "proxied one-line quote"}, true},
-	{Route{"GET", "/api/v1/public/photo", Public, "random image from the photo root"}, true},
+	{Route{"GET", "/api/v1/public/photo", Public, "random image bytes (rootId, category, w, h, format, q)"}, true},
 	{Route{"GET", "/api/v1/public/placeholder", Public, "generated SVG placeholder"}, true},
 }

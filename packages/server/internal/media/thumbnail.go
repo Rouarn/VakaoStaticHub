@@ -64,6 +64,9 @@ type Request struct {
 	Height   int
 	Quality  int
 	Format   string // "webp" 或 "jpeg"（默认 jpeg）
+	// Cover 为 true 时裁剪填满目标尺寸（旧版随机图语义），
+	// 否则按比例缩放到尺寸范围内。
+	Cover bool
 }
 
 type Result struct {
@@ -96,8 +99,8 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 		quality = 95
 	}
 
-	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%d|%d|%d|%d|%s",
-		req.CacheKey, info.Size(), info.ModTime().UnixMilli(), width, height, quality, format)))
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%d|%d|%d|%d|%s|%t",
+		req.CacheKey, info.Size(), info.ModTime().UnixMilli(), width, height, quality, format, req.Cover)))
 	name := hex.EncodeToString(sum[:20])
 	extension := ".webp"
 	contentType := "image/webp"
@@ -144,7 +147,12 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 		return Result{}, ErrUnsupported
 	}
 
-	scaled := imaging.Fit(img, width, height, imaging.Lanczos)
+	var scaled image.Image
+	if req.Cover {
+		scaled = imaging.Fill(img, width, height, imaging.Center, imaging.Lanczos)
+	} else {
+		scaled = imaging.Fit(img, width, height, imaging.Lanczos)
+	}
 	if format == "jpeg" {
 		background := imaging.New(scaled.Bounds().Dx(), scaled.Bounds().Dy(), color.White)
 		scaled = imaging.Overlay(background, scaled, image.Pt(0, 0), 1)

@@ -7,15 +7,19 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"vakao-static-hub/server/internal/media"
 	"vakao-static-hub/server/internal/model"
+	"vakao-static-hub/server/internal/storage"
 	"vakao-static-hub/server/internal/store"
 	"vakao-static-hub/server/internal/sysinfo"
 )
@@ -175,12 +179,14 @@ func (s *Server) handleHitokoto(w http.ResponseWriter, r *http.Request, _ *Curre
 	return nil
 }
 
+// handleRandomPhoto 从随机图池中返回一张图片的字节流。
+// 与旧版语义一致：rootId / category 均可省略，省略 rootId
+// 表示跨根目录，省略 category 表示全部范围；无宽高时输出
+// 原图，带宽高时按 webp（默认质量 80）生成缩略图。
 func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
-	rootID := strings.TrimSpace(r.URL.Query().Get("rootId"))
-	if rootID == "" {
-		return badRequest("rootId is required")
-	}
-	category := strings.TrimSpace(r.URL.Query().Get("category"))
+	query := r.URL.Query()
+	rootID := strings.TrimSpace(query.Get("rootId"))
+	category := strings.TrimSpace(query.Get("category"))
 	if category != "" {
 		validated, err := validateCategoryName(category)
 		if err != nil {
@@ -188,18 +194,162 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 		}
 		category = validated
 	}
-	if _, err := s.rootByID(r.Context(), rootID); err != nil {
+
+	width, err := parsePositiveDimension(query.Get("w"), query.Get("width"))
+	if err != nil {
 		return err
 	}
-	entry, err := s.store.RandomFile(r.Context(), rootID, category)
+	height, err := parsePositiveDimension(query.Get("h"), query.Get("height"))
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return notFound("no photo available")
+		return err
+	}
+	quality := 80
+	if raw := strings.TrimSpace(query.Get("q")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			return badRequest("q must be a number")
 		}
+		quality = parsed
+	}
+	format := "webp"
+	if raw := strings.ToLower(strings.TrimSpace(query.Get("format"))); raw != "" {
+		switch raw {
+		case "webp":
+			format = "webp"
+		case "jpeg", "jpg":
+			format = "jpeg"
+		case "original":
+			format = "original"
+		default:
+			return badRequest("format must be jpeg, webp or original")
+		}
+	}
+
+	var root *model.ResourceRoot
+	if rootID != "" {
+		root, err = s.rootByID(r.Context(), rootID)
+		if err != nil {
+			return err
+		}
+	}
+
+	entry, err := s.store.RandomImage(r.Context(), rootID, category)
+	if errors.Is(err, store.ErrNotFound) {
+		return notFound(randomImageMissingMessage(rootID, category))
+	}
+	if err != nil {
 		return internalError(err)
 	}
-	w.Header().Set("Cache-Control", "no-store")
-	http.Redirect(w, r, fileContentURL(entry.RootID, entry.Category, entry.RelPath), http.StatusFound)
+	if root == nil || root.ID != entry.RootID {
+		root, err = s.rootByID(r.Context(), entry.RootID)
+		if err != nil {
+			return err
+		}
+	}
+
+	full, err := storage.Join(filepath.Join(root.Path, entry.Category), entry.RelPath)
+	if err != nil {
+		return internalError(err)
+	}
+	info, err := os.Stat(full)
+	if errors.Is(err, fs.ErrNotExist) {
+		return notFound("image file is missing on disk")
+	}
+	if err != nil || info.IsDir() {
+		return notFound("image file is missing on disk")
+	}
+
+	// 旧版只有宽高同时存在时才缩放；缺任一项或明确要求
+	// 原图时直接输出原始字节。
+	if format == "original" || width == 0 || height == 0 {
+		return serveRandomFile(w, r, full, info)
+	}
+
+	result, err := s.thumbnails.Get(r.Context(), media.Request{
+		SourcePath: full,
+		CacheKey:   entry.RootID + "/" + entry.Category + "/" + entry.RelPath,
+		Width:      width,
+		Height:     height,
+		Quality:    quality,
+		Format:     format,
+		Cover:      true,
+	})
+	switch {
+	case err == nil:
+		return serveRandomThumbnail(w, r, result)
+	case errors.Is(err, media.ErrTooLarge):
+		return &APIError{Status: http.StatusUnprocessableEntity, Code: "image_too_large", Message: "image exceeds the thumbnail limit"}
+	case errors.Is(err, media.ErrUnsupported):
+		return serveRandomFile(w, r, full, info)
+	default:
+		return internalError(err)
+	}
+}
+
+func parsePositiveDimension(values ...string) (int, error) {
+	for _, raw := range values {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		value, err := strconv.Atoi(raw)
+		if err != nil || value <= 0 {
+			return 0, badRequest("width and height must be positive numbers")
+		}
+		return value, nil
+	}
+	return 0, nil
+}
+
+func randomImageMissingMessage(rootID, category string) string {
+	conditions := make([]string, 0, 2)
+	if rootID != "" {
+		conditions = append(conditions, "root: "+rootID)
+	}
+	if category != "" {
+		conditions = append(conditions, "category: "+category)
+	}
+	if len(conditions) == 0 {
+		return "no image found"
+	}
+	return "no image found for the given condition (" + strings.Join(conditions, ", ") + ")"
+}
+
+// setNoStore 让浏览器与中间代理每次都重新请求随机图片。
+func setNoStore(header http.Header) {
+	header.Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+	header.Set("Pragma", "no-cache")
+	header.Set("Expires", "0")
+}
+
+func serveRandomFile(w http.ResponseWriter, r *http.Request, path string, info os.FileInfo) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return notFound("image file is missing on disk")
+	}
+	defer f.Close()
+	header := w.Header()
+	setNoStore(header)
+	header.Set("Content-Disposition", "inline")
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+	return nil
+}
+
+func serveRandomThumbnail(w http.ResponseWriter, r *http.Request, result media.Result) error {
+	f, err := os.Open(result.Path)
+	if err != nil {
+		return internalError(err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return internalError(err)
+	}
+	header := w.Header()
+	header.Set("Content-Type", result.ContentType)
+	setNoStore(header)
+	header.Set("Content-Disposition", "inline")
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 	return nil
 }
 

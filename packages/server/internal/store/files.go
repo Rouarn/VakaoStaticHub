@@ -416,17 +416,30 @@ func (s *Store) CountFiles(ctx context.Context) (int, error) {
 	return n, err
 }
 
-// RandomFile 随机选取一个已索引文件，可限定分类。
-func (s *Store) RandomFile(ctx context.Context, rootID, category string) (model.FileEntry, error) {
-	query := `SELECT id, root_id, category, rel_path, name, extension, size, mtime_ms,
-	                 COALESCE(content_hash, ''), created_at, updated_at
-	          FROM file_entries WHERE root_id = ?`
-	args := []any{rootID}
+// randomImageExtensions 与旧版随机图池保持一致。
+// tif 是 tiff 的常见别名，缩略图同样支持。
+var randomImageExtensions = []string{"jpg", "jpeg", "png", "gif", "webp", "avif", "tiff", "tif"}
+
+// RandomImage 随机选取一张已索引图片。rootID 与 category
+// 均可省略：省略 rootID 表示跨根目录，省略 category 表示全部范围。
+func (s *Store) RandomImage(ctx context.Context, rootID, category string) (model.FileEntry, error) {
+	where := []string{"LOWER(extension) IN (?, ?, ?, ?, ?, ?, ?, ?)"}
+	args := make([]any, 0, len(randomImageExtensions)+2)
+	for _, extension := range randomImageExtensions {
+		args = append(args, extension)
+	}
+	if rootID != "" {
+		where = append(where, "root_id = ?")
+		args = append(args, rootID)
+	}
 	if category != "" {
-		query += " AND category = ?"
+		where = append(where, "category = ?")
 		args = append(args, category)
 	}
-	query += " ORDER BY RANDOM() LIMIT 1"
+	query := `SELECT id, root_id, category, rel_path, name, extension, size, mtime_ms,
+	                 COALESCE(content_hash, ''), created_at, updated_at
+	          FROM file_entries WHERE ` + strings.Join(where, " AND ") +
+		` ORDER BY RANDOM() LIMIT 1`
 
 	entry, err := scanFileEntry(s.Reader.QueryRowContext(ctx, query, args...))
 	if errors.Is(err, sql.ErrNoRows) {
