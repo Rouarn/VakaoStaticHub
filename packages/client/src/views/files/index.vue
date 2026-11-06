@@ -167,10 +167,22 @@ onMounted(async () => {
     // 配置读取失败时保留本地兜底名，不阻断列表
   }
   if (categoryStore.roots.length === 0) await categoryStore.loadRoots();
-  if (categoryStore.categoriesOf(rootId.value).length === 0) {
-    await categoryStore.loadCategories(rootId.value);
+  // 优先恢复上次分类；根目录或分类失效、接口为空时安静回退到默认
+  const restored = await categoryStore.restoreSelection();
+  if (!restored) {
+    // 当前根目录可能已被删除，回退到第一个可用根目录
+    if (
+      categoryStore.roots.length > 0 &&
+      !categoryStore.roots.some((root) => root.id === rootId.value)
+    ) {
+      appStore.setActiveRoot(categoryStore.roots[0].id);
+    }
+    if (categoryStore.categoriesOf(rootId.value).length === 0) {
+      await categoryStore.loadCategories(rootId.value);
+    }
+    ensureActiveCategory();
   }
-  if (!ensureActiveCategory()) scheduleLoad();
+  scheduleLoad();
 });
 
 watch(categories, () => ensureActiveCategory(), { immediate: true });
