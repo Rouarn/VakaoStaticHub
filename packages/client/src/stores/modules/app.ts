@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { STORAGE_KEYS, piniaStorage } from '@/utils/storage';
 
 /**
- * 应用级状态：主题偏好 + 当前根目录/分类 + 侧边栏
+ * 应用级状态：主题偏好 + 当前根目录/分类
  *
  * 全部字段持久化到 `vakao:app`，App.vue 中 watch 主题并同步到
  * documentElement 的 `dark` class（驱动 UnoCSS dark: 变体），
@@ -15,15 +15,10 @@ export const useAppStore = defineStore('app', {
     activeRootId: 'default',
     /** 当前分类；与根目录一起持久化，刷新后回到上次位置 */
     activeCategory: null as string | null,
-    /** 系统图标栏是否展开（收起 72px 纯图标 / 展开 208px 图标 + 文字） */
-    sidebarExpanded: false,
   }),
   actions: {
     toggleDark() {
       this.isDark = !this.isDark;
-    },
-    toggleSidebar() {
-      this.sidebarExpanded = !this.sidebarExpanded;
     },
     /** 把主题偏好同步到 <html> 的 class（启动与切换时各调一次） */
     applyDarkClass() {

@@ -82,6 +82,19 @@ export const piniaStorage = {
   setItem: (key: string, value: string): void => writeRaw(key, value),
 };
 
+/** 当前 app store 持久化的字段，用于丢弃旧版本遗留的未知字段 */
+const APP_STATE_FIELDS = ['isDark', 'activeRootId', 'activeCategory'] as const;
+
+function pickAppState(
+  source: Record<string, unknown>,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const field of APP_STATE_FIELDS) {
+    if (field in source) next[field] = source[field];
+  }
+  return next;
+}
+
 function parseRecord(raw: string | null): Record<string, unknown> | null {
   if (!raw) return null;
   try {
@@ -100,6 +113,7 @@ function parseRecord(raw: string | null): Record<string, unknown> | null {
  * 必须在应用启动、Pinia store 首次读取之前调用。新 key 已存在时以新 key
  * 为准；否则把旧值原样搬过去，并把旧的分类记录（根目录 + 分类）合并进
  * app 状态。迁移完成后删除全部旧 key，内存中只保留一套 `vakao:` key。
+ * app 状态按当前字段白名单重建，旧版本遗留的未知字段不会带入新 key。
  */
 export function migrateLegacyStorage(): void {
   const legacyApp = parseRecord(readRaw(LEGACY_STORAGE_KEYS.app));
@@ -107,8 +121,15 @@ export function migrateLegacyStorage(): void {
     readRaw(LEGACY_STORAGE_KEYS.fileSelection),
   );
 
-  if (readRaw(STORAGE_KEYS.app) === null) {
-    const merged: Record<string, unknown> = { ...(legacyApp ?? {}) };
+  const existingApp = parseRecord(readRaw(STORAGE_KEYS.app));
+  if (existingApp) {
+    // 只保留当前已知字段，旧版本多出来的字段一并清掉
+    const cleaned = pickAppState(existingApp);
+    if (Object.keys(cleaned).length !== Object.keys(existingApp).length) {
+      writeRaw(STORAGE_KEYS.app, JSON.stringify(cleaned));
+    }
+  } else {
+    const merged = pickAppState(legacyApp ?? {});
     const rootId = legacySelection?.rootId;
     const category = legacySelection?.category;
     // 分类必须连同所属根目录一起还原，缺一不可
