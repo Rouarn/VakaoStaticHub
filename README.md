@@ -12,7 +12,7 @@
 
 ## 核心特性
 
-- **多根目录管理**：动态增删资源根目录，配置持久化到 `resource-roots.json`，支持服务器目录浏览（仅枚举目录、受安全边界限制）；系统启动时会幂等注册内置 `software-update` 根目录
+- **多根目录管理**：根目录持久化在数据库（`resource_roots` 表），支持动态增删与服务器目录浏览（仅枚举目录、受安全边界限制）；首次启动且空库时可由可选的 `resource-roots.json` 播种（见 [`resource-roots.json`（可选，仅用于首次播种）](#resource-rootsjson可选仅用于首次播种)）
 - **文件管理**：上传、删除、重命名、分页浏览、关键词搜索、多字段排序（名称 / 大小 / 修改时间）；支持批量删除、批量移动分类
 - **大文件上传**：multipart 多文件流式落盘；大于 5MB 的文件走分片上传，支持断点续传，合并时校验 SHA-256
 - **重复文件检测**：`file_entries` 记录内容 SHA-256，按哈希分组找出重复副本，前端可视化对比与清理
@@ -119,6 +119,8 @@ pnpm package --goos linux --goarch arm64 --version 1.2.3
 - `.env.example`：配置模板，只含键名、含义与推荐值，不含真实密钥
 - `README.md`：部署与启动说明
 
+发布包**有意不包含 `resource-roots.json`**。该文件只在空库首次启动时用于播种根目录，缺失时服务端会回退到内置的 `default` 与 `software-update`，因此不影响运行；若把开发机上的版本打进包里，反而会把线上根目录指向开发机的路径。
+
 构建顺序为 shared → client → server → 组装 → tar.gz；任一步失败立即中止并保留原始错误。缺少 `go`、`pnpm`、`node` 或 `tar` 时会输出明确的中文提示。打包结束时终端会打印初始管理员账号、初始密码与发布包路径。
 
 服务器上的启动步骤（包内 `.env` 已可用，无需复制或编辑）：
@@ -161,7 +163,7 @@ chmod +x vakao-server
 | --------------------- | ------------------------- | ---------------------------------------- |
 | `DB_PATH`             | `<BASE_DIR>/data/vakao.db` | SQLite 数据库路径                       |
 | `FILE_ROOT`           | `<BASE_DIR>/data`         | 默认资源根目录                           |
-| `RESOURCE_ROOTS_FILE` | `<BASE_DIR>/resource-roots.json` | 多根目录配置文件                  |
+| `RESOURCE_ROOTS_FILE` | `<BASE_DIR>/resource-roots.json` | 可选：空库首启时的根目录播种文件，运行期不再读取          |
 | `UPLOAD_TEMP_DIR`     | `<BASE_DIR>/data/.uploads` | 分片上传临时目录                        |
 | `CACHE_DIR`           | `<BASE_DIR>/data/.cache`  | 缩略图缓存目录                           |
 | `WEB_DIR`             | `<BASE_DIR>/web`          | 前端构建产物目录；目录缺失时仅暴露 API   |
@@ -191,6 +193,19 @@ chmod +x vakao-server
 
 ---
 
+### `resource-roots.json`（可选，仅用于首次播种）
+
+这个文件**只有一个用途**：服务首次启动、且数据库根目录表为空时，用来播种根目录。它不是运行期配置，也不是根目录的唯一来源——根目录的真正来源是数据库。
+
+- **何时读**：启动时先查 `resource_roots` 表。只有表为空（全新库）才去读 `<BASE_DIR>/resource-roots.json`；表里已有根目录则直接跳过，连文件都不会打开。
+- **读到什么**：按 JSON 数组逐项创建根目录（`id`、`name`、`path`、`description`），同时创建对应目录。`path` 为相对路径时按 `BASE_DIR` 解析，绝对路径原样使用；`id` 或 `path` 为空的条目会被跳过。
+- **读不到怎么办**：文件不存在时使用代码内置的两个根：`default`（`FILE_ROOT`）与 `software-update`（`FILE_ROOT/software-update`），所以该文件是可选的。文件存在但不是合法 JSON 数组时启动直接失败（不会静默忽略），删掉该文件即可恢复默认播种。
+- **之后会不会再读**：不会。播种只在空库时发生一次，后续启动不再读取；页面上的根目录增删改只写数据库，**不会回写**这个文件。
+- **删了会怎样**：首次启动完成后可以安全删除，不影响正常运行；只有把数据库清空重来（例如删除 `data/vakao.db`）才会再次需要它。
+- **仓库根目录那份**：`./resource-roots.json` 是本地开发用的播种样例（默认根指向 `legacy-data/`），不入库、不打进发布包。发布包 `.env` 里仍保留 `RESOURCE_ROOTS_FILE=resource-roots.json` 这一项，但因为包内没有该文件，线上首启走的是内置默认值。
+
+---
+
 ## 目录结构
 
 ```
@@ -217,7 +232,7 @@ vakao-static-hub/
 │   └── client/                 # @vakao/client：Vue 3 + Vite 前端
 ├── data/                       # 运行时数据（不入库）
 ├── legacy-data/                # 旧后端数据快照（可选，不入库）
-├── resource-roots.json         # 资源根目录配置（不入库）
+├── resource-roots.json         # 开发用根目录播种样例（可选、不入库、不进发布包）
 ├── .env.example                # 配置模板（入库）
 └── .env                        # 本地真实配置（不入库）
 ```

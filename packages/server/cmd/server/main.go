@@ -137,10 +137,18 @@ func seedAdmin(ctx context.Context, st *store.Store, cfg *config.Config, logger 
 	return nil
 }
 
-// seedRoot 在全新数据库上初始化资源根目录。它读取部署附带的
-// resource-roots.json（与旧服务使用的是同一文件），
-// 文件不存在时回退到约定的默认根目录与 APP 安装包
-// 根目录。已迁移的数据库本身已包含根目录，因此直接跳过。
+// seedRoot 在全新数据库上初始化资源根目录。
+//
+// 触发条件：只有数据库的根目录表为空（首次启动）时才播种；表中已有任何
+// 根目录就直接返回，不会打开配置文件。
+//
+// 播种来源：cfg.ResourceRootsFile（默认 <BASE_DIR>/resource-roots.json）。
+// 该文件可选——不存在时使用代码内置的 default（FILE_ROOT）与
+// software-update（FILE_ROOT/software-update）两个根目录。
+//
+// 播种只发生一次：根目录写入数据库后即为唯一事实来源，后续启动不再读取
+// 该文件；页面上的根目录增删改也只写数据库，不会回写文件。因此首次启动
+// 完成后可以删除该文件，不影响运行，除非清空数据库重新播种。
 func seedRoot(ctx context.Context, st *store.Store, cfg *config.Config, logger *slog.Logger) error {
 	roots, err := st.ListRoots(ctx)
 	if err != nil {
@@ -172,6 +180,11 @@ type rootEntry struct {
 	Description string `json:"description"`
 }
 
+// configuredRoots 解析播种用的根目录列表。
+//
+// 文件不存在属于正常情况（该文件可选），直接使用内置默认值；文件存在但
+// 不是合法 JSON 数组时返回错误并中止启动，避免静默忽略写错的配置。
+// 条目中的 path 相对路径按 BASE_DIR 解析，绝对路径原样使用。
 func configuredRoots(cfg *config.Config) ([]model.ResourceRoot, error) {
 	body, err := os.ReadFile(cfg.ResourceRootsFile)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {

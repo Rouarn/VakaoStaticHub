@@ -138,6 +138,9 @@ CGO_ENABLED=0 GOOS="$GOOS_VALUE" GOARCH="$GOARCH_VALUE" \
 	-o "$WORK_DIR/vakao-server" ./cmd/server
 
 printf '==> 组装发布目录\n'
+# 说明：这里刻意不打包 resource-roots.json。它只在空库首次启动时用于播种
+# 根目录，缺失时服务端会回退到内置的 default 与 software-update，
+# 所以不带它不影响运行；反之带上开发机的路径反而会把线上根目录指错。
 JWT_SECRET="$(random_hex 32)"
 AUTH_PASS="$(random_hex 16)"
 mkdir -p "$WORK_DIR/web" "$WORK_DIR/data"

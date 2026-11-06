@@ -10,6 +10,7 @@ build
 /packages/server/bin/
 # 发布包产物
 /release/
+# 根目录播种样例（本地开发用：仅在空库首次启动时播种根目录，可选，不进发布包）
 resource-roots.json
 
 # TypeScript incremental build info

@@ -91,6 +91,16 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 
 是否改用新包的 `.env`，由使用者自行决定；如确需更换，请先评估上述影响。
 
+## `resource-roots.json`（可选，仅用于首次播种）
+
+发布包内**不包含** `resource-roots.json`，这是有意的，不影响运行。需要手工维护时，按下面几点判断：
+
+- **唯一用途**：服务首次启动、且数据库根目录表（`resource_roots`）为空时，用这个文件播种根目录列表。它不是运行期配置。
+- **放哪里**：`RESOURCE_ROOTS_FILE` 指定的路径，默认 `<BASE_DIR>/resource-roots.json`（`BASE_DIR` 默认是运行目录，即解包目录）。相对路径按 `BASE_DIR` 解析，绝对路径原样使用；条目里的 `path` 同理。
+- **没有这个文件**：使用服务内置的两个根目录 `default`（`FILE_ROOT`，默认 `data`）与 `software-update`（`FILE_ROOT/software-update`），所以它是可选的。文件存在但不是合法 JSON 数组时启动会失败，删掉文件即可恢复默认播种。
+- **只读一次**：播种只在空库时发生；之后每次启动，只要数据库里已有根目录就不再读取该文件。页面上的根目录增删改只写数据库，**不会回写**该文件。
+- **可以删**：首次启动完成后可随时删除，不影响正常运行；只有清空数据库重来（例如删除 `data/vakao.db`）才会再次用到它。
+
 ## 修改密码与新增用户
 
 - **修改自己的密码**：登录后进入「用户」页面修改当前账号密码（对应接口 `PATCH /v1/auth/password`）。
@@ -114,7 +124,7 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 | `TRUST_PROXY` | 是否采用反向代理传来的 `X-Forwarded-*` 头 |
 | `DB_PATH` | SQLite 数据库文件路径 |
 | `FILE_ROOT` | 默认资源根目录 |
-| `RESOURCE_ROOTS_FILE` | 多资源根目录配置文件路径 |
+| `RESOURCE_ROOTS_FILE` | 可选：空库首启时的根目录播种文件，运行期不再读取 |
 | `UPLOAD_TEMP_DIR` | 分片上传临时目录 |
 | `CACHE_DIR` | 缩略图缓存目录 |
 | `WEB_DIR` | 前端构建产物目录 |

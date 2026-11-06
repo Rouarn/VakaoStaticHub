@@ -19,9 +19,13 @@ type Config struct {
 	Host string
 	Port int
 
-	WebDir            string
-	DBPath            string
-	FileRoot          string
+	WebDir   string
+	DBPath   string
+	FileRoot string
+	// ResourceRootsFile 是可选的根目录播种文件（RESOURCE_ROOTS_FILE，
+	// 默认 <BASE_DIR>/resource-roots.json，相对路径按 BASE_DIR 解析）。
+	// 它只在数据库根目录表为空（全新部署首启）时被读取一次，用来播种
+	// 根目录；之后启动不再读取，页面上的根目录增删改只写数据库、不回写文件。
 	ResourceRootsFile string
 	UploadTempDir     string
 	CacheDir          string
