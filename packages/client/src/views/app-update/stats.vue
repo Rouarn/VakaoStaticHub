@@ -5,7 +5,6 @@ import {
   NDatePicker,
   NIcon,
   NSelect,
-  NSpin,
   NTag,
   useMessage,
 } from 'naive-ui';
@@ -25,6 +24,8 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import StatCard from '@/components/common/stat-card.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 
 /**
  * 升级漏斗统计
@@ -40,7 +41,8 @@ const data = ref<{ items: FunnelStatItem[]; checkNoUpdateTotal: number }>({
   items: [],
   checkNoUpdateTotal: 0,
 });
-const loading = ref(false);
+/** 加载态与中文提示：文案规则见 useListLoading */
+const { loading, loadingText, begin: beginLoading } = useListLoading();
 const error = ref('');
 
 const presets = [
@@ -64,19 +66,24 @@ async function loadApps() {
   }
 }
 
+/** 切换应用 / 时间范围前清空旧统计，避免遮罩下残留上一次的数字 */
+function clearStats() {
+  data.value = { items: [], checkNoUpdateTotal: 0 };
+}
+
 async function load() {
   if (!appKey.value) {
-    data.value = { items: [], checkNoUpdateTotal: 0 };
+    clearStats();
     return;
   }
-  loading.value = true;
+  beginLoading(clearStats);
   error.value = '';
   try {
     const [startTime, endTime] = range.value ?? [];
     data.value = await getFunnelStats(appKey.value, startTime, endTime);
   } catch (e) {
     error.value = getErrorMessage(e, '漏斗统计加载失败');
-    data.value = { items: [], checkNoUpdateTotal: 0 };
+    clearStats();
   } finally {
     loading.value = false;
   }
@@ -205,8 +212,8 @@ onMounted(async () => {
       </span>
     </section>
 
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <div class="relative flex-1 min-h-0">
+      <div class="h-full overflow-y-auto pr-1">
         <ErrorState v-if="error" :message="error" @retry="load" />
 
         <EmptyState
@@ -379,7 +386,8 @@ onMounted(async () => {
             </p>
           </section>
         </div>
-      </NSpin>
+      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
   </div>
 </template>

@@ -69,6 +69,8 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 
 /**
  * APP 版本管理
@@ -87,7 +89,8 @@ const versions = ref<AppVersionRecord[]>([]);
 const total = ref(0);
 const page = ref(1);
 const pageSize = ref(10);
-const loading = ref(false);
+/** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
+const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
 const error = ref('');
 
 // 版本详情抽屉
@@ -163,9 +166,20 @@ async function loadVersions() {
   }
 }
 
+/** 切换分页 / 筛选前清空版本卡片；total 保留，避免分页条跳动 */
+function clearVersions() {
+  versions.value = [];
+}
+
+/** 进入加载态并清空旧卡片，再请求目标页 */
+function reloadVersions() {
+  beginLoading(clearVersions);
+  void loadVersions();
+}
+
 function changeFilter() {
   page.value = 1;
-  void loadVersions();
+  reloadVersions();
 }
 
 function statusMetaOf(version: AppVersionRecord) {
@@ -868,8 +882,8 @@ onMounted(async () => {
       </div>
     </section>
 
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <div class="relative flex-1 min-h-0">
+      <div class="h-full overflow-y-auto pr-1">
         <ErrorState v-if="error" :message="error" @retry="loadVersions" />
 
         <EmptyState
@@ -1075,12 +1089,13 @@ onMounted(async () => {
               :item-count="total"
               :page-sizes="[10, 20, 50]"
               show-size-picker
-              @update:page="loadVersions"
+              @update:page="reloadVersions"
               @update:page-size="changeFilter"
             />
           </footer>
         </div>
-      </NSpin>
+      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
 
     <NDrawer

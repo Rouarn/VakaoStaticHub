@@ -60,6 +60,8 @@ import EmptyState from '@/components/common/empty-state.vue';
 import PageHeader from '@/components/common/page-header.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 import ShareQrModal from './components/share-qr-modal.vue';
 
 /**
@@ -77,7 +79,8 @@ const overview = useOverviewStore();
 const message = useMessage();
 
 const result = ref<ShareListResult | null>(null);
-const loading = ref(false);
+/** 加载态与中文提示：文案规则见 useListLoading */
+const { loading, loadingText, begin: beginLoading } = useListLoading();
 const error = ref('');
 const now = ref(Date.now());
 
@@ -93,6 +96,11 @@ const pageSizeOptions = [8, 16, 32, 64].map((value) => ({
 
 const links = computed(() => result.value?.items ?? []);
 const total = computed(() => result.value?.total ?? 0);
+
+/** 切换分页/筛选前清空当前页行；counts 与 total 保留，供头部与分页继续显示 */
+function clearLinks() {
+  if (result.value) result.value = { ...result.value, items: [] };
+}
 const counts = computed(
   () =>
     result.value?.counts ?? {
@@ -205,16 +213,22 @@ async function load(allowClamp = true) {
   }
 }
 
+/** 进入加载态并清空当前页，再拉取目标页 */
+function reloadPage() {
+  beginLoading(clearLinks);
+  void load();
+}
+
 /** 筛选变化后回到第一页并重新拉取（已在第一页时直接请求，避免 page watcher 不触发） */
 function resetAndReload() {
   clearSelection();
-  if (page.value === 1) void load();
+  if (page.value === 1) reloadPage();
   else page.value = 1;
 }
 
 watch(page, () => {
   clearSelection();
-  void load();
+  reloadPage();
 });
 watch(pageSize, resetAndReload);
 watch(statusFilter, resetAndReload);
@@ -247,7 +261,12 @@ const filePage = ref(1);
 const filePageSize = 100;
 const fileItems = ref<FileItem[]>([]);
 const fileTotal = ref(0);
-const filesLoading = ref(false);
+/** 弹窗内文件列表的加载态与中文提示 */
+const {
+  loading: filesLoading,
+  loadingText: filesLoadingText,
+  begin: beginFilesLoading,
+} = useListLoading({ text: '正在加载文件…' });
 const filesError = ref('');
 
 const roots = computed(() => categoryStore.roots);
@@ -300,15 +319,32 @@ async function loadFiles() {
   }
 }
 
-watch(
-  fileKeyword,
-  useDebounceFn(() => {
-    filePage.value = 1;
-    void loadFiles();
-  }, 300),
-);
+/** 清空文件选择列表：切换搜索 / 分类 / 页码时避免旧数据残留 */
+function clearFileItems() {
+  fileItems.value = [];
+}
 
-watch(filePage, () => void loadFiles());
+/** 搜索或切换分类：回到第一页；页码确实变化时由 filePage 的 watch 统一发起请求 */
+function resetFilePageAndLoad() {
+  if (!form.value.category) {
+    clearFileItems();
+    fileTotal.value = 0;
+    return;
+  }
+  if (filePage.value === 1) {
+    beginFilesLoading(clearFileItems);
+    void loadFiles();
+  } else {
+    filePage.value = 1;
+  }
+}
+
+watch(fileKeyword, useDebounceFn(resetFilePageAndLoad, 300));
+
+watch(filePage, () => {
+  beginFilesLoading(clearFileItems);
+  void loadFiles();
+});
 
 function resetForm() {
   form.value = {
@@ -357,8 +393,7 @@ watch(
   () => form.value.category,
   () => {
     selectedPaths.value = [];
-    filePage.value = 1;
-    void loadFiles();
+    resetFilePageAndLoad();
   },
 );
 
@@ -819,8 +854,8 @@ onMounted(async () => {
 
     <!-- 第 3 块：内容区（列表独立滚动 + 底部固定分页） -->
     <div class="flex-1 min-h-0 flex flex-col gap-3">
-      <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-        <NSpin :show="loading">
+      <div class="relative flex-1 min-h-0">
+        <div class="h-full overflow-y-auto pr-1">
           <ErrorState v-if="error" :message="error" @retry="load" />
 
           <EmptyState
@@ -985,7 +1020,8 @@ onMounted(async () => {
               </table>
             </div>
           </div>
-        </NSpin>
+        </div>
+        <ListLoading :show="loading" :text="loadingText" />
       </div>
 
       <footer
@@ -1073,9 +1109,9 @@ onMounted(async () => {
           </div>
 
           <div
-            class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/40 dark:bg-white/4 min-h-40 max-h-64 overflow-y-auto"
+            class="relative rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/40 dark:bg-white/4 min-h-40 max-h-64 overflow-hidden"
           >
-            <NSpin :show="filesLoading">
+            <div class="max-h-64 overflow-y-auto">
               <div v-if="filesError" class="p-4 text-12px text-ink-sub">
                 {{ filesError }}
                 <NButton size="tiny" class="ml-2" @click="loadFiles"
@@ -1110,7 +1146,8 @@ onMounted(async () => {
                   </span>
                 </span>
               </label>
-            </NSpin>
+            </div>
+            <ListLoading :show="filesLoading" :text="filesLoadingText" />
           </div>
 
           <div

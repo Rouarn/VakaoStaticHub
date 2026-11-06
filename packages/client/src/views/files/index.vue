@@ -34,6 +34,8 @@ import {
   renameFile,
 } from '@/api/files';
 import PageHeader from '@/components/common/page-header.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 import CategoryPanel from '@/layouts/components/category-panel.vue';
 import {
   buildFileUrl,
@@ -120,11 +122,8 @@ const sort = ref<'name' | 'size' | 'mtime'>('mtime');
 const order = ref<'asc' | 'desc'>('desc');
 const viewMode = ref<'grid' | 'list'>('grid');
 
-const loading = ref(false);
-/** 加载中的提示文案：带上目标页码，让用户明确是在翻页加载而非卡住 */
-const loadingText = computed(() =>
-  page.value > 1 ? `正在加载第 ${page.value} 页…` : '正在加载…',
-);
+/** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
+const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
 const error = ref('');
 const selected = ref<Set<string>>(new Set());
 /** 内容区滚动容器：翻页后回到顶部 */
@@ -229,30 +228,35 @@ watch(categories, () => ensureActiveCategory(), { immediate: true });
 
 watch(rootId, async () => {
   page.value = 1;
-  selected.value = new Set();
   // 先清空旧列表：否则切换根目录/分类的请求返回前，
   // 旧文件会带着新分类拼出错误的缩略图 URL（404）
-  items.value = [];
-  total.value = 0;
+  beginLoading(() => {
+    items.value = [];
+    total.value = 0;
+    selected.value = new Set();
+  });
   await categoryStore.loadCategories(rootId.value);
   if (!ensureActiveCategory()) scheduleLoad();
 });
 
 watch(category, () => {
   page.value = 1;
-  selected.value = new Set();
-  items.value = [];
-  total.value = 0;
+  beginLoading(() => {
+    items.value = [];
+    total.value = 0;
+    selected.value = new Set();
+  });
   scheduleLoad();
 });
 
 watch([page, pageSize, sort, order], () => {
   // 先清空当前页再发请求：否则页码已经变了、列表还是上一页，
   // 快速翻页时会长时间看到「页码与内容不一致」。
-  items.value = [];
-  selected.value = new Set();
-  error.value = '';
-  loading.value = true;
+  beginLoading(() => {
+    items.value = [];
+    selected.value = new Set();
+    error.value = '';
+  });
   scrollRef.value?.scrollTo({ top: 0 });
   scheduleLoad();
 });
@@ -743,14 +747,7 @@ function onShareCreated(link: ShareLink) {
         </div>
       </div>
 
-      <div
-        v-if="loading"
-        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/70 dark:bg-black/40 backdrop-blur-[2px]"
-        aria-live="polite"
-      >
-        <NSpin size="large" />
-        <p class="m-0 text-13px text-ink-sub">{{ loadingText }}</p>
-      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
 
     <!-- 分页（无数据时隐藏，避免 0 条却显示页码） -->

@@ -24,6 +24,7 @@ declare module 'vue' {
     ExcelPreview: typeof import('./../components/preview/excel-preview.vue')['default']
     HtmlPreview: typeof import('./../components/preview/html-preview.vue')['default']
     ImagePreview: typeof import('./../components/preview/image-preview.vue')['default']
+    ListLoading: typeof import('./../components/common/list-loading.vue')['default']
     MarkdownPreview: typeof import('./../components/preview/markdown-preview.vue')['default']
     NDropdown: typeof import('naive-ui')['NDropdown']
     PageHeader: typeof import('./../components/common/page-header.vue')['default']

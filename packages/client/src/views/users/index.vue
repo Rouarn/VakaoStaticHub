@@ -7,7 +7,6 @@ import {
   NModal,
   NPagination,
   NSelect,
-  NSpin,
   NTag,
   NTooltip,
   useMessage,
@@ -35,6 +34,8 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 
 /**
  * 用户管理
@@ -61,7 +62,8 @@ const ROLE_META: Record<
 };
 
 const users = ref<UserInfo[]>([]);
-const loading = ref(false);
+/** 加载态与中文提示：文案规则见 useListLoading */
+const { loading, loadingText } = useListLoading();
 const error = ref('');
 
 const page = ref(1);
@@ -303,8 +305,8 @@ onMounted(() => void load());
       </template>
     </PageHeader>
 
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <div class="relative flex-1 min-h-0">
+      <div class="h-full overflow-y-auto pr-1">
         <ErrorState v-if="error" :message="error" @retry="load" />
 
         <EmptyState
@@ -482,7 +484,8 @@ onMounted(() => void load());
             页面上的禁用提示只是提前告知。
           </p>
         </div>
-      </NSpin>
+      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
 
     <!-- 创建账号 -->

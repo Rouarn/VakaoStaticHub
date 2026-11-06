@@ -5,7 +5,6 @@ import {
   NIcon,
   NPagination,
   NSelect,
-  NSpin,
   useMessage,
 } from 'naive-ui';
 import {
@@ -38,6 +37,8 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
 import type { PreviewTarget } from '@/components/preview/types';
 
@@ -52,11 +53,12 @@ const message = useMessage();
 const roots = ref<{ id: string; name: string }[]>([]);
 const rootId = ref('');
 const scan = ref<DuplicateScanResult | null>(null);
-const loading = ref(false);
 const error = ref('');
 
 const page = ref(1);
 const pageSize = ref(5);
+/** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
+const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
 const expanded = ref<Set<string>>(new Set());
 const keepIndex = ref<Record<string, number>>({});
 const previewShow = ref(false);
@@ -139,19 +141,30 @@ async function load(allowClamp = true) {
   }
 }
 
+/** 切换根目录 / 每页条数 / 页码前清空分组；统计数字保留到新数据返回，避免分页总数跳动 */
+function clearGroups() {
+  if (scan.value) scan.value = { ...scan.value, groups: [] };
+}
+
+/** 进入加载态并清空旧分组，再请求目标页 */
+function reloadPage() {
+  beginLoading(clearGroups);
+  void load();
+}
+
 /** 切换根目录：回到第一页后重新扫描 */
 function changeFilter() {
-  if (page.value === 1) void load();
+  if (page.value === 1) reloadPage();
   else page.value = 1;
 }
 
 function onPageSizeChange() {
   // 页码从非 1 变成 1 时由 page 的 watch 触发加载，避免同一参数重复请求
-  if (page.value === 1) void load();
+  if (page.value === 1) reloadPage();
   else page.value = 1;
 }
 
-watch(page, () => void load());
+watch(page, reloadPage);
 
 function toggleExpand(hash: string) {
   const next = new Set(expanded.value);
@@ -326,8 +339,8 @@ onMounted(async () => {
       pageSize），按内容哈希分组；扫描会惰性补算缺失的内容哈希
     </div>
 
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <div class="relative flex-1 min-h-0">
+      <div class="h-full overflow-y-auto pr-1">
         <ErrorState v-if="error" :message="error" @retry="() => load()" />
 
         <EmptyState
@@ -567,7 +580,8 @@ onMounted(async () => {
             />
           </footer>
         </div>
-      </NSpin>
+      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
 
     <!-- 清理确认 -->

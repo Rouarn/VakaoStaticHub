@@ -10,7 +10,6 @@ import {
   NInput,
   NPagination,
   NSelect,
-  NSpin,
   NTag,
 } from 'naive-ui';
 import {
@@ -33,11 +32,12 @@ import { formatDateTime } from '@/utils/format';
 import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 
 /** 审计日志：后端分页 + 操作人/动作/资源/时间筛选 + 详情抽屉 */
 
 const data = ref<AuditLogPage>({ items: [], total: 0, page: 1, pageSize: 20 });
-const loading = ref(false);
 const error = ref('');
 
 const page = ref(1);
@@ -46,6 +46,9 @@ const username = ref('');
 const action = ref('');
 const resourceType = ref('');
 const range = ref<[number, number] | null>(null);
+
+/** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
+const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
 
 const actionOptions = [
   { label: '全部动作', value: '' },
@@ -89,13 +92,25 @@ async function load() {
   }
 }
 
-function resetAndLoad() {
-  page.value = 1;
+/** 切换筛选 / 分页前清空表格行；total 保留，避免分页总数与页码跳动 */
+function clearRows() {
+  data.value = { ...data.value, items: [] };
+}
+
+/** 进入加载态并清空旧行，再请求目标页 */
+function reloadPage() {
+  beginLoading(clearRows);
   void load();
 }
 
+/** 筛选变化：回到第一页；页码确实变化时由 page 的 watch 统一发起请求 */
+function resetAndLoad() {
+  if (page.value === 1) reloadPage();
+  else page.value = 1;
+}
+
 watch([action, resourceType, range], resetAndLoad);
-watch(page, () => void load());
+watch(page, reloadPage);
 watch(pageSize, resetAndLoad);
 watch(
   username,
@@ -126,8 +141,7 @@ function clearFilters() {
   action.value = '';
   resourceType.value = '';
   range.value = null;
-  page.value = 1;
-  void load();
+  resetAndLoad();
 }
 
 onMounted(() => void load());
@@ -193,8 +207,8 @@ onMounted(() => void load());
       </span>
     </section>
 
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <div class="relative flex-1 min-h-0">
+      <div class="h-full overflow-y-auto pr-1">
         <ErrorState v-if="error" :message="error" @retry="load" />
 
         <EmptyState
@@ -284,7 +298,8 @@ onMounted(() => void load());
             </table>
           </div>
         </section>
-      </NSpin>
+      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
 
     <!-- 固定底部的分页工具栏 -->

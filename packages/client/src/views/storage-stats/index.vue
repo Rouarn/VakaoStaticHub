@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { NButton, NIcon, NPopconfirm, NSpin, NTag, useMessage } from 'naive-ui';
+import { NButton, NIcon, NPopconfirm, NTag, useMessage } from 'naive-ui';
 import {
   AlbumsOutline,
   FolderOpenOutline,
@@ -18,6 +18,8 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import StatCard from '@/components/common/stat-card.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 import DonutChart from '@/components/charts/donut-chart.vue';
 import BarList from '@/components/charts/bar-list.vue';
 
@@ -25,11 +27,17 @@ import BarList from '@/components/charts/bar-list.vue';
 const message = useMessage();
 const data = ref<UsageStatsResult | null>(null);
 const syncing = ref(false);
-const loading = ref(false);
+/** 加载态与中文提示：文案规则见 useListLoading */
+const { loading, loadingText, begin: beginLoading } = useListLoading();
 const error = ref('');
 
+/** 刷新统计前清空旧数据，避免遮罩下残留上一轮的数字 */
+function clearStats() {
+  data.value = null;
+}
+
 async function load() {
-  loading.value = true;
+  beginLoading(clearStats);
   error.value = '';
   try {
     data.value = await getUsageStats();
@@ -167,8 +175,8 @@ onMounted(() => void load());
       </template>
     </PageHeader>
 
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <div class="relative flex-1 min-h-0">
+      <div class="h-full overflow-y-auto pr-1">
         <ErrorState v-if="error" :message="error" @retry="load" />
 
         <EmptyState
@@ -326,7 +334,8 @@ onMounted(() => void load());
             B）不参与占比图但计入文件数。
           </p>
         </div>
-      </NSpin>
+      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
   </div>
 </template>
