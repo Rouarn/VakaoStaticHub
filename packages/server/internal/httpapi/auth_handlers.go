@@ -17,7 +17,7 @@ var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{2,31}$`)
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	ip := clientIP(r, s.cfg.TrustProxy)
 	if !s.loginLimiter.allow(ip) {
-		return tooManyRequests("too many login attempts, try again later")
+		return tooManyRequests("登录尝试过于频繁，请稍后再试")
 	}
 
 	var req model.LoginRequest
@@ -26,18 +26,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request, _ *CurrentU
 	}
 	req.Username = strings.TrimSpace(req.Username)
 	if req.Username == "" || req.Password == "" {
-		return badRequest("username and password are required")
+		return badRequest("用户名和密码不能为空")
 	}
 
 	record, err := s.store.UserByUsername(r.Context(), req.Username)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return unauthorized("invalid username or password")
+			return unauthorized("用户名或密码错误")
 		}
 		return internalError(err)
 	}
 	if !auth.VerifyPassword(req.Password, record.PasswordHash) {
-		return unauthorized("invalid username or password")
+		return unauthorized("用户名或密码错误")
 	}
 
 	token, expiresAt, err := s.tokens.Issue(record.ID, record.Username, record.Role)
@@ -60,7 +60,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, current *Curre
 	record, err := s.store.UserByID(r.Context(), current.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return unauthorized("user no longer exists")
+			return unauthorized("账号已不存在")
 		}
 		return internalError(err)
 	}
@@ -91,7 +91,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request, cu
 		return internalError(err)
 	}
 	if !auth.VerifyPassword(req.OldPassword, record.PasswordHash) {
-		return badRequest("current password is incorrect").WithField("oldPassword", "current password is incorrect")
+		return badRequest("当前密码错误").WithField("oldPassword", "当前密码错误")
 	}
 	hash, err := auth.HashPassword(req.NewPassword)
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, user *
 	}
 	req.Username = strings.TrimSpace(req.Username)
 	if !usernamePattern.MatchString(req.Username) {
-		return validationFailed("invalid username").WithField("username", "3-32 characters, letters, digits, dot, dash or underscore")
+		return validationFailed("用户名无效").WithField("username", "需为 3-32 个字符，仅限字母、数字、点、短横线或下划线")
 	}
 	if err := validatePassword(req.Password); err != nil {
 		return err
@@ -138,7 +138,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, user *
 		role = "user"
 	}
 	if role != "admin" && role != "user" {
-		return validationFailed("invalid role").WithField("role", "must be admin or user")
+		return validationFailed("角色无效").WithField("role", "只能为 admin 或 user")
 	}
 	hash, err := auth.HashPassword(req.Password)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, user *
 	created, err := s.store.CreateUser(r.Context(), req.Username, hash, role)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			return conflict("username already exists")
+			return conflict("用户名已存在")
 		}
 		return internalError(err)
 	}
@@ -157,7 +157,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, user *
 }
 
 func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request, current *CurrentUser) error {
-	id, err := parseInt64(pathValue(r, "id"), "user id")
+	id, err := parseInt64(pathValue(r, "id"), "用户 id")
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request, cur
 	}
 	if err := s.store.UpdatePassword(r.Context(), id, hash); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("user not found")
+			return notFound("用户不存在")
 		}
 		return internalError(err)
 	}
@@ -184,17 +184,17 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request, cur
 }
 
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, current *CurrentUser) error {
-	id, err := parseInt64(pathValue(r, "id"), "user id")
+	id, err := parseInt64(pathValue(r, "id"), "用户 id")
 	if err != nil {
 		return err
 	}
 	if id == current.ID {
-		return conflict("cannot delete the account you are signed in with")
+		return conflict("不能删除当前登录的账号")
 	}
 	target, err := s.store.UserByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("user not found")
+			return notFound("用户不存在")
 		}
 		return internalError(err)
 	}
@@ -204,12 +204,12 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, curren
 			return internalError(err)
 		}
 		if admins <= 1 {
-			return conflict("cannot delete the last administrator")
+			return conflict("不能删除最后一个管理员")
 		}
 	}
 	if err := s.store.DeleteUser(r.Context(), id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("user not found")
+			return notFound("用户不存在")
 		}
 		return internalError(err)
 	}
@@ -220,10 +220,10 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, curren
 
 func validatePassword(password string) error {
 	if len(password) < 6 {
-		return validationFailed("invalid password").WithField("password", "must be at least 6 characters")
+		return validationFailed("密码无效").WithField("password", "至少 6 个字符")
 	}
 	if len(password) > 128 {
-		return validationFailed("invalid password").WithField("password", "must be at most 128 characters")
+		return validationFailed("密码无效").WithField("password", "最多 128 个字符")
 	}
 	return nil
 }

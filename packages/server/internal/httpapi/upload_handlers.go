@@ -36,7 +36,7 @@ func (s *Server) handleMultipartUpload(w http.ResponseWriter, r *http.Request, u
 	}
 	reader, err := r.MultipartReader()
 	if err != nil {
-		return unsupportedMedia("Content-Type must be multipart/form-data")
+		return unsupportedMedia("Content-Type 必须为 multipart/form-data")
 	}
 	dir := filepath.Join(root.Path, category)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -50,7 +50,7 @@ func (s *Server) handleMultipartUpload(w http.ResponseWriter, r *http.Request, u
 			break
 		}
 		if err != nil {
-			return badRequest("malformed multipart body")
+			return badRequest("multipart 请求体格式错误")
 		}
 		if part.FormName() != "files" || part.FileName() == "" {
 			_ = part.Close()
@@ -58,7 +58,7 @@ func (s *Server) handleMultipartUpload(w http.ResponseWriter, r *http.Request, u
 		}
 		if len(result.Uploaded)+len(result.Failed) >= s.cfg.MaxUploadCount {
 			_ = part.Close()
-			return badRequest(fmt.Sprintf("at most %d files per request", s.cfg.MaxUploadCount))
+			return badRequest(fmt.Sprintf("单次最多上传 %d 个文件", s.cfg.MaxUploadCount))
 		}
 		entry, saveErr := s.storeUploadedPart(r.Context(), root, category, dir, part)
 		_ = part.Close()
@@ -81,15 +81,15 @@ func (s *Server) handleMultipartUpload(w http.ResponseWriter, r *http.Request, u
 func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot, category, dir string, part *multipart.Part) (model.FileEntry, error) {
 	name := safeUploadName(part.FileName())
 	if name == "" {
-		return model.FileEntry{}, errors.New("invalid file name")
+		return model.FileEntry{}, errors.New("文件名无效")
 	}
 	if _, err := validateFileName(name); err != nil {
-		return model.FileEntry{}, errors.New("invalid file name")
+		return model.FileEntry{}, errors.New("文件名无效")
 	}
 
 	tmp, err := os.CreateTemp(dir, ".upload-*")
 	if err != nil {
-		return model.FileEntry{}, errors.New("cannot create the destination file")
+		return model.FileEntry{}, errors.New("无法创建目标文件")
 	}
 	tmpName := tmp.Name()
 	hasher := sha256.New()
@@ -97,21 +97,21 @@ func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot
 	closeErr := tmp.Close()
 	if copyErr != nil || closeErr != nil {
 		_ = os.Remove(tmpName)
-		return model.FileEntry{}, errors.New("cannot write the destination file")
+		return model.FileEntry{}, errors.New("无法写入目标文件")
 	}
 	if err := os.Chmod(tmpName, 0o644); err != nil {
 		_ = os.Remove(tmpName)
-		return model.FileEntry{}, errors.New("cannot finalise the destination file")
+		return model.FileEntry{}, errors.New("无法完成目标文件写入")
 	}
 
 	finalName := availableName(dir, name)
 	if err := os.Rename(tmpName, filepath.Join(dir, finalName)); err != nil {
 		_ = os.Remove(tmpName)
-		return model.FileEntry{}, errors.New("cannot finalise the destination file")
+		return model.FileEntry{}, errors.New("无法完成目标文件写入")
 	}
 	info, err := os.Stat(filepath.Join(dir, finalName))
 	if err != nil {
-		return model.FileEntry{}, errors.New("cannot read the stored file")
+		return model.FileEntry{}, errors.New("无法读取已保存的文件")
 	}
 
 	entry, err := s.store.UpsertFile(ctx, model.FileEntry{
@@ -125,7 +125,7 @@ func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot
 		ContentHash: hex.EncodeToString(hasher.Sum(nil)),
 	})
 	if err != nil {
-		return model.FileEntry{}, errors.New("file stored but index update failed")
+		return model.FileEntry{}, errors.New("文件已保存，但索引更新失败")
 	}
 	entry.URL = fileContentURL(entry.ID)
 	return entry, nil
@@ -146,17 +146,17 @@ func (s *Server) handleInitChunk(w http.ResponseWriter, r *http.Request, _ *Curr
 		return err
 	}
 	if req.Size <= 0 {
-		return validationFailed("size must be positive").WithField("size", "size must be positive")
+		return validationFailed("文件大小必须为正数").WithField("size", "文件大小必须为正数")
 	}
 	chunkSize := req.ChunkSize
 	if chunkSize <= 0 {
 		chunkSize = 5 << 20
 	}
 	if chunkSize < minChunkSize || chunkSize > maxChunkSize {
-		return validationFailed("chunkSize is out of range").WithField("chunkSize", "chunkSize must be between 256 KiB and 64 MiB")
+		return validationFailed("分片大小超出范围").WithField("chunkSize", "分片大小需在 256 KiB 到 64 MiB 之间")
 	}
 	if (req.Size+chunkSize-1)/chunkSize > maxChunkCount {
-		return validationFailed("too many chunks").WithField("chunkSize", "increase chunkSize")
+		return validationFailed("分片数量过多").WithField("chunkSize", "请增大分片大小")
 	}
 
 	session := upload.Session{
@@ -183,20 +183,20 @@ func (s *Server) handleInitChunk(w http.ResponseWriter, r *http.Request, _ *Curr
 func (s *Server) handleUploadChunk(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	session, _, err := s.uploads.Load(pathValue(r, "id"))
 	if err != nil {
-		return notFound("upload session not found")
+		return notFound("上传会话不存在")
 	}
-	index, err := parseInt64(pathValue(r, "index"), "chunk index")
+	index, err := parseInt64(pathValue(r, "index"), "分片序号")
 	if err != nil {
 		return err
 	}
 	if index < 0 || index >= int64(session.ChunkCount()) {
-		return badRequest("chunk index is out of range")
+		return badRequest("分片序号超出范围")
 	}
 	if err := s.uploads.WriteChunk(session, int(index), http.MaxBytesReader(w, r.Body, session.ExpectedChunkSize(int(index))+1)); err != nil {
 		if errors.Is(err, upload.ErrInvalidSession) {
-			return notFound("upload session not found")
+			return notFound("上传会话不存在")
 		}
-		return validationFailed("chunk size does not match the upload plan")
+		return validationFailed("分片大小与上传计划不一致")
 	}
 	writeJSON(w, nil)
 	return nil
@@ -211,19 +211,19 @@ func (s *Server) handleCompleteChunk(w http.ResponseWriter, r *http.Request, use
 	id := pathValue(r, "id")
 	session, _, err := s.uploads.Load(id)
 	if err != nil {
-		return notFound("upload session not found")
+		return notFound("上传会话不存在")
 	}
 	if req.RootID != "" && req.RootID != session.RootID {
-		return badRequest("rootId does not match the upload session")
+		return badRequest("rootId 与上传会话不一致")
 	}
 	if req.Category != "" && req.Category != session.Category {
-		return badRequest("category does not match the upload session")
+		return badRequest("分类与上传会话不一致")
 	}
 	if req.Filename != "" && safeUploadName(req.Filename) != session.Filename {
-		return badRequest("filename does not match the upload session")
+		return badRequest("文件名与上传会话不一致")
 	}
 	if req.Size > 0 && req.Size != session.Size {
-		return badRequest("size does not match the upload session")
+		return badRequest("文件大小与上传会话不一致")
 	}
 
 	root, err := s.rootByID(r.Context(), session.RootID)
@@ -235,7 +235,7 @@ func (s *Server) handleCompleteChunk(w http.ResponseWriter, r *http.Request, use
 		return internalError(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, session.Filename)); err == nil {
-		return conflict("a file with that name already exists")
+		return conflict("同名文件已存在")
 	}
 
 	tmp, err := os.CreateTemp(dir, ".upload-*")
@@ -249,7 +249,7 @@ func (s *Server) handleCompleteChunk(w http.ResponseWriter, r *http.Request, use
 		_ = tmp.Close()
 		_ = os.Remove(tmpName)
 		if errors.Is(mergeErr, upload.ErrIncomplete) {
-			return conflict("upload is incomplete")
+			return conflict("上传尚未完成")
 		}
 		return internalError(mergeErr)
 	}
@@ -294,7 +294,7 @@ func (s *Server) handleCompleteChunk(w http.ResponseWriter, r *http.Request, use
 
 func (s *Server) handleCancelChunk(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	if err := s.uploads.Remove(pathValue(r, "id")); err != nil {
-		return notFound("upload session not found")
+		return notFound("上传会话不存在")
 	}
 	writeJSON(w, nil)
 	return nil

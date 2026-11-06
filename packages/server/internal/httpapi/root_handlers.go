@@ -38,24 +38,24 @@ func (s *Server) handleCreateRoot(w http.ResponseWriter, r *http.Request, user *
 	req.Name = strings.TrimSpace(req.Name)
 	req.Path = strings.TrimSpace(req.Path)
 	if !rootIDPattern.MatchString(req.ID) {
-		return validationFailed("invalid root id").
-			WithField("id", "1-64 characters, letters, digits, dot, dash or underscore")
+		return validationFailed("资源根目录 id 无效").
+			WithField("id", "需为 1-64 个字符，仅限字母、数字、点、短横线或下划线")
 	}
 	if req.Name == "" {
-		return validationFailed("invalid name").WithField("name", "name is required")
+		return validationFailed("名称无效").WithField("name", "名称不能为空")
 	}
 	if req.Path == "" {
-		return validationFailed("invalid path").WithField("path", "path is required")
+		return validationFailed("路径无效").WithField("path", "path 不能为空")
 	}
 
 	absPath := storage.Resolve(s.cfg.BaseDir, req.Path)
 	if _, err := s.store.RootByID(r.Context(), req.ID); err == nil {
-		return conflict("root id already exists")
+		return conflict("根目录 id 已存在")
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return internalError(err)
 	}
 	if _, err := s.store.RootByPath(r.Context(), absPath); err == nil {
-		return conflict("root path is already used by another root")
+		return conflict("该路径已被其他根目录使用")
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return internalError(err)
 	}
@@ -71,7 +71,7 @@ func (s *Server) handleCreateRoot(w http.ResponseWriter, r *http.Request, user *
 	}
 	if err := s.store.CreateRoot(r.Context(), root); err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			return conflict("root id already exists")
+			return conflict("根目录 id 已存在")
 		}
 		return internalError(err)
 	}
@@ -93,7 +93,7 @@ func (s *Server) handleUpdateRoot(w http.ResponseWriter, r *http.Request, user *
 	current, err := s.store.RootByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("root not found")
+			return notFound("资源根目录不存在")
 		}
 		return internalError(err)
 	}
@@ -102,7 +102,7 @@ func (s *Server) handleUpdateRoot(w http.ResponseWriter, r *http.Request, user *
 	if req.Name != nil {
 		name := strings.TrimSpace(*req.Name)
 		if name == "" {
-			return validationFailed("invalid name").WithField("name", "name is required")
+			return validationFailed("名称无效").WithField("name", "名称不能为空")
 		}
 		update.Name = &name
 	}
@@ -113,11 +113,11 @@ func (s *Server) handleUpdateRoot(w http.ResponseWriter, r *http.Request, user *
 	if req.Path != nil {
 		absPath := storage.Resolve(s.cfg.BaseDir, strings.TrimSpace(*req.Path))
 		if strings.TrimSpace(*req.Path) == "" {
-			return validationFailed("invalid path").WithField("path", "path is required")
+			return validationFailed("路径无效").WithField("path", "path 不能为空")
 		}
 		if absPath != current.Path {
 			if other, err := s.store.RootByPath(r.Context(), absPath); err == nil && other.ID != id {
-				return conflict("root path is already used by another root")
+				return conflict("该路径已被其他根目录使用")
 			} else if err != nil && !errors.Is(err, store.ErrNotFound) {
 				return internalError(err)
 			}
@@ -125,11 +125,11 @@ func (s *Server) handleUpdateRoot(w http.ResponseWriter, r *http.Request, user *
 			if err == nil {
 				for _, entry := range entries {
 					if !strings.HasPrefix(entry.Name(), ".") {
-						return conflict("root already contains files or categories; create a new root instead")
+						return conflict("该根目录下已有文件或分类，请新建根目录")
 					}
 				}
 			} else if !errors.Is(err, fs.ErrNotExist) {
-				return badRequest("cannot read the current root directory")
+				return badRequest("无法读取当前根目录")
 			}
 			if err := ensureDirectory(absPath); err != nil {
 				return err
@@ -141,10 +141,10 @@ func (s *Server) handleUpdateRoot(w http.ResponseWriter, r *http.Request, user *
 	updated, err := s.store.UpdateRoot(r.Context(), id, update)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("root not found")
+			return notFound("资源根目录不存在")
 		}
 		if errors.Is(err, store.ErrConflict) {
-			return conflict("root path is already used by another root")
+			return conflict("该路径已被其他根目录使用")
 		}
 		return internalError(err)
 	}
@@ -158,7 +158,7 @@ func (s *Server) handleDeleteRoot(w http.ResponseWriter, r *http.Request, user *
 	root, err := s.store.RootByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("root not found")
+			return notFound("资源根目录不存在")
 		}
 		return internalError(err)
 	}
@@ -167,18 +167,18 @@ func (s *Server) handleDeleteRoot(w http.ResponseWriter, r *http.Request, user *
 		return internalError(err)
 	}
 	if len(roots) <= 1 {
-		return conflict("at least one root must be kept")
+		return conflict("至少需要保留一个根目录")
 	}
 	count, err := countFiles(root.Path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return badRequest("cannot read the root directory")
+		return badRequest("无法读取根目录")
 	}
 	if count > 0 {
-		return conflict("root still contains files; empty it first")
+		return conflict("根目录中仍有文件，请先清空")
 	}
 	if err := s.store.DeleteRoot(r.Context(), id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("root not found")
+			return notFound("资源根目录不存在")
 		}
 		return internalError(err)
 	}
@@ -192,7 +192,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request, _ *Current
 	if raw != "" {
 		for _, segment := range strings.FieldsFunc(raw, func(r rune) bool { return r == '/' || r == '\\' }) {
 			if segment == ".." {
-				return badRequest("path must not contain '..'")
+				return badRequest("路径不能包含 '..'")
 			}
 		}
 	}
@@ -210,15 +210,15 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request, _ *Current
 		target = storage.Resolve(s.cfg.BaseDir, raw)
 	}
 	if target == "" {
-		return badRequest("no starting directory available")
+		return badRequest("没有可用的起始目录")
 	}
 
 	real, err := filepath.EvalSymlinks(target)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return notFound("directory does not exist")
+			return notFound("目录不存在")
 		}
-		return badRequest("cannot resolve the directory")
+		return badRequest("无法解析目录")
 	}
 
 	boundary := ""
@@ -228,19 +228,19 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request, _ *Current
 		}
 	}
 	if boundary == "" {
-		return forbidden("browsing outside the allowed directories is not permitted")
+		return forbidden("不允许浏览授权范围之外的目录")
 	}
 
 	info, err := os.Stat(real)
 	if err != nil {
-		return badRequest("cannot read the directory")
+		return badRequest("无法读取目录")
 	}
 	if !info.IsDir() {
-		return badRequest("target is not a directory")
+		return badRequest("目标不是目录")
 	}
 	entries, err := os.ReadDir(real)
 	if err != nil {
-		return badRequest("cannot read the directory")
+		return badRequest("无法读取目录")
 	}
 
 	dirs := make([]model.BrowseEntry, 0, len(entries))
@@ -350,18 +350,18 @@ func ensureDirectory(path string) error {
 	info, err := os.Stat(path)
 	if err == nil {
 		if !info.IsDir() {
-			return badRequest("path exists and is not a directory")
+			return badRequest("路径已存在且不是目录")
 		}
 		return nil
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
-		return badRequest("cannot access the path, check permissions")
+		return badRequest("无法访问该路径，请检查权限")
 	}
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			return badRequest("no permission to create the directory")
+			return badRequest("没有创建目录的权限")
 		}
-		return badRequest("cannot create the directory")
+		return badRequest("无法创建目录")
 	}
 	return nil
 }

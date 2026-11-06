@@ -35,7 +35,7 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request, _ *Curr
 	query := r.URL.Query()
 	rootID := strings.TrimSpace(query.Get("rootId"))
 	if rootID == "" {
-		return badRequest("rootId is required")
+		return badRequest("rootId 不能为空")
 	}
 	if _, err := s.rootByID(r.Context(), rootID); err != nil {
 		return err
@@ -89,7 +89,7 @@ func (s *Server) handleListCategories(w http.ResponseWriter, r *http.Request, _ 
 	seen := make(map[string]struct{}, len(stats))
 	entries, err := os.ReadDir(root.Path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return badRequest("cannot read the root directory")
+		return badRequest("无法读取根目录")
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
@@ -128,12 +128,12 @@ func (s *Server) handleCreateCategory(w http.ResponseWriter, r *http.Request, us
 	}
 	path := filepath.Join(root.Path, name)
 	if _, err := os.Stat(path); err == nil {
-		return conflict("category already exists")
+		return conflict("分类已存在")
 	} else if !errors.Is(err, fs.ErrNotExist) {
-		return badRequest("cannot access the category path")
+		return badRequest("无法访问分类路径")
 	}
 	if err := os.MkdirAll(path, 0o755); err != nil {
-		return badRequest("cannot create the category")
+		return badRequest("无法创建分类")
 	}
 	s.audit(r, user, "category.create", "category", root.ID+"/"+name, nil)
 	writeJSON(w, map[string]string{"name": name})
@@ -164,17 +164,17 @@ func (s *Server) handleRenameCategory(w http.ResponseWriter, r *http.Request, us
 	oldPath := filepath.Join(root.Path, name)
 	info, err := os.Stat(oldPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return notFound("category not found")
+		return notFound("分类不存在")
 	}
 	if err != nil || !info.IsDir() {
-		return badRequest("cannot read the category")
+		return badRequest("无法读取分类")
 	}
 	newPath := filepath.Join(root.Path, newName)
 	if _, err := os.Stat(newPath); err == nil {
-		return conflict("target category already exists")
+		return conflict("目标分类已存在")
 	}
 	if err := os.Rename(oldPath, newPath); err != nil {
-		return badRequest("cannot rename the category")
+		return badRequest("无法重命名分类")
 	}
 	if err := s.store.RenameCategory(r.Context(), root.ID, name, newName); err != nil {
 		// 目录已移动但索引尚未更新，下一次扫描会修正。
@@ -201,17 +201,17 @@ func (s *Server) handleDeleteCategory(w http.ResponseWriter, r *http.Request, us
 	path := filepath.Join(root.Path, name)
 	info, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return notFound("category not found")
+		return notFound("分类不存在")
 	}
 	if err != nil || !info.IsDir() {
-		return badRequest("cannot read the category")
+		return badRequest("无法读取分类")
 	}
 	recursive := r.URL.Query().Get("recursive") == "1" || strings.EqualFold(r.URL.Query().Get("recursive"), "true")
 	if !recursive && !isEmptyDir(path) {
-		return conflict("category is not empty; pass recursive=1 to delete it")
+		return conflict("分类不为空，请传入 recursive=1 以连同文件一并删除")
 	}
 	if err := os.RemoveAll(path); err != nil {
-		return badRequest("cannot delete the category")
+		return badRequest("无法删除分类")
 	}
 	if err := s.store.DeleteCategoryEntries(r.Context(), root.ID, name); err != nil {
 		s.log.Error("delete category index failed", "error", err, "root", root.ID, "category", name)
@@ -278,14 +278,14 @@ func (s *Server) handleBatchDelete(w http.ResponseWriter, r *http.Request, user 
 	for _, rel := range paths {
 		full, err := storage.Join(filepath.Join(root.Path, category), rel)
 		if err != nil {
-			return badRequest("invalid path: " + rel)
+			return badRequest("路径无效：" + rel)
 		}
 		info, err := os.Lstat(full)
 		if err != nil || info.IsDir() {
 			continue
 		}
 		if err := os.Remove(full); err != nil {
-			return badRequest("cannot delete " + rel)
+			return badRequest("无法删除：" + rel)
 		}
 		if err := s.store.DeleteFileEntry(r.Context(), root.ID, category, rel); err != nil {
 			s.log.Error("delete index entry failed", "error", err, "path", rel)
@@ -311,7 +311,7 @@ func (s *Server) handleBatchMove(w http.ResponseWriter, r *http.Request, user *C
 		return err
 	}
 	if target == category {
-		return badRequest("source and target category are the same")
+		return badRequest("源分类与目标分类相同")
 	}
 	paths, err := normalizeBatchPaths(req.Paths)
 	if err != nil {
@@ -321,23 +321,23 @@ func (s *Server) handleBatchMove(w http.ResponseWriter, r *http.Request, user *C
 	sourceDir := filepath.Join(root.Path, category)
 	targetDir := filepath.Join(root.Path, target)
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		return badRequest("cannot create the target category")
+		return badRequest("无法创建目标分类")
 	}
 	// 先完成校验，避免批量操作中途停止。
 	for _, rel := range paths {
 		src, err := storage.Join(sourceDir, rel)
 		if err != nil {
-			return badRequest("invalid path: " + rel)
+			return badRequest("路径无效：" + rel)
 		}
 		if info, err := os.Lstat(src); err != nil || info.IsDir() {
-			return notFound("file not found: " + rel)
+			return notFound("文件不存在：" + rel)
 		}
 		dst, err := storage.Join(targetDir, rel)
 		if err != nil {
-			return badRequest("invalid path: " + rel)
+			return badRequest("路径无效：" + rel)
 		}
 		if _, err := os.Stat(dst); err == nil {
-			return conflict("target already contains " + rel)
+			return conflict("目标位置已存在同名文件：" + rel)
 		}
 	}
 
@@ -346,10 +346,10 @@ func (s *Server) handleBatchMove(w http.ResponseWriter, r *http.Request, user *C
 		src := filepath.Join(sourceDir, filepath.FromSlash(rel))
 		dst := filepath.Join(targetDir, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return badRequest("cannot create the target directory")
+			return badRequest("无法创建目标目录")
 		}
 		if err := os.Rename(src, dst); err != nil {
-			return badRequest("cannot move " + rel)
+			return badRequest("无法移动：" + rel)
 		}
 		if err := s.store.MoveFileEntry(r.Context(), root.ID, category, rel, target, rel); err != nil {
 			s.log.Error("move index entry failed", "error", err, "path", rel)
@@ -373,7 +373,7 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 	}
 	rel, err := storage.CleanRel(req.Path)
 	if err != nil || rel == "" {
-		return badRequest("invalid path")
+		return badRequest("路径无效")
 	}
 	newName, err := validateFileName(req.NewName)
 	if err != nil {
@@ -383,14 +383,14 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 	categoryDir := filepath.Join(root.Path, category)
 	src, err := storage.Join(categoryDir, rel)
 	if err != nil {
-		return badRequest("invalid path")
+		return badRequest("路径无效")
 	}
 	info, err := os.Lstat(src)
 	if errors.Is(err, fs.ErrNotExist) {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	if err != nil || info.IsDir() {
-		return badRequest("cannot read the file")
+		return badRequest("无法读取文件")
 	}
 	targetRel := filepath.ToSlash(filepath.Join(filepath.Dir(filepath.FromSlash(rel)), newName))
 	if targetRel == rel {
@@ -404,13 +404,13 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 	}
 	dst, err := storage.Join(categoryDir, targetRel)
 	if err != nil {
-		return badRequest("invalid file name")
+		return badRequest("文件名无效")
 	}
 	if _, err := os.Stat(dst); err == nil {
-		return conflict("a file with that name already exists")
+		return conflict("同名文件已存在")
 	}
 	if err := os.Rename(src, dst); err != nil {
-		return badRequest("cannot rename the file")
+		return badRequest("无法重命名文件")
 	}
 	if err := s.store.MoveFileEntry(r.Context(), root.ID, category, rel, category, targetRel); err != nil {
 		s.log.Error("rename index entry failed", "error", err, "path", rel)
@@ -434,21 +434,21 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, user *
 	}
 	rel, err := storage.CleanRel(query.Get("path"))
 	if err != nil || rel == "" {
-		return badRequest("invalid path")
+		return badRequest("路径无效")
 	}
 	full, err := storage.Join(filepath.Join(root.Path, category), rel)
 	if err != nil {
-		return badRequest("invalid path")
+		return badRequest("路径无效")
 	}
 	info, err := os.Lstat(full)
 	if errors.Is(err, fs.ErrNotExist) {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	if err != nil || info.IsDir() {
-		return badRequest("cannot read the file")
+		return badRequest("无法读取文件")
 	}
 	if err := os.Remove(full); err != nil {
-		return badRequest("cannot delete the file")
+		return badRequest("无法删除文件")
 	}
 	if err := s.store.DeleteFileEntry(r.Context(), root.ID, category, rel); err != nil {
 		s.log.Error("delete index entry failed", "error", err, "path", rel)
@@ -459,17 +459,17 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, user *
 }
 
 func (s *Server) handleFileContent(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
-	id, err := parseInt64(pathValue(r, "fileId"), "file id")
+	id, err := parseInt64(pathValue(r, "fileId"), "文件 id")
 	if err != nil {
 		return err
 	}
 	if id <= 0 {
-		return badRequest("invalid file id")
+		return badRequest("文件 id 无效")
 	}
 	entry, err := s.store.FileByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("file not found")
+			return notFound("文件不存在")
 		}
 		return internalError(err)
 	}
@@ -483,21 +483,21 @@ func (s *Server) handleFileContent(w http.ResponseWriter, r *http.Request, _ *Cu
 	}
 	rel, err := storage.CleanRel(entry.RelPath)
 	if err != nil || rel == "" {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	full, err := storage.Join(filepath.Join(root.Path, category), rel)
 	if err != nil {
-		return badRequest("invalid path")
+		return badRequest("路径无效")
 	}
 	info, err := os.Stat(full)
 	if errors.Is(err, fs.ErrNotExist) {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	if err != nil {
-		return badRequest("cannot read the file")
+		return badRequest("无法读取文件")
 	}
 	if info.IsDir() {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	return s.serveStoredFile(w, r, full, info, entry.RootID+"/"+category+"/"+rel)
 }
@@ -515,7 +515,7 @@ func (s *Server) serveStoredFile(w http.ResponseWriter, r *http.Request, full st
 
 	if !download && (width > 0 || height > 0) && format != "original" && media.Supports(extension) {
 		if format != "webp" && format != "jpeg" && format != "jpg" && format != "" {
-			return badRequest("format must be jpeg or webp")
+			return badRequest("format 只能为 jpeg 或 webp")
 		}
 		if format == "jpg" {
 			format = "jpeg"
@@ -533,7 +533,7 @@ func (s *Server) serveStoredFile(w http.ResponseWriter, r *http.Request, full st
 			serveThumbnail(w, r, result)
 			return nil
 		case errors.Is(err, media.ErrTooLarge):
-			return &APIError{Status: http.StatusUnprocessableEntity, Code: "image_too_large", Message: "image exceeds the thumbnail limit"}
+			return &APIError{Status: http.StatusUnprocessableEntity, Code: "image_too_large", Message: "图片超出缩略图尺寸限制"}
 		case errors.Is(err, media.ErrUnsupported):
 			// 回退为输出原始内容。
 		default:
@@ -558,11 +558,11 @@ func (s *Server) resolveRequestLocation(ctx context.Context, rootID, category st
 
 func (s *Server) rootByID(ctx context.Context, id string) (*model.ResourceRoot, error) {
 	if strings.TrimSpace(id) == "" {
-		return nil, badRequest("rootId is required")
+		return nil, badRequest("rootId 不能为空")
 	}
 	root, err := s.store.RootByID(ctx, id)
 	if errors.Is(err, store.ErrNotFound) {
-		return nil, notFound("root not found")
+		return nil, notFound("资源根目录不存在")
 	}
 	if err != nil {
 		return nil, internalError(err)
@@ -574,15 +574,15 @@ func validateCategoryName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	switch {
 	case name == "":
-		return "", validationFailed("category is required").WithField("category", "category is required")
+		return "", validationFailed("分类不能为空").WithField("category", "分类不能为空")
 	case name == "." || name == "..":
-		return "", validationFailed("invalid category").WithField("category", "invalid name")
+		return "", validationFailed("分类名称无效").WithField("category", "名称无效")
 	case strings.HasPrefix(name, "."):
-		return "", validationFailed("invalid category").WithField("category", "name must not start with a dot")
+		return "", validationFailed("分类名称无效").WithField("category", "名称不能以点开头")
 	case strings.ContainsAny(name, `/\`):
-		return "", validationFailed("invalid category").WithField("category", "name must not contain a slash")
+		return "", validationFailed("分类名称无效").WithField("category", "名称不能包含斜杠")
 	case len(name) > 128:
-		return "", validationFailed("invalid category").WithField("category", "name is too long")
+		return "", validationFailed("分类名称无效").WithField("category", "名称过长")
 	}
 	return name, nil
 }
@@ -591,30 +591,30 @@ func validateFileName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	switch {
 	case name == "":
-		return "", validationFailed("file name is required").WithField("newName", "file name is required")
+		return "", validationFailed("文件名不能为空").WithField("newName", "文件名不能为空")
 	case name == "." || name == "..":
-		return "", validationFailed("invalid file name").WithField("newName", "invalid name")
+		return "", validationFailed("文件名无效").WithField("newName", "名称无效")
 	case strings.ContainsAny(name, `/\`):
-		return "", validationFailed("invalid file name").WithField("newName", "name must not contain a slash")
+		return "", validationFailed("文件名无效").WithField("newName", "名称不能包含斜杠")
 	case len(name) > 255:
-		return "", validationFailed("invalid file name").WithField("newName", "name is too long")
+		return "", validationFailed("文件名无效").WithField("newName", "名称过长")
 	}
 	return name, nil
 }
 
 func normalizeBatchPaths(paths []string) ([]string, error) {
 	if len(paths) == 0 {
-		return nil, badRequest("paths is required")
+		return nil, badRequest("paths 不能为空")
 	}
 	if len(paths) > maxBatchPaths {
-		return nil, badRequest("too many paths in one request")
+		return nil, badRequest("单次请求的文件数量过多")
 	}
 	cleaned := make([]string, 0, len(paths))
 	seen := make(map[string]struct{}, len(paths))
 	for _, raw := range paths {
 		rel, err := storage.CleanRel(raw)
 		if err != nil || rel == "" {
-			return nil, badRequest("invalid path: " + raw)
+			return nil, badRequest("路径无效：" + raw)
 		}
 		if _, ok := seen[rel]; ok {
 			continue
@@ -645,7 +645,7 @@ func fileContentURL(id int64) string {
 func serveOriginal(w http.ResponseWriter, r *http.Request, path string, info os.FileInfo, download bool) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	defer f.Close()
 

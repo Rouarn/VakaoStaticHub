@@ -26,7 +26,7 @@ func spaFileHandler(dir string, root http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if !fileExists(root, name) {
-			writeError(w, notFound("file not found"))
+			writeError(w, notFound("文件不存在"))
 			return
 		}
 		serveSPAFile(w, r, dir, name)
@@ -36,7 +36,7 @@ func spaFileHandler(dir string, root http.FileSystem) http.Handler {
 func (s *Server) spaFallback(dir string, root http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/v1/") {
-			writeError(w, notFound("endpoint not found"))
+			writeError(w, notFound("接口不存在"))
 			return
 		}
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
@@ -47,12 +47,12 @@ func (s *Server) spaFallback(dir string, root http.FileSystem) http.Handler {
 		// SPA 路由：无扩展名的路径（/files、/shares/detail 等）一律回退到
 		// index.html，交给前端路由处理；带扩展名的缺失资源仍按 404 处理。
 		if name != "" && path.Ext(name) != "" {
-			writeError(w, notFound("file not found"))
+			writeError(w, notFound("文件不存在"))
 			return
 		}
 		name = "index.html"
 		if !fileExists(root, name) {
-			writeError(w, notFound("frontend is not built"))
+			writeError(w, notFound("前端尚未构建"))
 			return
 		}
 		serveSPAFile(w, r, dir, name)

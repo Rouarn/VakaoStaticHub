@@ -92,7 +92,7 @@ func (w *apiErrorShape) WriteHeader(code int) {
 		var body string
 		switch code {
 		case http.StatusNotFound:
-			body = `{"code":404,"message":"endpoint not found","data":null}` + "\n"
+			body = `{"code":404,"message":"接口不存在","data":null}` + "\n"
 		case http.StatusMethodNotAllowed:
 			body = `{"code":405,"message":"method not allowed","data":null}` + "\n"
 		}

@@ -42,14 +42,14 @@ func (s *Server) handleAuditLogs(w http.ResponseWriter, r *http.Request, _ *Curr
 	if raw := strings.TrimSpace(query.Get("startTime")); raw != "" {
 		parsed, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			return validationFailed("startTime must be RFC 3339").WithField("startTime", "invalid timestamp")
+			return validationFailed("startTime 需为 RFC 3339 时间格式").WithField("startTime", "时间格式无效")
 		}
 		filter.StartMS = parsed.UnixMilli()
 	}
 	if raw := strings.TrimSpace(query.Get("endTime")); raw != "" {
 		parsed, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			return validationFailed("endTime must be RFC 3339").WithField("endTime", "invalid timestamp")
+			return validationFailed("endTime 需为 RFC 3339 时间格式").WithField("endTime", "时间格式无效")
 		}
 		filter.EndMS = parsed.UnixMilli()
 	}
@@ -142,7 +142,7 @@ func (s *Server) handleMetricsSidebar(w http.ResponseWriter, r *http.Request, _ 
 // 原样转发，客户端可选择 JSON 或纯文本。
 func (s *Server) handleHitokoto(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	if strings.TrimSpace(s.cfg.HitokotoURL) == "" {
-		return &APIError{Status: http.StatusServiceUnavailable, Code: "hitokoto_proxy_disabled", Message: "hitokoto proxy is not configured"}
+		return &APIError{Status: http.StatusServiceUnavailable, Code: "hitokoto_proxy_disabled", Message: "一言代理未配置"}
 	}
 	target := s.cfg.HitokotoURL
 	if raw := r.URL.RawQuery; raw != "" {
@@ -160,15 +160,15 @@ func (s *Server) handleHitokoto(w http.ResponseWriter, r *http.Request, _ *Curre
 	client := &http.Client{Timeout: 8 * time.Second}
 	resp, err := client.Get(target)
 	if err != nil {
-		return &APIError{Status: http.StatusBadGateway, Code: "upstream_unavailable", Message: "hitokoto upstream is unreachable", Err: err}
+		return &APIError{Status: http.StatusBadGateway, Code: "upstream_unavailable", Message: "一言上游服务不可达", Err: err}
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return &APIError{Status: http.StatusBadGateway, Code: "upstream_unavailable", Message: "cannot read the upstream response", Err: err}
+		return &APIError{Status: http.StatusBadGateway, Code: "upstream_unavailable", Message: "无法读取上游响应", Err: err}
 	}
 	if resp.StatusCode >= 400 {
-		return &APIError{Status: http.StatusBadGateway, Code: "upstream_error", Message: "hitokoto upstream returned an error"}
+		return &APIError{Status: http.StatusBadGateway, Code: "upstream_error", Message: "一言上游返回错误"}
 	}
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
@@ -208,7 +208,7 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 	if raw := strings.TrimSpace(query.Get("q")); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil {
-			return badRequest("q must be a number")
+			return badRequest("q 必须为数字")
 		}
 		quality = parsed
 	}
@@ -222,7 +222,7 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 		case "original":
 			format = "original"
 		default:
-			return badRequest("format must be jpeg, webp or original")
+			return badRequest("format 只能为 jpeg、webp 或 original")
 		}
 	}
 
@@ -254,10 +254,10 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 	}
 	info, err := os.Stat(full)
 	if errors.Is(err, fs.ErrNotExist) {
-		return notFound("image file is missing on disk")
+		return notFound("磁盘上的图片文件已丢失")
 	}
 	if err != nil || info.IsDir() {
-		return notFound("image file is missing on disk")
+		return notFound("磁盘上的图片文件已丢失")
 	}
 	w.Header().Set("X-Photo-Id", strconv.FormatInt(entry.ID, 10))
 
@@ -280,7 +280,7 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 	case err == nil:
 		return serveRandomThumbnail(w, r, result)
 	case errors.Is(err, media.ErrTooLarge):
-		return &APIError{Status: http.StatusUnprocessableEntity, Code: "image_too_large", Message: "image exceeds the thumbnail limit"}
+		return &APIError{Status: http.StatusUnprocessableEntity, Code: "image_too_large", Message: "图片超出缩略图尺寸限制"}
 	case errors.Is(err, media.ErrUnsupported):
 		return serveRandomFile(w, r, full, info)
 	default:
@@ -296,7 +296,7 @@ func parsePositiveDimension(values ...string) (int, error) {
 		}
 		value, err := strconv.Atoi(raw)
 		if err != nil || value <= 0 {
-			return 0, badRequest("width and height must be positive numbers")
+			return 0, badRequest("宽度和高度必须为正数")
 		}
 		return value, nil
 	}
@@ -327,7 +327,7 @@ func setNoStore(header http.Header) {
 func serveRandomFile(w http.ResponseWriter, r *http.Request, path string, info os.FileInfo) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return notFound("image file is missing on disk")
+		return notFound("磁盘上的图片文件已丢失")
 	}
 	defer f.Close()
 	header := w.Header()

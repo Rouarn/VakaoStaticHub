@@ -59,7 +59,7 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request, user 
 		return err
 	}
 	if len(paths) > maxSharePaths {
-		return badRequest("too many files in one share")
+		return badRequest("单个分享的文件数量过多")
 	}
 	// 任一文件缺失时立即失败，避免创建
 	// 残缺的分享链接。
@@ -67,11 +67,11 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request, user 
 	for _, rel := range paths {
 		full, err := storage.Join(categoryDir, rel)
 		if err != nil {
-			return badRequest("invalid path: " + rel)
+			return badRequest("路径无效：" + rel)
 		}
 		info, err := os.Stat(full)
 		if err != nil || info.IsDir() {
-			return notFound("file not found: " + rel)
+			return notFound("文件不存在：" + rel)
 		}
 	}
 
@@ -95,7 +95,7 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request, user 
 	}
 	if password := strings.TrimSpace(req.Password); password != "" {
 		if len(password) < 4 || len(password) > 128 {
-			return validationFailed("password must be between 4 and 128 characters").WithField("password", "invalid length")
+			return validationFailed("密码长度需在 4 到 128 个字符之间").WithField("password", "长度不合法")
 		}
 		hash, err := auth.HashPassword(password)
 		if err != nil {
@@ -142,7 +142,7 @@ func (s *Server) handleUpdateShare(w http.ResponseWriter, r *http.Request, user 
 		hash := ""
 		if password != "" {
 			if len(password) < 4 || len(password) > 128 {
-				return validationFailed("password must be between 4 and 128 characters").WithField("password", "invalid length")
+				return validationFailed("密码长度需在 4 到 128 个字符之间").WithField("password", "长度不合法")
 			}
 			generated, err := auth.HashPassword(password)
 			if err != nil {
@@ -154,7 +154,7 @@ func (s *Server) handleUpdateShare(w http.ResponseWriter, r *http.Request, user 
 	}
 	if err := s.store.UpdateShare(r.Context(), token, update); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("share not found")
+			return notFound("分享不存在")
 		}
 		return internalError(err)
 	}
@@ -171,7 +171,7 @@ func (s *Server) handleDeleteShare(w http.ResponseWriter, r *http.Request, user 
 	token := pathValue(r, "token")
 	if err := s.store.DeleteShare(r.Context(), token); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("share not found")
+			return notFound("分享不存在")
 		}
 		return internalError(err)
 	}
@@ -184,7 +184,7 @@ func (s *Server) handleShareAccessLogs(w http.ResponseWriter, r *http.Request, _
 	record, err := s.store.ShareByToken(r.Context(), pathValue(r, "token"))
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("share not found")
+			return notFound("分享不存在")
 		}
 		return internalError(err)
 	}
@@ -212,7 +212,7 @@ func (s *Server) handlePublicShareInfo(w http.ResponseWriter, r *http.Request, _
 
 func (s *Server) handleUnlockShare(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	if !s.shareLimiter.allow(clientIP(r, s.cfg.TrustProxy)) {
-		return tooManyRequests("too many unlock attempts, try again later")
+		return tooManyRequests("解锁尝试过于频繁，请稍后再试")
 	}
 	var req model.ShareVerifyRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -226,7 +226,7 @@ func (s *Server) handleUnlockShare(w http.ResponseWriter, r *http.Request, _ *Cu
 	agent := r.UserAgent()
 	if record.PasswordHash != "" && !auth.VerifyPassword(req.Password, record.PasswordHash) {
 		_ = s.store.InsertShareAccessLog(r.Context(), record.ID, ip, agent, false)
-		return unauthorized("incorrect share password")
+		return unauthorized("访问密码错误")
 	}
 	token, expiresAt, err := s.shareTokens.Issue(record.ID, record.Token)
 	if err != nil {
@@ -300,12 +300,12 @@ func (s *Server) handleShareFileContent(w http.ResponseWriter, r *http.Request, 
 	if _, err := s.authorizeShareAccess(r, record); err != nil {
 		return err
 	}
-	index, err := parseInt64(pathValue(r, "index"), "index")
+	index, err := parseInt64(pathValue(r, "index"), "文件序号")
 	if err != nil {
 		return err
 	}
 	if index < 0 || index >= int64(len(record.FilePaths)) {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	root, err := s.rootByID(r.Context(), record.RootID)
 	if err != nil {
@@ -313,15 +313,15 @@ func (s *Server) handleShareFileContent(w http.ResponseWriter, r *http.Request, 
 	}
 	rel, err := storage.CleanRel(record.FilePaths[index])
 	if err != nil || rel == "" {
-		return badRequest("invalid path")
+		return badRequest("路径无效")
 	}
 	full, err := storage.Join(filepath.Join(root.Path, record.Category), rel)
 	if err != nil {
-		return badRequest("invalid path")
+		return badRequest("路径无效")
 	}
 	info, err := os.Stat(full)
 	if err != nil || info.IsDir() {
-		return notFound("file not found")
+		return notFound("文件不存在")
 	}
 	return s.serveStoredFile(w, r, full, info, "share:"+record.Token+"/"+rel)
 }
@@ -331,7 +331,7 @@ func (s *Server) availableShare(r *http.Request, token string, allowExhaustedTok
 	record, err := s.store.ShareByToken(r.Context(), token)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return store.ShareRecord{}, &APIError{Status: http.StatusNotFound, Code: "share_not_found", Message: "share link does not exist"}
+			return store.ShareRecord{}, &APIError{Status: http.StatusNotFound, Code: "share_not_found", Message: "分享链接不存在"}
 		}
 		return store.ShareRecord{}, internalError(err)
 	}
@@ -339,9 +339,9 @@ func (s *Server) availableShare(r *http.Request, token string, allowExhaustedTok
 	case "active":
 		return record, nil
 	case "disabled":
-		return store.ShareRecord{}, &APIError{Status: http.StatusGone, Code: "share_disabled", Message: "share link is disabled"}
+		return store.ShareRecord{}, &APIError{Status: http.StatusGone, Code: "share_disabled", Message: "分享链接已停用"}
 	case "expired":
-		return store.ShareRecord{}, &APIError{Status: http.StatusGone, Code: "share_expired", Message: "share link has expired"}
+		return store.ShareRecord{}, &APIError{Status: http.StatusGone, Code: "share_expired", Message: "分享链接已过期"}
 	case "exhausted":
 		// 最后一次允许的解锁会递增计数，因此需放行已持有 Token 的
 		// 客户端，使其在本次会话内继续读取。
@@ -351,9 +351,9 @@ func (s *Server) availableShare(r *http.Request, token string, allowExhaustedTok
 				return record, nil
 			}
 		}
-		return store.ShareRecord{}, &APIError{Status: http.StatusGone, Code: "share_exhausted", Message: "share link access limit reached"}
+		return store.ShareRecord{}, &APIError{Status: http.StatusGone, Code: "share_exhausted", Message: "分享链接打开次数已达上限"}
 	default:
-		return store.ShareRecord{}, gone("share link is no longer available")
+		return store.ShareRecord{}, gone("分享链接已失效")
 	}
 }
 
@@ -365,14 +365,14 @@ func (s *Server) authorizeShareAccess(r *http.Request, record store.ShareRecord)
 		if record.PasswordHash == "" {
 			return sharelink.Claims{ShareID: record.ID, Token: record.Token}, nil
 		}
-		return sharelink.Claims{}, unauthorized("share password required")
+		return sharelink.Claims{}, unauthorized("该分享需要访问密码")
 	}
 	claims, err := s.shareTokens.Parse(value)
 	if err != nil {
-		return sharelink.Claims{}, unauthorized("invalid or expired share access token")
+		return sharelink.Claims{}, unauthorized("分享访问令牌无效或已过期")
 	}
 	if claims.ShareID != record.ID || claims.Token != record.Token {
-		return sharelink.Claims{}, unauthorized("share access token does not match this link")
+		return sharelink.Claims{}, unauthorized("分享访问令牌与当前链接不匹配")
 	}
 	return claims, nil
 }
@@ -384,10 +384,10 @@ func parseShareExpiry(value string) (*time.Time, error) {
 	}
 	parsed, err := time.Parse(time.RFC3339, value)
 	if err != nil {
-		return nil, validationFailed("expiresAt must be an RFC 3339 timestamp").WithField("expiresAt", "invalid timestamp")
+		return nil, validationFailed("expiresAt 需为 RFC 3339 时间格式").WithField("expiresAt", "时间格式无效")
 	}
 	if !parsed.After(time.Now()) {
-		return nil, validationFailed("expiresAt must be in the future").WithField("expiresAt", "must be in the future")
+		return nil, validationFailed("expiresAt 必须晚于当前时间").WithField("expiresAt", "必须晚于当前时间")
 	}
 	return &parsed, nil
 }

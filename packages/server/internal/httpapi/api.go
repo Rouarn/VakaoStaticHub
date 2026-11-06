@@ -111,7 +111,7 @@ func (s *Server) wrap(level AuthLevel, fn handleFunc) http.Handler {
 				return
 			}
 			if level == Admin && !u.isAdmin() {
-				s.fail(w, r, forbidden("administrator role required"))
+				s.fail(w, r, forbidden("需要管理员权限"))
 				return
 			}
 			user = &u
@@ -138,19 +138,19 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 func (s *Server) authenticate(r *http.Request) (CurrentUser, error) {
 	claims, err := s.tokens.TokenFromHeader(r.Header.Get("Authorization"))
 	if err != nil {
-		return CurrentUser{}, unauthorized("missing or invalid bearer token")
+		return CurrentUser{}, unauthorized("缺少有效的登录凭证")
 	}
 	record, err := s.store.UserByID(r.Context(), claims.Sub)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return CurrentUser{}, unauthorized("user no longer exists")
+			return CurrentUser{}, unauthorized("账号已不存在")
 		}
 		return CurrentUser{}, internalError(err)
 	}
 	// 修改密码会更新 updated_at；早于该时间签发的 Token
 	// 无需服务端黑名单即会失效。
 	if record.UpdatedAtMS > claims.IatMS {
-		return CurrentUser{}, unauthorized("token has been revoked")
+		return CurrentUser{}, unauthorized("登录已失效，请重新登录")
 	}
 	return CurrentUser{ID: record.ID, Username: record.Username, Role: record.Role}, nil
 }

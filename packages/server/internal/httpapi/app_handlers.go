@@ -41,7 +41,7 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request, user *C
 	}
 	appKey := strings.TrimSpace(req.AppKey)
 	if appKey == "" || len(appKey) > 64 {
-		return validationFailed("appKey is required").WithField("appKey", "invalid app key")
+		return validationFailed("appKey 不能为空").WithField("appKey", "appKey 无效")
 	}
 	platform := strings.ToLower(strings.TrimSpace(req.Platform))
 	if platform == "" {
@@ -54,7 +54,7 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request, user *C
 	app, err := s.store.CreateApp(r.Context(), model.App{AppKey: appKey, Platform: platform, Name: name})
 	if err != nil {
 		if isUniqueErr(err) {
-			return conflict("app already exists for this platform")
+			return conflict("该平台下已存在同名应用")
 		}
 		return internalError(err)
 	}
@@ -71,21 +71,21 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request, user *C
 	appKey := pathValue(r, "appKey")
 	platform := appPlatform(r)
 	if req.AppKey == nil && req.Name == nil {
-		return validationFailed("name or appKey is required").WithField("name", "nothing to update")
+		return validationFailed("名称和 appKey 至少填写一项").WithField("name", "至少填写一项")
 	}
 	nextKey := appKey
 	if req.AppKey != nil {
 		candidate := strings.TrimSpace(*req.AppKey)
 		if candidate == "" || len(candidate) > 64 {
-			return validationFailed("appKey is invalid").WithField("appKey", "invalid app key")
+			return validationFailed("appKey 无效").WithField("appKey", "appKey 无效")
 		}
 		if candidate != appKey {
 			if err := s.store.RenameApp(r.Context(), appKey, platform, candidate); err != nil {
 				if errors.Is(err, store.ErrNotFound) {
-					return notFound("app not found")
+					return notFound("应用不存在")
 				}
 				if isUniqueErr(err) {
-					return conflict("app already exists for this platform")
+					return conflict("该平台下已存在同名应用")
 				}
 				return internalError(err)
 			}
@@ -95,7 +95,7 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request, user *C
 	if req.Name != nil {
 		name := strings.TrimSpace(*req.Name)
 		if name == "" {
-			return validationFailed("name cannot be empty").WithField("name", "name is required")
+			return validationFailed("名称不能为空").WithField("name", "名称不能为空")
 		}
 		if err := s.store.UpdateAppName(r.Context(), nextKey, platform, name); err != nil {
 			return internalError(err)
@@ -115,7 +115,7 @@ func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request, user *C
 	platform := appPlatform(r)
 	if _, err := s.store.AppByKey(r.Context(), appKey, platform); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("app not found")
+			return notFound("应用不存在")
 		}
 		return internalError(err)
 	}
@@ -168,7 +168,7 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, use
 	appKey := pathValue(r, "appKey")
 	reader, err := r.MultipartReader()
 	if err != nil {
-		return unsupportedMedia("Content-Type must be multipart/form-data")
+		return unsupportedMedia("Content-Type 必须为 multipart/form-data")
 	}
 
 	fields := make(map[string]string, 12)
@@ -190,20 +190,20 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, use
 			break
 		}
 		if err != nil {
-			return badRequest("malformed multipart body")
+			return badRequest("multipart 请求体格式错误")
 		}
 		if part.FileName() == "" {
 			value, readErr := io.ReadAll(io.LimitReader(part, 8<<10))
 			_ = part.Close()
 			if readErr != nil {
-				return badRequest("cannot read form field")
+				return badRequest("无法读取表单字段")
 			}
 			fields[part.FormName()] = string(value)
 			continue
 		}
 		if tmpPath != "" {
 			_ = part.Close()
-			return badRequest("only one package file is allowed")
+			return badRequest("只能上传一个安装包文件")
 		}
 		path, size, name, hash, saveErr := s.savePackageTemp(part)
 		_ = part.Close()
@@ -214,7 +214,7 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, use
 	}
 
 	if tmpPath == "" {
-		return badRequest("package file is required")
+		return badRequest("请选择安装包文件")
 	}
 	platform := strings.ToLower(strings.TrimSpace(fields["platform"]))
 	if platform == "" {
@@ -223,23 +223,23 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, use
 	app, err := s.store.AppByKey(r.Context(), appKey, platform)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("app not found; create it first")
+			return notFound("应用不存在，请先创建应用")
 		}
 		return internalError(err)
 	}
 	versionName := strings.TrimSpace(fields["versionName"])
 	if versionName == "" || len(versionName) > 32 {
-		return validationFailed("versionName is required").WithField("versionName", "invalid version name")
+		return validationFailed("版本名不能为空").WithField("versionName", "版本名无效")
 	}
 	versionCode, err := parseInt64(fields["versionCode"], "versionCode")
 	if err != nil || versionCode <= 0 {
-		return validationFailed("versionCode is required").WithField("versionCode", "must be a positive integer")
+		return validationFailed("版本号不能为空").WithField("versionCode", "必须为正整数")
 	}
 	minVersionCode := int64(0)
 	if raw := strings.TrimSpace(fields["minVersionCode"]); raw != "" {
 		minVersionCode, err = parseInt64(raw, "minVersionCode")
 		if err != nil || minVersionCode < 0 {
-			return validationFailed("minVersionCode is invalid").WithField("minVersionCode", "must be zero or greater")
+			return validationFailed("最低版本号无效").WithField("minVersionCode", "必须大于等于 0")
 		}
 	}
 
@@ -290,14 +290,14 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, use
 	if err != nil {
 		_ = os.Remove(finalPath)
 		if isUniqueErr(err) {
-			return conflict("versionCode already exists for this app")
+			return conflict("该应用的版本号已存在")
 		}
 		return internalError(err)
 	}
 	if raw := strings.TrimSpace(fields["scheduledPublishAt"]); raw != "" && raw != "null" {
 		publishAt, err := parseInt64(raw, "scheduledPublishAt")
 		if err != nil {
-			return validationFailed("scheduledPublishAt is invalid").WithField("scheduledPublishAt", "invalid timestamp")
+			return validationFailed("定时发布时间无效").WithField("scheduledPublishAt", "时间格式无效")
 		}
 		if publishAt > time.Now().UnixMilli() {
 			mode := strings.ToLower(strings.TrimSpace(fields["scheduledPublishMode"]))
@@ -308,7 +308,7 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, use
 			if rawGray := strings.TrimSpace(fields["scheduledGrayPercent"]); rawGray != "" {
 				parsed, err := parseInt64(rawGray, "scheduledGrayPercent")
 				if err != nil || parsed < 1 || parsed > 99 {
-					return validationFailed("scheduledGrayPercent is invalid").WithField("scheduledGrayPercent", "out of range")
+					return validationFailed("定时灰度比例无效").WithField("scheduledGrayPercent", "超出范围")
 				}
 				grayPercent = int(parsed)
 			}
@@ -360,11 +360,11 @@ func (s *Server) savePackageTemp(part *multipart.Part) (string, int64, string, s
 	closeErr := tmp.Close()
 	if copyErr != nil || closeErr != nil {
 		_ = os.Remove(tmp.Name())
-		return "", 0, "", "", badRequest("cannot write the package file")
+		return "", 0, "", "", badRequest("无法写入安装包文件")
 	}
 	if size > maxPackageSize {
 		_ = os.Remove(tmp.Name())
-		return "", 0, "", "", payloadTooLarge("package exceeds the 2 GiB limit")
+		return "", 0, "", "", payloadTooLarge("安装包超过 2 GiB 限制")
 	}
 	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
 		_ = os.Remove(tmp.Name())
@@ -390,7 +390,7 @@ func (s *Server) resolvePackageRoot(ctx context.Context, requested string) (*mod
 		return nil, internalError(err)
 	}
 	if len(roots) == 0 {
-		return nil, conflict("create a resource root before uploading packages")
+		return nil, conflict("请先创建资源根目录再上传安装包")
 	}
 	return &roots[0], nil
 }
@@ -414,17 +414,17 @@ func (s *Server) handleUpdateVersion(w http.ResponseWriter, r *http.Request, use
 		return err
 	}
 	if req.GrayPercent != nil && (*req.GrayPercent < 0 || *req.GrayPercent > 100) {
-		return validationFailed("grayPercent must be between 0 and 100").WithField("grayPercent", "out of range")
+		return validationFailed("灰度比例需在 0 到 100 之间").WithField("grayPercent", "超出范围")
 	}
 	for _, step := range req.GrayIncrementSchedule {
 		if step.Percent < 0 || step.Percent > 100 || step.AfterMinutes < 0 {
-			return validationFailed("grayIncrementSchedule is invalid").WithField("grayIncrementSchedule", "invalid step")
+			return validationFailed("灰度递增计划无效").WithField("grayIncrementSchedule", "递增步骤无效")
 		}
 	}
 	if req.VersionName != nil {
 		name := strings.TrimSpace(*req.VersionName)
 		if name == "" || len(name) > 32 {
-			return validationFailed("versionName is invalid").WithField("versionName", "invalid version name")
+			return validationFailed("版本名无效").WithField("versionName", "版本名无效")
 		}
 		req.VersionName = &name
 	}
@@ -475,7 +475,7 @@ func (s *Server) handleDeleteVersion(w http.ResponseWriter, r *http.Request, use
 		return err
 	}
 	if record.Status == "published" {
-		return conflict("take the version offline before deleting it")
+		return conflict("请先下架该版本再删除")
 	}
 	if err := s.store.DeleteVersion(r.Context(), record.ID); err != nil {
 		return internalError(err)
@@ -508,7 +508,7 @@ func (s *Server) handlePublishVersion(w http.ResponseWriter, r *http.Request, us
 		}
 	case "gray":
 		if req.GrayPercent <= 0 || req.GrayPercent >= 100 {
-			return validationFailed("grayPercent must be between 1 and 99").WithField("grayPercent", "out of range")
+			return validationFailed("灰度比例需在 1 到 99 之间").WithField("grayPercent", "超出范围")
 		}
 		if err := s.store.PublishVersion(r.Context(), record.ID, req.GrayPercent, time.Now().UnixMilli()); err != nil {
 			return internalError(err)
@@ -537,7 +537,7 @@ func (s *Server) handlePublishVersion(w http.ResponseWriter, r *http.Request, us
 			return internalError(err)
 		}
 	default:
-		return validationFailed("mode must be full, gray or scheduled").WithField("mode", "invalid mode")
+		return validationFailed("mode 只能为 full、gray 或 scheduled").WithField("mode", "模式无效")
 	}
 	updated, err := s.store.VersionByID(r.Context(), record.ID)
 	if err != nil {
@@ -560,7 +560,7 @@ func (s *Server) handleOfflineVersion(w http.ResponseWriter, r *http.Request, us
 		return err
 	}
 	if record.Status != "published" {
-		return conflict("only published versions can be taken offline")
+		return conflict("仅已发布版本可以下架")
 	}
 	reason := strings.TrimSpace(req.Reason)
 	if reason == "" {
@@ -588,7 +588,7 @@ func (s *Server) handleForceVersion(w http.ResponseWriter, r *http.Request, user
 		return err
 	}
 	if req.MinVersionCode < 0 {
-		return validationFailed("minVersionCode must be zero or greater").WithField("minVersionCode", "invalid")
+		return validationFailed("最低版本号必须大于等于 0").WithField("minVersionCode", "无效")
 	}
 	force := req.ForceUpdate
 	minVersion := req.MinVersionCode
@@ -626,15 +626,15 @@ func (s *Server) handleRollbackVersion(w http.ResponseWriter, r *http.Request, u
 		target, err = s.store.VersionByID(r.Context(), req.ToVersionID)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				return notFound("target version not found")
+				return notFound("目标版本不存在")
 			}
 			return internalError(err)
 		}
 		if target.AppID != record.AppID {
-			return badRequest("target version belongs to a different app")
+			return badRequest("目标版本属于其他应用")
 		}
 		if target.VersionCode >= record.VersionCode {
-			return badRequest("target version must be older than the current version")
+			return badRequest("目标版本必须早于当前版本")
 		}
 	} else {
 		candidates, err := s.store.RollbackCandidates(r.Context(), record.AppID, record.VersionCode)
@@ -642,7 +642,7 @@ func (s *Server) handleRollbackVersion(w http.ResponseWriter, r *http.Request, u
 			return internalError(err)
 		}
 		if len(candidates) == 0 {
-			return badRequest("no older version is available to roll back to")
+			return badRequest("没有可回滚的更早版本")
 		}
 		target = candidates[0]
 	}
@@ -690,14 +690,14 @@ func (s *Server) handleAppFunnel(w http.ResponseWriter, r *http.Request, _ *Curr
 	if raw := strings.TrimSpace(query.Get("startTime")); raw != "" {
 		parsed, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			return validationFailed("startTime must be RFC 3339").WithField("startTime", "invalid timestamp")
+			return validationFailed("startTime 需为 RFC 3339 时间格式").WithField("startTime", "时间格式无效")
 		}
 		start = parsed
 	}
 	if raw := strings.TrimSpace(query.Get("endTime")); raw != "" {
 		parsed, err := time.Parse(time.RFC3339, raw)
 		if err != nil {
-			return validationFailed("endTime must be RFC 3339").WithField("endTime", "invalid timestamp")
+			return validationFailed("endTime 需为 RFC 3339 时间格式").WithField("endTime", "时间格式无效")
 		}
 		end = parsed
 	}
@@ -719,7 +719,7 @@ func (s *Server) handleCheckUpdate(w http.ResponseWriter, r *http.Request, _ *Cu
 	}
 	currentVersion, err := parseInt64(query.Get("versionCode"), "versionCode")
 	if err != nil || currentVersion < 0 {
-		return validationFailed("versionCode is required").WithField("versionCode", "invalid")
+		return validationFailed("版本号不能为空").WithField("versionCode", "无效")
 	}
 	deviceID := strings.TrimSpace(query.Get("deviceId"))
 
@@ -762,19 +762,19 @@ func (s *Server) handleCheckUpdate(w http.ResponseWriter, r *http.Request, _ *Cu
 }
 
 func (s *Server) handleDownloadPackage(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
-	id, err := parseInt64(pathValue(r, "id"), "version id")
+	id, err := parseInt64(pathValue(r, "id"), "版本 id")
 	if err != nil || id <= 0 {
-		return badRequest("invalid version id")
+		return badRequest("版本 id 无效")
 	}
 	record, err := s.store.VersionByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return notFound("version not found")
+			return notFound("版本不存在")
 		}
 		return internalError(err)
 	}
 	if record.Status != "published" && record.Status != "offline" {
-		return gone("this package is not available for download")
+		return gone("该安装包当前不可下载")
 	}
 	root, err := s.rootByID(r.Context(), record.StorageRootID)
 	if err != nil {
@@ -782,15 +782,15 @@ func (s *Server) handleDownloadPackage(w http.ResponseWriter, r *http.Request, _
 	}
 	full, err := storage.Join(filepath.Join(root.Path, record.Category), record.RelPath)
 	if err != nil {
-		return badRequest("invalid package path")
+		return badRequest("安装包路径无效")
 	}
 	info, err := os.Stat(full)
 	if err != nil || info.IsDir() {
-		return notFound("package file not found")
+		return notFound("安装包文件不存在")
 	}
 	f, err := os.Open(full)
 	if err != nil {
-		return notFound("package file not found")
+		return notFound("安装包文件不存在")
 	}
 	defer f.Close()
 	w.Header().Set("Content-Disposition", contentDisposition(info.Name(), true))
@@ -809,16 +809,16 @@ func (s *Server) handleReportEvents(w http.ResponseWriter, r *http.Request, _ *C
 	req.DeviceID = strings.TrimSpace(req.DeviceID)
 	req.Event = strings.ToLower(strings.TrimSpace(req.Event))
 	if req.AppKey == "" {
-		return validationFailed("appKey is required").WithField("appKey", "required")
+		return validationFailed("appKey 不能为空").WithField("appKey", "不能为空")
 	}
 	if req.DeviceID == "" {
-		return validationFailed("deviceId is required").WithField("deviceId", "required")
+		return validationFailed("deviceId 不能为空").WithField("deviceId", "不能为空")
 	}
 	switch req.Event {
 	case "check_no_update", "prompt_show", "download_start", "download_success", "download_fail",
 		"verify_fail", "install_success", "install_fail", "new_version_launch":
 	default:
-		return validationFailed("event is not supported").WithField("event", "unknown event")
+		return validationFailed("不支持该事件类型").WithField("event", "未知事件类型")
 	}
 	if err := s.store.InsertUpgradeEvent(r.Context(), req, nil); err != nil {
 		return internalError(err)
@@ -828,14 +828,14 @@ func (s *Server) handleReportEvents(w http.ResponseWriter, r *http.Request, _ *C
 }
 
 func (s *Server) versionByID(r *http.Request) (store.VersionRecord, error) {
-	id, err := parseInt64(pathValue(r, "id"), "version id")
+	id, err := parseInt64(pathValue(r, "id"), "版本 id")
 	if err != nil || id <= 0 {
-		return store.VersionRecord{}, badRequest("invalid version id")
+		return store.VersionRecord{}, badRequest("版本 id 无效")
 	}
 	record, err := s.store.VersionByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return store.VersionRecord{}, notFound("version not found")
+			return store.VersionRecord{}, notFound("版本不存在")
 		}
 		return store.VersionRecord{}, internalError(err)
 	}
@@ -882,14 +882,14 @@ func inGrayBucket(deviceID string, versionID int64, percent int) bool {
 func parseFutureTime(value string) (time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return time.Time{}, validationFailed("publishAt is required").WithField("publishAt", "required")
+		return time.Time{}, validationFailed("发布时间不能为空").WithField("publishAt", "不能为空")
 	}
 	parsed, err := time.Parse(time.RFC3339, value)
 	if err != nil {
-		return time.Time{}, validationFailed("publishAt must be RFC 3339").WithField("publishAt", "invalid timestamp")
+		return time.Time{}, validationFailed("发布时间需为 RFC 3339 时间格式").WithField("publishAt", "时间格式无效")
 	}
 	if !parsed.After(time.Now()) {
-		return time.Time{}, validationFailed("publishAt must be in the future").WithField("publishAt", "must be in the future")
+		return time.Time{}, validationFailed("发布时间必须晚于当前时间").WithField("publishAt", "必须晚于当前时间")
 	}
 	return parsed, nil
 }

@@ -74,11 +74,11 @@ func tooManyRequests(message string) *APIError {
 }
 
 func internalError(err error) *APIError {
-	return &APIError{Status: http.StatusInternalServerError, Code: "internal_error", Message: "internal server error", Err: err}
+	return &APIError{Status: http.StatusInternalServerError, Code: "internal_error", Message: "服务器内部错误", Err: err}
 }
 
 func unavailable(err error) *APIError {
-	return &APIError{Status: http.StatusServiceUnavailable, Code: "unavailable", Message: "service unavailable", Err: err}
+	return &APIError{Status: http.StatusServiceUnavailable, Code: "unavailable", Message: "服务暂时不可用", Err: err}
 }
 
 // asAPIError 让处理函数保持线性写法，同时把意外错误保留给

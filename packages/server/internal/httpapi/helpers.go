@@ -38,7 +38,7 @@ func pathValue(r *http.Request, name string) string {
 func parseInt64(value, field string) (int64, error) {
 	n, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 	if err != nil {
-		return 0, badRequest("invalid " + field)
+		return 0, badRequest(field + " 无效")
 	}
 	return n, nil
 }
@@ -46,7 +46,7 @@ func parseInt64(value, field string) (int64, error) {
 func requireQuery(r *http.Request, name string) (string, error) {
 	value := strings.TrimSpace(r.URL.Query().Get(name))
 	if value == "" {
-		return "", badRequest(name + " is required")
+		return "", badRequest(name + " 不能为空")
 	}
 	return value, nil
 }

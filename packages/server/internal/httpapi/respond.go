@@ -35,11 +35,11 @@ func writeError(w http.ResponseWriter, err error) {
 // 以兼容旧客户端；格式错误或超限的请求体映射为 400/413。
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	if r.Body == nil {
-		return badRequest("request body is required")
+		return badRequest("请求体不能为空")
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || (mediaType != "application/json" && !strings.HasSuffix(mediaType, "+json")) {
-		return unsupportedMedia("Content-Type must be application/json")
+		return unsupportedMedia("Content-Type 必须为 application/json")
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, defaultJSONLimit)
 	dec := json.NewDecoder(r.Body)
@@ -47,15 +47,15 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			return payloadTooLarge("request body is too large")
+			return payloadTooLarge("请求体过大")
 		}
 		if errors.Is(err, io.EOF) {
-			return badRequest("request body is required")
+			return badRequest("请求体不能为空")
 		}
-		return badRequest("invalid JSON body")
+		return badRequest("JSON 请求体格式错误")
 	}
 	if dec.More() {
-		return badRequest("request body must contain a single JSON object")
+		return badRequest("请求体必须是单个 JSON 对象")
 	}
 	return nil
 }
