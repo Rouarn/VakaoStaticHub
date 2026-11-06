@@ -23,7 +23,8 @@ import (
 	"vakao-static-hub/server/internal/store"
 )
 
-const version = "0.1.0"
+// version 由构建时的 -ldflags "-X main.version=..." 覆盖。
+var version = "0.0.1"
 
 func main() {
 	if err := run(); err != nil {
