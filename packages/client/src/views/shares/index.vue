@@ -55,6 +55,7 @@ import { formatBytes, formatTime } from '@/utils/file-types';
 import { formatDateTime } from '@/utils/format';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
+import { useOverviewStore } from '@/stores/modules/overview';
 import EmptyState from '@/components/common/empty-state.vue';
 import PageHeader from '@/components/common/page-header.vue';
 import ErrorState from '@/components/common/error-state.vue';
@@ -72,6 +73,7 @@ import ShareQrModal from './components/share-qr-modal.vue';
  */
 const appStore = useAppStore();
 const categoryStore = useCategoryStore();
+const overview = useOverviewStore();
 const message = useMessage();
 
 const result = ref<ShareListResult | null>(null);
@@ -428,6 +430,8 @@ async function submitCreate() {
     createShow.value = false;
     message.success('分享链接已创建');
     await load();
+    // 侧栏徽标与列表同源，创建成功后立即同步
+    void overview.refresh();
     qrUrl.value = getSharePageUrl(result.token);
     qrShow.value = true;
   } catch (e) {
@@ -498,6 +502,8 @@ async function confirmRevoke() {
     message.success('分享链接已撤销');
     revokeShow.value = false;
     await load();
+    // 撤销是物理删除，总数随之减少
+    void overview.refresh();
   } catch (e) {
     message.error(getErrorMessage(e, '撤销失败'));
   } finally {
@@ -631,6 +637,8 @@ async function runBatchAction(action: ShareBatchAction) {
     const result = await batchShareAction(tokens, action);
     batchResult.value = result;
     await load();
+    // 仅删除会改变总数；启用 / 停用不影响徽标
+    if (action === 'delete') void overview.refresh();
     // 失败项若仍在当前页则保持选中方便重试；已被外部删除的项无法重试
     const visible = new Set(links.value.map((link) => link.token));
     selected.value = new Set(

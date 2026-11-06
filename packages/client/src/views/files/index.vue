@@ -41,6 +41,7 @@ import { formatBytes, isImage } from '@/utils/file-types';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
 import { useIndexStatusStore } from '@/stores/modules/index-status';
+import { useOverviewStore } from '@/stores/modules/overview';
 import FileCard from './components/file-card.vue';
 import UploadPanel from './components/upload-panel.vue';
 import RenameFileModal from './components/rename-file-modal.vue';
@@ -59,6 +60,7 @@ import type { PreviewTarget } from '@/components/preview/types';
 const appStore = useAppStore();
 const categoryStore = useCategoryStore();
 const indexStatusStore = useIndexStatusStore();
+const overview = useOverviewStore();
 const message = useMessage();
 
 const defaultCategory = ref('TemporaryFile');
@@ -447,6 +449,8 @@ const shareLabel = computed(() =>
 );
 
 function onShareCreated(link: ShareLink) {
+  // 单文件与多选批量都走这里：同步侧栏「分享管理」徽标，无需等路由切换
+  void overview.refresh();
   qrUrl.value = buildSharePageUrl(link.token);
   qrFilename.value = `${shareLabel.value}-qr.png`;
   qrShow.value = true;
