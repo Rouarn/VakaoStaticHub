@@ -480,7 +480,7 @@ function onShareCreated(link: ShareLink) {
       </button>
       <button
         type="button"
-        class="h-7 px-3 rounded-full border border-dashed border-[var(--mat-line)] bg-transparent text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink"
+        class="shrink-0 whitespace-nowrap h-7 px-3 rounded-full border border-dashed border-[var(--mat-line)] bg-transparent text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink"
         @click="manageShow = true"
       >
         + 新建分类
