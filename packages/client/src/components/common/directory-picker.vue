@@ -11,10 +11,11 @@ import {
   ServerOutline,
   ShieldCheckmarkOutline,
 } from '@vicons/ionicons5';
-import type {
-  BrowseBound,
-  BrowseDirectoriesResult,
-  BrowseShortcut,
+import {
+  PACKAGE_ROOT_ID,
+  type BrowseBound,
+  type BrowseDirectoriesResult,
+  type BrowseShortcut,
 } from '@vakao/shared';
 import { browseBounds, browseDirectories } from '@/api/roots';
 import { getErrorMessage } from '@/utils/http';
@@ -192,7 +193,10 @@ async function loadBounds() {
   try {
     const data = await browseBounds();
     bounds.value = data.bounds ?? [];
-    roots.value = data.roots ?? [];
+    // APP 更新包是独立资源根，默认根下不再展示该分类，可访问位置保持同一口径
+    roots.value = (data.roots ?? []).filter(
+      (root) => root.rootId !== PACKAGE_ROOT_ID,
+    );
   } catch {
     // 边界接口失败不阻塞手输浏览
     bounds.value = [];

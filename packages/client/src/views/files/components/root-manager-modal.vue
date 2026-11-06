@@ -12,6 +12,7 @@ import {
 } from '@vicons/ionicons5';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import DirectoryPicker from '@/components/common/directory-picker.vue';
+import { SYSTEM_ROOT_IDS } from '@vakao/shared';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
 import { getErrorMessage } from '@/utils/http';
@@ -64,7 +65,13 @@ function openCreateRoot() {
   rootFormError.value = '';
 }
 
+/** 内置目录由服务端固定创建，前端只做展示，不提供改名与删除 */
+function isSystemRoot(rootId: string) {
+  return SYSTEM_ROOT_IDS.includes(rootId);
+}
+
 function openEditRoot(rootId: string) {
+  if (isSystemRoot(rootId)) return;
   const root = categoryStore.roots.find((r) => r.id === rootId);
   if (!root) return;
   rootFormMode.value = 'edit';
@@ -119,6 +126,7 @@ async function submitRoot() {
 }
 
 function askDeleteRoot(rootId: string) {
+  if (isSystemRoot(rootId)) return;
   rootDeleteTarget.value = rootId;
   rootDeleteShow.value = true;
 }
@@ -299,7 +307,8 @@ watch(
                 size="tiny"
                 quaternary
                 circle
-                title="编辑"
+                :disabled="isSystemRoot(root.id)"
+                :title="isSystemRoot(root.id) ? '内置目录不可修改' : '编辑'"
                 @click="openEditRoot(root.id)"
               >
                 <template #icon>
@@ -310,7 +319,8 @@ watch(
                 size="tiny"
                 quaternary
                 circle
-                title="删除"
+                :disabled="isSystemRoot(root.id)"
+                :title="isSystemRoot(root.id) ? '内置目录不可删除' : '删除'"
                 @click="askDeleteRoot(root.id)"
               >
                 <template #icon>

@@ -40,6 +40,22 @@ export interface BrowseDirectoriesResult {
 /** 单次目录浏览返回的最大条目数（超出部分截断并标记 truncated） */
 export const ROOT_BROWSE_MAX_ENTRIES = 500;
 
+/** 默认资源根的固定 id（与后端 store.DefaultRootID 保持一致） */
+export const DEFAULT_ROOT_ID = 'default';
+
+/**
+ * APP 更新包目录：既是默认根下的分类，也是独立的资源根
+ *
+ * 默认根下已不重复展示该分类，前端所有根目录列表都按独立根的口径排除它。
+ */
+export const PACKAGE_ROOT_ID = 'software-update';
+
+/** 服务端内置目录：前端不允许重命名或删除 */
+export const SYSTEM_ROOT_IDS: readonly string[] = [
+  DEFAULT_ROOT_ID,
+  PACKAGE_ROOT_ID,
+];
+
 /** 允许浏览/创建根目录的边界来源 */
 export type BrowseBoundSource = 'root-parent' | 'whitelist' | 'home';
 
