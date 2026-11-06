@@ -85,6 +85,7 @@ pnpm dev
 | `pnpm build:shared`  | 仅构建 `@vakao/shared`                                   |
 | `pnpm build:server`  | 编译 `packages/server/bin/vakao-server`                  |
 | `pnpm build:client`  | 构建前端到 `packages/client/dist`                        |
+| `pnpm package`       | 打包前端与静态编译的后端到 `release/`（tar.gz）          |
 | `pnpm start`         | 运行已编译的 Go 二进制（需先 `pnpm build`）              |
 | `pnpm typecheck`     | shared + client 的 TypeScript 类型检查                   |
 | `pnpm test`          | `go test ./...`                                          |
@@ -92,6 +93,46 @@ pnpm dev
 | `pnpm lint`          | eslint（shared + client）                                |
 | `pnpm format`        | prettier 与 gofmt 格式化                                 |
 | `pnpm format:check`  | 格式检查，未格式化时非零退出                             |
+
+---
+
+## 打包与部署
+
+生成可直接上传服务器的发布包，不需要 Docker，也不需要 Node 运行时：
+
+```bash
+# 默认版本取根 package.json 的 version，目标 linux/amd64
+pnpm package
+
+# 指定目标平台与版本号
+pnpm package --goos linux --goarch arm64 --version 1.2.3
+```
+
+产物位于 `release/vakao-static-hub-<version>-<goos>-<goarch>/` 及同名 `.tar.gz`。`release/` 已加入 `.gitignore`，不同版本目录可以并存；同名目录或压缩包已存在时脚本会中止，不会覆盖。
+
+包内包含：
+
+- `vakao-server`：`CGO_ENABLED=0` 交叉编译，`-trimpath -ldflags "-s -w"`，版本号通过 `-X main.version` 写入
+- `web/`：前端构建产物
+- `data/`：空数据目录
+- `.env`：打包时生成的真实配置，含随机的 `JWT_SECRET`（32 字节）与初始管理员密码，其余配置项显式写全，权限 `600`，解包即用
+- `.env.example`：配置模板，只含键名、含义与推荐值，不含真实密钥
+- `README.md`：部署与启动说明
+
+构建顺序为 shared → client → server → 组装 → tar.gz；任一步失败立即中止并保留原始错误。缺少 `go`、`pnpm`、`node` 或 `tar` 时会输出明确的中文提示。打包结束时终端会打印初始管理员账号、初始密码与发布包路径。
+
+服务器上的启动步骤（包内 `.env` 已可用，无需复制或编辑）：
+
+```bash
+tar -xzf vakao-static-hub-<version>-linux-amd64.tar.gz
+cd vakao-static-hub-<version>-linux-amd64
+chmod +x vakao-server
+./vakao-server
+```
+
+初始管理员为 `admin`，密码见打包终端输出或包内 `.env` 的 `AUTH_PASS`。该密码仅用于首次启动播种管理员，登录后请立即修改。默认以当前目录为基准目录，读取 `web/`、写入 `data/`，监听 `0.0.0.0:9865`。宝塔面板可在「进程守护管理器」中添加守护进程：运行目录填解包目录，启动命令填 `./vakao-server`，运行用户建议 `www`，并放行 9865 端口（或由 Nginx 反向代理）。
+
+升级时只替换 `vakao-server` 与 `web/`，默认不要覆盖线上已有的 `.env`：重新打包会生成新的 `JWT_SECRET`，覆盖会让所有已登录会话失效；`AUTH_PASS` 变化也不会修改已存在管理员的密码（播种只在首次启动执行一次）。包内 `README.md` 含完整部署、升级与配置说明。
 
 ---
 
@@ -177,7 +218,8 @@ vakao-static-hub/
 ├── data/                       # 运行时数据（不入库）
 ├── legacy-data/                # 旧后端数据快照（可选，不入库）
 ├── resource-roots.json         # 资源根目录配置（不入库）
-└── .env.example
+├── .env.example                # 配置模板（入库）
+└── .env                        # 本地真实配置（不入库）
 ```
 
 ---

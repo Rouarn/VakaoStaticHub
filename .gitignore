@@ -8,6 +8,8 @@ build
 /legacy-data/
 # Go 服务端构建产物
 /packages/server/bin/
+# 发布包产物
+/release/
 resource-roots.json
 
 # TypeScript incremental build info

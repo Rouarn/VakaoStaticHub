@@ -11,6 +11,7 @@
     "build:shared": "pnpm --filter @vakao/shared build",
     "build:server": "go -C packages/server build -o bin/vakao-server ./cmd/server",
     "build:client": "pnpm --filter @vakao/client build",
+    "package": "bash scripts/package.sh",
     "start": "BASE_DIR=\"$PWD\" WEB_DIR=\"$PWD/packages/client/dist\" ./packages/server/bin/vakao-server",
     "typecheck": "pnpm --filter @vakao/shared typecheck && pnpm --filter @vakao/client typecheck",
     "test": "go -C packages/server test ./...",
