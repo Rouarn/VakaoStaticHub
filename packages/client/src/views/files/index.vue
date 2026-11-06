@@ -505,7 +505,7 @@ function onShareCreated(link: ShareLink) {
 </script>
 
 <template>
-  <div class="h-full flex flex-col gap-3 animate-fade-up">
+  <div class="h-full flex flex-col gap-3">
     <!-- 页头 + 工具条（对齐原型：topbar + toolbar 两段） -->
     <PageHeader title="文件库" :description="headerDescription">
       <template #actions>

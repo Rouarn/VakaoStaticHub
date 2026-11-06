@@ -765,7 +765,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-3 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-3">
     <PageHeader
       title="APP 版本管理"
       description="上传 APK、全量/灰度发布、强更与一键回滚；下架原因区分自动与手动"

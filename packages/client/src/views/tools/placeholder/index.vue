@@ -231,7 +231,7 @@ async function download() {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="占位图生成"
       description="自定义尺寸、文字与配色，实时预览并下载；后端只输出 SVG，位图格式由前端栅格化"

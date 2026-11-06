@@ -148,7 +148,7 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="存储统计"
       description="按资源根目录与分类统计容量占用、占比与文件数（GET /files/stats/usage）"

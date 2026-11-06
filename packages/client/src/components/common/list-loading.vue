@@ -6,6 +6,9 @@ import { NSpin } from 'naive-ui';
  *
  * 覆盖父级内容区的可视范围，让转圈与提示在垂直、水平方向居中。
  * 父容器需带 relative 与明确高度（如 flex-1 min-h-0），居中不随内容高度或滚动位置偏移。
+ *
+ * 遮罩底色统一取 CSS 变量 --mask-loading（定义在 design-tokens 的 colors.overlay，
+ * 由 uno.config.ts 输出到 :root / html.dark），组件内不要再写死白/黑色值。
  */
 defineProps<{
   show: boolean;
@@ -17,7 +20,7 @@ defineProps<{
 <template>
   <div
     v-if="show"
-    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/70 dark:bg-black/40 backdrop-blur-[2px]"
+    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[var(--mask-loading)] backdrop-blur-[2px]"
     role="status"
     aria-live="polite"
   >

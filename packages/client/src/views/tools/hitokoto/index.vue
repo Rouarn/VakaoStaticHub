@@ -182,7 +182,7 @@ const jsonPreview = computed(() => {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="一言"
       description="调试分类与编码参数，查看原始响应与历史记录（后端反向代理 HITOKOTO_API_URL）"

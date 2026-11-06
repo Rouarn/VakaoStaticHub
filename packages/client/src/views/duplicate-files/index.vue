@@ -297,7 +297,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="重复文件"
       description="按内容 SHA-256 检测重复文件，可逐组对比并保留一个后清理其余"

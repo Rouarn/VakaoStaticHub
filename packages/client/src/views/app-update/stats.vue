@@ -152,7 +152,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="升级漏斗"
       description="按应用与时间范围统计 check → 下载 → 安装的转化情况"

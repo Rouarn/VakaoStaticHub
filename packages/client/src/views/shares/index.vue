@@ -705,7 +705,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <!-- 页头（对齐原型 topbar） -->
     <PageHeader
       title="分享管理"

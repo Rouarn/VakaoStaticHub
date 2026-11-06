@@ -148,7 +148,7 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="审计日志"
       description="记录登录、文件、分享与 APP 版本等关键操作，支持按操作人/动作/资源/时间筛选"

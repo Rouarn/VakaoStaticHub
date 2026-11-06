@@ -93,7 +93,7 @@ onBeforeUnmount(() => {
 
         <main class="min-w-0 min-h-0 flex-1 overflow-y-auto pb-2">
           <!--
-            路由过渡裁切层：页面入场时 animate-fade-up / fade-slide 会先向下平移 12px，
+            路由过渡裁切层：页面入场时 fade-slide 会先向下平移 6px，
             这个平移会被计入 main 的可滚动溢出（即使页面本身 h-full 刚好占满一屏），
             导致每次切页右侧闪一下滚动条。这里用一层定高裁切把过渡位移挡在外壳内；
             所有管理页根节点都是 h-full，内容由各自的内部滚动区承载，裁切不影响其滚动。

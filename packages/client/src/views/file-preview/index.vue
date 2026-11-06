@@ -138,7 +138,7 @@ watch(() => route.fullPath, applyQuery);
 </script>
 
 <template>
-  <div v-if="isInternal" class="h-full flex flex-col gap-3 animate-fade-up">
+  <div v-if="isInternal" class="h-full flex flex-col gap-3">
     <!-- 内部：DefaultLayout 内容区，保留输入工具栏 -->
     <PageHeader
       title="本地预览"

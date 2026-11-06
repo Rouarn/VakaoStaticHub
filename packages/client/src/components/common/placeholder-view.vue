@@ -17,7 +17,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="h-full flex items-center justify-center animate-fade-up p-6">
+  <div class="h-full flex items-center justify-center p-6">
     <div class="glass-card max-w-150 w-full px-10 py-12 text-center">
       <div
         class="mx-auto mb-6 w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift dark:shadow-lift-dark"

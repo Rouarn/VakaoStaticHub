@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { NButton, NIcon, NSelect, NSpin, NTag } from 'naive-ui';
+import { NButton, NIcon, NSelect, NTag } from 'naive-ui';
 import {
   AlertCircleOutline,
   CheckmarkCircleOutline,
@@ -25,6 +25,8 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import StatCard from '@/components/common/stat-card.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 import BarList from '@/components/charts/bar-list.vue';
 
 /**
@@ -35,7 +37,13 @@ import BarList from '@/components/charts/bar-list.vue';
  * - storage / roots 的 totalSize 在无索引数据时为 null，界面显示「—」而不是 0 B
  */
 const data = ref<SystemMetrics | null>(null);
-const loading = ref(false);
+/**
+ * 加载态：仅首次进入与用户主动刷新（含重试）时显示遮罩；
+ * 30 秒静默刷新走 silent=true，不触碰 loading，保留旧数据不闪遮罩。
+ */
+const { loading, loadingText } = useListLoading({
+  text: '正在加载系统指标…',
+});
 const error = ref('');
 const lastUpdated = ref<number | null>(null);
 
@@ -167,7 +175,7 @@ function rootShareLabel(totalSize: number | null): string {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="系统状态"
       description="服务运行指标：健康、运行时长、内存、存储、分享与升级事件（GET /metrics）"
@@ -226,8 +234,9 @@ function rootShareLabel(totalSize: number | null): string {
       </NTag>
     </section>
 
-    <div class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <!-- 内容区：relative 定高，加载遮罩才能在可视范围内垂直水平居中 -->
+    <div class="relative flex-1 min-h-0">
+      <div class="h-full overflow-y-auto pr-1">
         <ErrorState v-if="!data && error" :message="error" @retry="load()" />
 
         <EmptyState
@@ -449,7 +458,8 @@ function rootShareLabel(totalSize: number | null): string {
             null）；存储用量只统计文件库索引内的文件，无索引数据时显示「—」。
           </p>
         </div>
-      </NSpin>
+      </div>
+      <ListLoading :show="loading" :text="loadingText" />
     </div>
   </div>
 </template>

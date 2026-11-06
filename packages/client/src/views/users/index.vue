@@ -283,7 +283,7 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col gap-4 animate-fade-up">
+  <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="用户管理"
       description="管理登录账号与角色；管理员可重置他人密码，删除由后端校验「不能删自己 / 至少保留一个管理员」"

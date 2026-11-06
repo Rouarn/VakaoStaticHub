@@ -137,12 +137,15 @@ export default defineConfig({
           --ink-2: ${colors.ink.secondary};
           --ink-3: ${colors.ink.placeholderLight};
           --line-soft: rgba(15, 23, 42, 0.075);
+          /* 加载遮罩底色：全站唯一来源，改动此处即可调整所有 ListLoading 的透明度 */
+          --mask-loading: ${colors.overlay.loadingLight};
         }
         html.dark {
           --ink-1: ${colors.ink.darkPrimary};
           --ink-2: ${colors.ink.darkSecondary};
           --ink-3: ${colors.ink.placeholderDark};
           --line-soft: rgba(255, 255, 255, 0.075);
+          --mask-loading: ${colors.overlay.loadingDark};
         }
 
         /* ===== 基础 ===== */
@@ -288,10 +291,12 @@ export default defineConfig({
         .scrollbar-hidden { scrollbar-width: none; -ms-overflow-style: none; }
         .scrollbar-hidden::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
-        /* ===== 路由过渡 ===== */
-        .fade-slide-enter-active, .fade-slide-leave-active { transition: opacity 0.25s ease, transform 0.25s ease; }
-        .fade-slide-enter-from { opacity: 0; transform: translateY(10px); }
-        .fade-slide-leave-to { opacity: 0; transform: translateY(-6px); }
+        /* ===== 路由过渡 =====
+           只做短距离位移，不做透明度过渡：页面内容一旦透明，就会露出背后的浅色壁纸，
+           在内容较少的页面上被感知为「整块发白」。位移只走 6px，避免看起来像高度跳变。 */
+        .fade-slide-enter-active { transition: transform 0.16s ease-out; }
+        .fade-slide-enter-from { transform: translateY(6px); }
+        .fade-slide-leave-active { transition: none; }
 
         /* 不支持 backdrop-filter 时退回高不透明材质，保证可读性 */
         @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
