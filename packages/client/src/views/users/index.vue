@@ -63,7 +63,7 @@ const ROLE_META: Record<
 
 const users = ref<UserInfo[]>([]);
 /** 加载态与中文提示：文案规则见 useListLoading */
-const { loading, loadingText } = useListLoading();
+const { loading, loadingText, refreshing, refresh } = useListLoading();
 const error = ref('');
 
 const page = ref(1);
@@ -76,8 +76,12 @@ const pagedUsers = computed(() => {
 
 const currentUserId = computed(() => authStore.user?.id ?? -1);
 
-async function load() {
-  loading.value = true;
+/**
+ * silent=true 用于手动刷新：不显示遮罩、失败时保留当前列表，
+ * 错误抛给 useListLoading.refresh 统一提示。
+ */
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) loading.value = true;
   error.value = '';
   try {
     users.value = await listUsers();
@@ -86,11 +90,21 @@ async function load() {
       Math.max(1, Math.ceil(users.value.length / pageSize.value)),
     );
   } catch (e) {
+    if (options.silent) throw e;
     error.value = getErrorMessage(e, '用户列表加载失败');
     users.value = [];
   } finally {
-    loading.value = false;
+    if (!options.silent) loading.value = false;
   }
+}
+
+/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前账号数 */
+function refreshList() {
+  void refresh(
+    () => load({ silent: true }),
+    () => `当前 ${users.value.length} 个账号`,
+    '刷新失败',
+  );
 }
 
 watch(pageSize, () => {
@@ -290,7 +304,13 @@ onMounted(() => void load());
       :icon="PeopleOutline"
     >
       <template #actions>
-        <NButton size="small" quaternary @click="load">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="refreshList"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon
           ></template>

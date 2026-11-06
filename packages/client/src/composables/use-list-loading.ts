@@ -1,44 +1,6 @@
-import { computed, onScopeDispose, ref, watch, type Ref } from 'vue';
-
-/**
- * 遮罩显示延迟（毫秒）：请求在此时限内完成则不显示遮罩，避免短请求一闪而过。
- * 与 list-loading.vue 的过渡时长配合使用，改这里即可统一调整全站遮罩出现的快慢。
- */
-export const LIST_LOADING_SHOW_DELAY = 120;
-
-/**
- * 把「加载中」布尔值转换成带延迟的遮罩可见状态（全站唯一实现）
- *
- * - 进入加载后延迟 delay 毫秒才置为可见；若期间已结束，则全程不显示，避免闪烁
- * - 从可见到隐藏立即翻转，由组件的 <Transition> 负责淡出；
- *   从未显示过就结束的场景不会触发淡出，直接跳过更自然
- */
-export function useDelayedVisible(
-  source: () => boolean,
-  delay = LIST_LOADING_SHOW_DELAY,
-) {
-  const visible = ref(false);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  watch(
-    source,
-    (on) => {
-      clearTimeout(timer);
-      if (on) {
-        timer = setTimeout(() => {
-          visible.value = true;
-        }, delay);
-      } else {
-        visible.value = false;
-      }
-    },
-    { immediate: true },
-  );
-
-  onScopeDispose(() => clearTimeout(timer));
-
-  return visible;
-}
+import { computed, ref, type Ref } from 'vue';
+import { useMessage } from 'naive-ui';
+import { getErrorMessage } from '@/utils/http';
 
 export interface ListLoadingOptions {
   /** 提示文案使用的页码；未传时按第一页处理 */
@@ -50,12 +12,17 @@ export interface ListLoadingOptions {
 /**
  * 列表加载态（全站唯一实现）
  *
- * 统一「切换时清空旧数据 → 进入加载态 → 中文提示文案」的规则：
- * - 翻页时文案带上目标页码，其余场景用通用文案
- * - 各列表页只调用 begin(reset) 并引用 ListLoading 组件，不要各自复制一份
+ * 区分两种触发来源：
+ * - begin(reset)：首次进入、翻页、切换筛选/排序/每页条数 → 立即显示遮罩
+ * - refresh(task, summary)：手动点「刷新」→ 不显示遮罩，只让按钮进入加载态，
+ *   结束后统一提示「已刷新 · 当前 …」，失败则提示可读错误
+ *
+ * 各列表页只调用这两个入口并引用 ListLoading 组件，不要各自复制一套。
  */
 export function useListLoading(options: ListLoadingOptions = {}) {
+  const message = useMessage();
   const loading = ref(false);
+  const refreshing = ref(false);
 
   const loadingText = computed(() => {
     const page = options.page?.value ?? 1;
@@ -69,5 +36,28 @@ export function useListLoading(options: ListLoadingOptions = {}) {
     loading.value = true;
   }
 
-  return { loading, loadingText, begin };
+  /**
+   * 手动刷新：不触碰遮罩，只驱动页头按钮的加载态
+   *
+   * task 需要在「不显示遮罩、不清空旧数据」的前提下重新拉取，失败时抛出错误；
+   * summary 返回本次刷新后的数据摘要（如「当前 12 个文件」）。
+   */
+  async function refresh(
+    task: () => Promise<void>,
+    summary: () => string,
+    errorText = '刷新失败',
+  ) {
+    if (refreshing.value) return;
+    refreshing.value = true;
+    try {
+      await task();
+      message.success(`已刷新 · ${summary()}`);
+    } catch (e) {
+      message.error(getErrorMessage(e, errorText));
+    } finally {
+      refreshing.value = false;
+    }
+  }
+
+  return { loading, loadingText, refreshing, begin, refresh };
 }

@@ -80,7 +80,13 @@ const message = useMessage();
 
 const result = ref<ShareListResult | null>(null);
 /** 加载态与中文提示：文案规则见 useListLoading */
-const { loading, loadingText, begin: beginLoading } = useListLoading();
+const {
+  loading,
+  loadingText,
+  refreshing,
+  begin: beginLoading,
+  refresh,
+} = useListLoading();
 const error = ref('');
 const now = ref(Date.now());
 
@@ -174,9 +180,13 @@ const statusTabs = computed(() => [
 /** 请求序号：分页 / 筛选可能并发触发同一 key 请求，用序号丢弃过期与取消结果 */
 let shareSeq = 0;
 
-async function load(allowClamp = true) {
+/**
+ * silent=true 用于手动刷新：不显示遮罩、失败时保留当前列表，
+ * 错误抛给 useListLoading.refresh 统一提示。
+ */
+async function load(options: { silent?: boolean } = {}, allowClamp = true) {
   const seq = ++shareSeq;
-  loading.value = true;
+  if (!options.silent) loading.value = true;
   error.value = '';
   now.value = Date.now();
   try {
@@ -196,16 +206,26 @@ async function load(allowClamp = true) {
     const maxPage = Math.max(1, Math.ceil(data.total / pageSize.value));
     if (allowClamp && page.value > maxPage) {
       page.value = maxPage;
-      await load(false);
+      await load(options, false);
     }
   } catch (e) {
     if (seq !== shareSeq) return;
     if (e instanceof RequestError && e.type === 'cancel') return;
+    if (options.silent) throw e;
     error.value = getErrorMessage(e, '分享列表加载失败');
     result.value = null;
   } finally {
-    if (seq === shareSeq) loading.value = false;
+    if (!options.silent && seq === shareSeq) loading.value = false;
   }
+}
+
+/** 顶部刷新按钮：不走遮罩，只让按钮转圈，结束后提示当前分享数 */
+function refreshList() {
+  void refresh(
+    () => load({ silent: true }),
+    () => `当前 ${total.value} 条分享`,
+    '刷新失败',
+  );
 }
 
 /** 进入加载态并清空当前页，再拉取目标页 */
@@ -594,7 +614,7 @@ async function submitEdit() {
     await updateShare(target.token, body);
     message.success('分享链接已更新');
     editShow.value = false;
-    await load(false);
+    await load({}, false);
   } catch (e) {
     message.error(getErrorMessage(e, '更新分享链接失败'));
   } finally {
@@ -622,7 +642,7 @@ async function toggleEnabled(link: ShareLink) {
   try {
     await updateShare(link.token, { enabled: !link.enabled });
     message.success(link.enabled ? '分享链接已停用' : '分享链接已启用');
-    await load(false);
+    await load({}, false);
   } catch (e) {
     message.error(getErrorMessage(e, '切换启停状态失败'));
   }
@@ -712,7 +732,13 @@ onMounted(async () => {
       :description="`共 ${total} 条 · 活跃 ${counts.active} · 已停用 ${counts.disabled} · 已失效 ${counts.expired + counts.exhausted}`"
     >
       <template #actions>
-        <NButton size="small" quaternary @click="() => load()">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="refreshList"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon>
           </template>

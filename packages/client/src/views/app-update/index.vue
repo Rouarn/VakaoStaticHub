@@ -90,7 +90,13 @@ const total = ref(0);
 const page = ref(1);
 const pageSize = ref(10);
 /** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
-const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
+const {
+  loading,
+  loadingText,
+  refreshing,
+  begin: beginLoading,
+  refresh,
+} = useListLoading({ page });
 const error = ref('');
 
 // 版本详情抽屉
@@ -143,8 +149,12 @@ async function loadApps() {
   }
 }
 
-async function loadVersions() {
-  loading.value = true;
+/**
+ * silent=true 用于手动刷新：不显示遮罩、失败时保留当前版本卡片，
+ * 错误抛给 useListLoading.refresh 统一提示。
+ */
+async function loadVersions(options: { silent?: boolean } = {}) {
+  if (!options.silent) loading.value = true;
   error.value = '';
   const query: ListVersionsQuery = {
     page: page.value,
@@ -158,12 +168,22 @@ async function loadVersions() {
     versions.value = result.items;
     total.value = result.total;
   } catch (e) {
+    if (options.silent) throw e;
     error.value = getErrorMessage(e, '版本列表加载失败');
     versions.value = [];
     total.value = 0;
   } finally {
-    loading.value = false;
+    if (!options.silent) loading.value = false;
   }
+}
+
+/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前版本数 */
+function refreshVersions() {
+  void refresh(
+    () => loadVersions({ silent: true }),
+    () => `当前 ${total.value} 个版本`,
+    '刷新失败',
+  );
 }
 
 /** 切换分页 / 筛选前清空版本卡片；total 保留，避免分页条跳动 */
@@ -870,7 +890,13 @@ onMounted(async () => {
           class="w-32"
           @update:value="changeFilter"
         />
-        <NButton size="small" quaternary @click="loadVersions">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="refreshVersions"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon
           ></template>

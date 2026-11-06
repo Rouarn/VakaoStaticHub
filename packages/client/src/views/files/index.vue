@@ -123,7 +123,13 @@ const order = ref<'asc' | 'desc'>('desc');
 const viewMode = ref<'grid' | 'list'>('grid');
 
 /** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
-const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
+const {
+  loading,
+  loadingText,
+  refreshing,
+  begin: beginLoading,
+  refresh,
+} = useListLoading({ page });
 const error = ref('');
 const selected = ref<Set<string>>(new Set());
 /** 内容区滚动容器：翻页后回到顶部 */
@@ -137,9 +143,13 @@ const sortOptions = [
 
 let loadSeq = 0;
 
-async function load() {
+/**
+ * silent=true 用于手动刷新：不显示遮罩、失败时不覆盖当前列表，
+ * 错误抛给 useListLoading.refresh 统一提示。
+ */
+async function load(options: { silent?: boolean } = {}) {
   const seq = ++loadSeq;
-  loading.value = true;
+  if (!options.silent) loading.value = true;
   error.value = '';
   try {
     const result = await listFiles(rootId.value, category.value, {
@@ -157,11 +167,12 @@ async function load() {
     selected.value = new Set([...selected.value].filter((p) => visible.has(p)));
   } catch (e) {
     if (seq !== loadSeq) return;
+    if (options.silent) throw e;
     error.value = getErrorMessage(e, '文件列表加载失败');
     items.value = [];
     total.value = 0;
   } finally {
-    if (seq === loadSeq) loading.value = false;
+    if (!options.silent && seq === loadSeq) loading.value = false;
   }
 }
 
@@ -177,24 +188,13 @@ function scheduleLoad() {
 
 const reload = () => scheduleLoad();
 
-/** 顶部刷新按钮：进入加载态，完成后提示本次刷新到的文件数量 */
-const refreshing = ref(false);
-
-async function refreshFiles() {
-  if (refreshing.value) return;
-  refreshing.value = true;
-  try {
-    await load();
-    if (error.value) {
-      message.error(error.value);
-      return;
-    }
-    message.success(`已刷新 · 当前分类 ${total.value} 个文件`);
-  } catch (e) {
-    message.error(getErrorMessage(e, '刷新失败'));
-  } finally {
-    refreshing.value = false;
-  }
+/** 顶部刷新按钮：不走遮罩，只让按钮转圈，结束后提示当前文件数 */
+function refreshFiles() {
+  void refresh(
+    () => load({ silent: true }),
+    () => `当前 ${total.value} 个文件`,
+    '刷新失败',
+  );
 }
 
 onMounted(async () => {

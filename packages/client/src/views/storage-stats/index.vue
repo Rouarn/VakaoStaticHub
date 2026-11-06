@@ -28,7 +28,13 @@ const message = useMessage();
 const data = ref<UsageStatsResult | null>(null);
 const syncing = ref(false);
 /** 加载态与中文提示：文案规则见 useListLoading */
-const { loading, loadingText, begin: beginLoading } = useListLoading();
+const {
+  loading,
+  loadingText,
+  refreshing,
+  begin: beginLoading,
+  refresh,
+} = useListLoading();
 const error = ref('');
 
 /** 刷新统计前清空旧数据，避免遮罩下残留上一轮的数字 */
@@ -36,17 +42,31 @@ function clearStats() {
   data.value = null;
 }
 
-async function load() {
-  beginLoading(clearStats);
+/**
+ * silent=true 用于手动刷新：不显示遮罩、失败时保留当前统计，
+ * 错误抛给 useListLoading.refresh 统一提示。
+ */
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) beginLoading(clearStats);
   error.value = '';
   try {
     data.value = await getUsageStats();
   } catch (e) {
+    if (options.silent) throw e;
     error.value = getErrorMessage(e, '存储统计加载失败');
     data.value = null;
   } finally {
-    loading.value = false;
+    if (!options.silent) loading.value = false;
   }
+}
+
+/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前文件数 */
+function refreshStats() {
+  void refresh(
+    () => load({ silent: true }),
+    () => `当前 ${data.value?.fileCount ?? 0} 个文件`,
+    '刷新失败',
+  );
 }
 
 const REBUILD_POLL_MS = 500;
@@ -108,7 +128,11 @@ async function rebuildIndex() {
     message.success(
       `重建完成 · ${files} 个文件 · ${formatDuration(duration)}`,
     );
-    await load();
+    try {
+      await load({ silent: true });
+    } catch {
+      message.warning('重建已完成，但统计刷新失败，请点「刷新」重试');
+    }
   } catch (e) {
     message.error(getErrorMessage(e, '重建索引失败'));
   } finally {
@@ -166,7 +190,13 @@ onMounted(() => void load());
           </template>
           重新扫描磁盘并刷新文件索引，文件较多时可能耗时，确认继续？
         </NPopconfirm>
-        <NButton size="small" quaternary @click="load">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="refreshStats"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon
           ></template>
@@ -185,7 +215,9 @@ onMounted(() => void load());
           title="还没有可统计的资源"
           description="资源根目录为空，上传文件后这里会显示各根目录与分类的容量占用。"
         >
-          <NButton size="small" type="primary" @click="load">重新统计</NButton>
+          <NButton size="small" type="primary" @click="load()"
+            >重新统计</NButton
+          >
         </EmptyState>
 
         <div v-else-if="data" class="flex flex-col gap-4">

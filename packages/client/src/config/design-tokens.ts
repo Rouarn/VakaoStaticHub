@@ -70,16 +70,6 @@ export const colors = {
     infoLight: '#3a5bbf',
     infoDark: '#9db4f0',
   },
-  /**
-   * 遮罩层（全站加载遮罩唯一来源）
-   *
-   * rgba 的 alpha 即遮罩不透明度：数值越小越透明、越能看见背后的页面；
-   * 深浅色各一份，保证遮罩上的文字与转圈在两种主题下都清晰可读。
-   */
-  overlay: {
-    loadingLight: 'rgba(255,255,255,0.42)',
-    loadingDark: 'rgba(12,15,20,0.34)',
-  },
   /** 焦点环 */
   focus: {
     ringLight: 'rgba(95,85,184,0.18)',

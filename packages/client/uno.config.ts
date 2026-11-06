@@ -137,15 +137,12 @@ export default defineConfig({
           --ink-2: ${colors.ink.secondary};
           --ink-3: ${colors.ink.placeholderLight};
           --line-soft: rgba(15, 23, 42, 0.075);
-          /* 加载遮罩底色：全站唯一来源，改动此处即可调整所有 ListLoading 的透明度 */
-          --mask-loading: ${colors.overlay.loadingLight};
         }
         html.dark {
           --ink-1: ${colors.ink.darkPrimary};
           --ink-2: ${colors.ink.darkSecondary};
           --ink-3: ${colors.ink.placeholderDark};
           --line-soft: rgba(255, 255, 255, 0.075);
-          --mask-loading: ${colors.overlay.loadingDark};
         }
 
         /* ===== 基础 ===== */

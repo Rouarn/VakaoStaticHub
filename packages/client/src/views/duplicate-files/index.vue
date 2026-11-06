@@ -58,7 +58,13 @@ const error = ref('');
 const page = ref(1);
 const pageSize = ref(5);
 /** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
-const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
+const {
+  loading,
+  loadingText,
+  refreshing,
+  begin: beginLoading,
+  refresh,
+} = useListLoading({ page });
 const expanded = ref<Set<string>>(new Set());
 const keepIndex = ref<Record<string, number>>({});
 const previewShow = ref(false);
@@ -114,9 +120,15 @@ async function loadRoots() {
   }
 }
 
-/** 加载当前页；页码超出末页时回退到末页（清理后总组数可能变少） */
-async function load(allowClamp = true) {
-  loading.value = true;
+/**
+ * 加载当前页；页码超出末页时回退到末页（清理后总组数可能变少）
+ * silent=true 用于手动重新扫描：不显示遮罩、失败时保留当前分组，错误抛给 refresh 统一提示。
+ */
+async function load(
+  allowClamp = true,
+  options: { silent?: boolean } = {},
+) {
+  if (!options.silent) loading.value = true;
   error.value = '';
   try {
     const result = await getDuplicateFiles({
@@ -131,14 +143,24 @@ async function load(allowClamp = true) {
     const maxPage = Math.max(1, Math.ceil(result.groupCount / pageSize.value));
     if (allowClamp && page.value > maxPage) {
       page.value = maxPage;
-      await load(false);
+      await load(false, options);
     }
   } catch (e) {
+    if (options.silent) throw e;
     error.value = getErrorMessage(e, '重复文件扫描失败');
     scan.value = null;
   } finally {
-    loading.value = false;
+    if (!options.silent) loading.value = false;
   }
+}
+
+/** 页头「重新扫描」：不走遮罩，只让按钮转圈，结束后提示当前重复组数 */
+function rescan() {
+  void refresh(
+    () => load(true, { silent: true }),
+    () => `当前 ${groupCount.value} 组重复文件`,
+    '重新扫描失败',
+  );
 }
 
 /** 切换根目录 / 每页条数 / 页码前清空分组；统计数字保留到新数据返回，避免分页总数跳动 */
@@ -311,7 +333,13 @@ onMounted(async () => {
           :options="rootOptions"
           @update:value="changeFilter"
         />
-        <NButton size="small" quaternary @click="() => load()">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="rescan"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon
           ></template>
@@ -353,7 +381,9 @@ onMounted(async () => {
               : '选择根目录后点击「重新扫描」开始检测。'
           "
         >
-          <NButton size="small" @click="() => load()">重新扫描</NButton>
+          <NButton size="small" :loading="refreshing" @click="rescan"
+            >重新扫描</NButton
+          >
         </EmptyState>
 
         <div v-else class="flex flex-col gap-4">

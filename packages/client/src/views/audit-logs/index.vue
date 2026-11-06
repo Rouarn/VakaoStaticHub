@@ -48,7 +48,13 @@ const resourceType = ref('');
 const range = ref<[number, number] | null>(null);
 
 /** 加载态与中文提示：文案规则见 useListLoading（翻页时带页码） */
-const { loading, loadingText, begin: beginLoading } = useListLoading({ page });
+const {
+  loading,
+  loadingText,
+  refreshing,
+  begin: beginLoading,
+  refresh,
+} = useListLoading({ page });
 
 const actionOptions = [
   { label: '全部动作', value: '' },
@@ -65,8 +71,12 @@ const resourceOptions = [
   })),
 ];
 
-async function load() {
-  loading.value = true;
+/**
+ * silent=true 用于手动刷新：不显示遮罩、失败时保留当前日志，
+ * 错误抛给 useListLoading.refresh 统一提示。
+ */
+async function load(options: { silent?: boolean } = {}) {
+  if (!options.silent) loading.value = true;
   error.value = '';
   try {
     const [start, end] = range.value ?? [];
@@ -80,6 +90,7 @@ async function load() {
       ...(end !== undefined ? { endTime: end + 86_399_999 } : {}),
     });
   } catch (e) {
+    if (options.silent) throw e;
     error.value = getErrorMessage(e, '审计日志加载失败');
     data.value = {
       items: [],
@@ -88,8 +99,17 @@ async function load() {
       pageSize: pageSize.value,
     };
   } finally {
-    loading.value = false;
+    if (!options.silent) loading.value = false;
   }
+}
+
+/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前日志条数 */
+function refreshList() {
+  void refresh(
+    () => load({ silent: true }),
+    () => `当前 ${data.value.total} 条日志`,
+    '刷新失败',
+  );
 }
 
 /** 切换筛选 / 分页前清空表格行；total 保留，避免分页总数与页码跳动 */
@@ -155,7 +175,13 @@ onMounted(() => void load());
       :icon="DocumentTextOutline"
     >
       <template #actions>
-        <NButton size="small" quaternary @click="load">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="refreshList"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon
           ></template>

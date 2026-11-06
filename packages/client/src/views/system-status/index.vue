@@ -38,10 +38,10 @@ import BarList from '@/components/charts/bar-list.vue';
  */
 const data = ref<SystemMetrics | null>(null);
 /**
- * 加载态：仅首次进入与用户主动刷新（含重试）时显示遮罩；
- * 30 秒静默刷新走 silent=true，不触碰 loading，保留旧数据不闪遮罩。
+ * 加载态：仅首次进入与重试时显示遮罩；
+ * 30 秒静默刷新与手动「立即刷新」都不显示遮罩，前者无任何反馈，后者只让按钮转圈并提示结果。
  */
-const { loading, loadingText } = useListLoading({
+const { loading, loadingText, refreshing, refresh } = useListLoading({
   text: '正在加载系统指标…',
 });
 const error = ref('');
@@ -57,17 +57,31 @@ const intervalOptions = [
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-async function load(silent = false) {
-  if (!silent) loading.value = true;
+/**
+ * silent=true：不显示遮罩（自动刷新与手动刷新共用）
+ * throwOnError=true：失败时抛给 useListLoading.refresh 统一提示，界面保留上次成功的数据
+ */
+async function load(options: { silent?: boolean; throwOnError?: boolean } = {}) {
+  if (!options.silent) loading.value = true;
   error.value = '';
   try {
     data.value = await getSystemMetrics();
     lastUpdated.value = Date.now();
   } catch (e) {
     error.value = getErrorMessage(e, '系统指标获取失败');
+    if (options.throwOnError) throw e;
   } finally {
-    if (!silent) loading.value = false;
+    if (!options.silent) loading.value = false;
   }
+}
+
+/** 页头「立即刷新」：不走遮罩，只让按钮转圈，结束后提示结果 */
+function refreshNow() {
+  void refresh(
+    () => load({ silent: true, throwOnError: true }),
+    () => `当前 ${rootItems.value.length} 个资源目录`,
+    '系统指标刷新失败',
+  );
 }
 
 function restartTimer() {
@@ -76,7 +90,7 @@ function restartTimer() {
     timer = null;
   }
   if (paused.value) return;
-  timer = setInterval(() => void load(true), refreshMs.value);
+  timer = setInterval(() => void load({ silent: true }), refreshMs.value);
 }
 
 watch([refreshMs, paused], restartTimer);
@@ -197,7 +211,13 @@ function rootShareLabel(totalSize: number | null): string {
           </template>
           {{ paused ? '恢复刷新' : '暂停刷新' }}
         </NButton>
-        <NButton size="small" quaternary :loading="loading" @click="load()">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="refreshNow"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon
           ></template>
