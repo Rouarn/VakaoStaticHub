@@ -135,6 +135,9 @@ pnpm dev
 | `MAX_IMAGE_PIXELS`      | `60000000`  | 缩略图允许解码的最大像素数           |
 | `MAX_IMAGE_DIMENSION`   | `4096`      | 缩略图最大边长                       |
 | `THUMB_CONCURRENCY`     | `2`         | 缩略图生成并发度                     |
+| `THUMB_CACHE_RETENTION_DAYS` | `30`   | 缩略图缓存保留天数，0 表示不按时间清理 |
+| `THUMB_CACHE_MAX_MB`    | `512`       | 缩略图缓存总容量上限（MB），0 表示不限 |
+| `CLEANUP_AT`            | `03:00`     | 每日清理时刻（缩略图缓存与过期分享） |
 | `CACHE_REFRESH_INTERVAL_MS` | `300000` | 索引刷新间隔（毫秒）                |
 | `ROOT_BROWSE_WHITELIST` | `''`        | 目录浏览额外允许的绝对路径，逗号分隔 |
 
