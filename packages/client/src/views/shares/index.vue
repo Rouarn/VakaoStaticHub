@@ -88,11 +88,6 @@ const keyword = ref('');
 const statusFilter = ref<'all' | ShareLinkStatus>('all');
 const page = ref(1);
 const pageSize = ref(8);
-/** 每页条数选择放在页头工具区（与搜索同一轴线），分页只保留页码 */
-const pageSizeOptions = [8, 16, 32, 64].map((value) => ({
-  label: `${value} 条/页`,
-  value,
-}));
 
 const links = computed(() => result.value?.items ?? []);
 const total = computed(() => result.value?.total ?? 0);
@@ -781,14 +776,6 @@ onMounted(async () => {
             ></template>
           </NInput>
         </div>
-        <div class="ml-auto flex items-center gap-2">
-          <NSelect
-            v-model:value="pageSize"
-            :options="pageSizeOptions"
-            size="small"
-            class="w-28"
-          />
-        </div>
       </div>
     </section>
 
@@ -1025,14 +1012,22 @@ onMounted(async () => {
       </div>
 
       <footer
-        v-if="total > pageSize"
+        v-if="total > 0"
         class="flex flex-wrap items-center justify-end gap-2 shrink-0 px-1 pb-1"
       >
-        <span class="mr-auto text-11px text-ink-sub">
+        <span class="mr-auto text-11px text-ink-sub tabular-nums">
           共 {{ total }} 条 · 第 {{ page }} /
           {{ Math.max(1, Math.ceil(total / pageSize)) }} 页
         </span>
-        <NPagination v-model:page="page" :item-count="total" :page-size="pageSize" />
+        <NPagination
+          :page-slot="5"
+          v-model:page="page"
+          v-model:page-size="pageSize"
+          :item-count="total"
+          :page-sizes="[8, 16, 32, 64]"
+          :disabled="loading"
+          show-size-picker
+        />
       </footer>
     </div>
 
