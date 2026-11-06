@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { NButton, NIcon, NInput, NSpin, useMessage } from 'naive-ui';
+import { NButton, NIcon, NInput, useMessage } from 'naive-ui';
 import {
   ArrowBackOutline,
   BanOutline,
@@ -33,6 +33,8 @@ import {
 import { formatDateTime } from '@/utils/format';
 import PublicPage from '@/components/common/public-page.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import ListLoading from '@/components/common/list-loading.vue';
+import { useListLoading } from '@/composables/use-list-loading';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
 import type { PreviewTarget } from '@/components/preview/types';
 
@@ -76,8 +78,19 @@ const accessToken = ref('');
 const collectionFiles = ref<ShareCollectionFile[]>([]);
 const collectionRootId = ref('');
 const collectionCategory = ref('');
-const collectionLoading = ref(false);
+const {
+  loading: collectionLoading,
+  loadingText: collectionLoadingText,
+  begin: beginCollectionLoading,
+} = useListLoading({ text: '正在加载文件列表…' });
 const collectionError = ref('');
+/** 初始读取分享信息、校验访问密码同样使用统一加载文案 */
+const { loadingText: bootLoadingText } = useListLoading({
+  text: '正在读取分享信息…',
+});
+const { loadingText: unlockLoadingText } = useListLoading({
+  text: '正在校验访问密码…',
+});
 /** 单文件分享的真实大小：ShareInfo 不含 size，用 HEAD 读 Content-Length */
 const singleSize = ref<number | null>(null);
 const singleMissing = ref(false);
@@ -222,8 +235,8 @@ async function unlock() {
 }
 
 async function loadCollection() {
-  collectionLoading.value = true;
   collectionError.value = '';
+  beginCollectionLoading();
   try {
     const result = await fetchShareCollection(token.value, accessToken.value);
     collectionFiles.value = result.files ?? [];
@@ -396,13 +409,12 @@ onBeforeUnmount(() => {
           class="flex flex-1 min-h-0 flex-col gap-4"
           :class="isCollectionReady ? 'overflow-hidden' : 'share-scroll'"
         >
-          <!-- 加载 -->
+          <!-- 加载：铺满中间内容区，转圈与提示居中 -->
           <div
             v-if="phase === 'loading'"
-            class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
+            class="relative flex flex-1 min-h-0 flex-col"
           >
-            <NSpin size="medium" />
-            <p class="m-0 text-12px text-ink-sub">正在读取分享信息…</p>
+            <ListLoading show :text="bootLoadingText" />
           </div>
 
           <!-- 链接不存在 -->
@@ -459,84 +471,87 @@ onBeforeUnmount(() => {
             description="分享者设置了最大打开次数，当前次数已用尽。请联系分享者调整或重新创建链接。"
           />
 
-          <!-- 密码 / 打开 -->
-          <section
+          <!-- 密码 / 打开：校验密码时遮罩在本区域内居中 -->
+          <div
             v-else-if="phase === 'gate' && info"
-            class="glass-panel px-5 py-6 flex flex-col gap-4"
+            class="relative flex flex-1 min-h-0 flex-col"
           >
-            <div class="flex flex-col gap-1">
-              <p class="m-0 text-14px font-600 text-ink">
-                {{
-                  info.shareType === 'collection'
-                    ? `文件集合（${info.filePaths.length} 个文件）`
-                    : nameOf(info.filePaths[0])
-                }}
-              </p>
-              <p class="m-0 text-11px text-ink-sub">
-                {{ info.category }} · {{ expiresLabel }}
-                <template v-if="info.maxAccesses !== null">
-                  · 最多打开 {{ info.maxAccesses }} 次</template
-                >
-              </p>
-            </div>
+            <section class="glass-panel px-5 py-6 flex flex-col gap-4">
+              <div class="flex flex-col gap-1">
+                <p class="m-0 text-14px font-600 text-ink">
+                  {{
+                    info.shareType === 'collection'
+                      ? `文件集合（${info.filePaths.length} 个文件）`
+                      : nameOf(info.filePaths[0])
+                  }}
+                </p>
+                <p class="m-0 text-11px text-ink-sub">
+                  {{ info.category }} · {{ expiresLabel }}
+                  <template v-if="info.maxAccesses !== null">
+                    · 最多打开 {{ info.maxAccesses }} 次</template
+                  >
+                </p>
+              </div>
 
-            <p
-              v-if="passwordError"
-              class="m-0 text-12px text-red-500 leading-5"
-            >
-              {{ passwordError }}
-            </p>
+              <p
+                v-if="passwordError"
+                class="m-0 text-12px text-red-500 leading-5"
+              >
+                {{ passwordError }}
+              </p>
 
-            <form
-              v-if="info.hasPassword"
-              class="flex flex-col gap-2"
-              @submit.prevent="unlock"
-            >
-              <label class="flex flex-col gap-1">
-                <span class="text-12px text-ink-sub">访问密码</span>
-                <NInput
-                  v-model:value="password"
-                  type="password"
-                  show-password-on="click"
-                  placeholder="请输入分享者设置的访问密码"
+              <form
+                v-if="info.hasPassword"
+                class="flex flex-col gap-2"
+                @submit.prevent="unlock"
+              >
+                <label class="flex flex-col gap-1">
+                  <span class="text-12px text-ink-sub">访问密码</span>
+                  <NInput
+                    v-model:value="password"
+                    type="password"
+                    show-password-on="click"
+                    placeholder="请输入分享者设置的访问密码"
+                    size="large"
+                    :disabled="unlocking"
+                    @keyup.enter="unlock"
+                  />
+                </label>
+                <NButton
+                  type="primary"
                   size="large"
-                  :disabled="unlocking"
-                  @keyup.enter="unlock"
-                />
-              </label>
-              <NButton
-                type="primary"
-                size="large"
-                attr-type="submit"
-                :loading="unlocking"
-                :disabled="rateLimited"
-              >
-                <template #icon
-                  ><NIcon><LockClosedOutline /></NIcon
-                ></template>
-                验证并打开
-              </NButton>
-            </form>
+                  attr-type="submit"
+                  :loading="unlocking"
+                  :disabled="rateLimited"
+                >
+                  <template #icon
+                    ><NIcon><LockClosedOutline /></NIcon
+                  ></template>
+                  验证并打开
+                </NButton>
+              </form>
 
-            <div v-else class="flex flex-col gap-2">
-              <p class="m-0 text-12px text-ink-sub">
-                该分享未设置密码。打开会消耗 1
-                次打开次数（若分享者设置过上限）。
-              </p>
-              <NButton
-                type="primary"
-                size="large"
-                :loading="unlocking"
-                :disabled="rateLimited"
-                @click="unlock"
-              >
-                <template #icon
-                  ><NIcon><EyeOutline /></NIcon
-                ></template>
-                打开分享
-              </NButton>
-            </div>
-          </section>
+              <div v-else class="flex flex-col gap-2">
+                <p class="m-0 text-12px text-ink-sub">
+                  该分享未设置密码。打开会消耗 1
+                  次打开次数（若分享者设置过上限）。
+                </p>
+                <NButton
+                  type="primary"
+                  size="large"
+                  :loading="unlocking"
+                  :disabled="rateLimited"
+                  @click="unlock"
+                >
+                  <template #icon
+                    ><NIcon><EyeOutline /></NIcon
+                  ></template>
+                  打开分享
+                </NButton>
+              </div>
+            </section>
+            <ListLoading :show="unlocking" :text="unlockLoadingText" />
+          </div>
 
           <!-- 已解锁：单文件 -->
           <section
@@ -644,8 +659,8 @@ onBeforeUnmount(() => {
               {{ collectionRootId }} / {{ collectionCategory }}
             </p>
 
-            <div class="share-scroll flex flex-1 min-h-0 flex-col">
-              <NSpin :show="collectionLoading">
+            <div class="relative flex flex-1 min-h-0 flex-col">
+              <div class="share-scroll flex flex-1 min-h-0 flex-col">
                 <p
                   v-if="collectionError"
                   class="m-0 text-12px text-red-500 leading-5"
@@ -736,7 +751,11 @@ onBeforeUnmount(() => {
                     </li>
                   </ul>
                 </div>
-              </NSpin>
+              </div>
+              <ListLoading
+                :show="collectionLoading"
+                :text="collectionLoadingText"
+              />
             </div>
           </section>
         </main>
