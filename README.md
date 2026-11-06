@@ -77,7 +77,7 @@ pnpm dev
 
 | 命令                 | 说明                                                     |
 | -------------------- | -------------------------------------------------------- |
-| `pnpm bootstrap`     | 安装 workspace 依赖                                      |
+| `pnpm bootstrap`     | 安装 workspace 依赖，并预下载 Go modules                 |
 | `pnpm dev`           | 构建 shared 后并行启动 Go 服务端与 Vite 前端             |
 | `pnpm dev:server`    | 仅启动 Go 服务端（`BASE_DIR` 指向仓库根目录）            |
 | `pnpm dev:client`    | 仅启动 Vite 开发服务器                                   |

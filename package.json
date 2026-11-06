@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "bootstrap": "pnpm install",
+    "bootstrap": "pnpm install && go -C packages/server mod download",
     "dev": "pnpm build:shared && concurrently -n server,client -c green,blue \"pnpm dev:server\" \"pnpm dev:client\"",
     "dev:server": "BASE_DIR=\"$PWD\" go -C packages/server run ./cmd/server",
     "dev:client": "pnpm --filter @vakao/client dev",
