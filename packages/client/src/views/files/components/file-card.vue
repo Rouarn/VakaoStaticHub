@@ -182,7 +182,8 @@ function onAction(key: string) {
 
       <!-- 选中框：叠在图片上时默认白色描边几乎不可见，加一层薄暗底保证可辨 -->
       <span
-        class="absolute top-2 left-2 w-6 h-6 rounded-md flex items-center justify-center bg-black/25 backdrop-blur-sm"
+        class="card-hover-control absolute top-2 left-2 w-6 h-6 rounded-md flex items-center justify-center bg-black/25 backdrop-blur-sm transition-opacity"
+        :class="{ 'is-pinned': props.selected }"
         @click.stop
       >
         <NCheckbox
@@ -193,7 +194,7 @@ function onAction(key: string) {
 
       <!-- 操作菜单 -->
       <div
-        class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        class="card-hover-control absolute top-1.5 right-1.5 transition-opacity"
       >
         <NDropdown
           trigger="click"
@@ -290,3 +291,30 @@ function onAction(key: string) {
     </NDropdown>
   </div>
 </template>
+
+<style scoped>
+/*
+ * 网格卡片的悬浮控件（左上角选择框、右上角更多菜单）：
+ * 桌面端（支持 hover 的精确指针）默认隐藏，移入卡片时淡入，两者时机与过渡一致；
+ * 触屏设备没有 hover，控件常驻显示，避免出现「看不见也点不到」。
+ */
+@media (hover: hover) and (pointer: fine) {
+  .card-hover-control {
+    opacity: 0;
+  }
+
+  .group:hover .card-hover-control {
+    opacity: 1;
+  }
+}
+
+/* 键盘聚焦时同样可见，避免焦点落在透明控件上 */
+.card-hover-control:focus-within {
+  opacity: 1;
+}
+
+/* 已勾选的卡片保持选择框可见 */
+.card-hover-control.is-pinned {
+  opacity: 1;
+}
+</style>
