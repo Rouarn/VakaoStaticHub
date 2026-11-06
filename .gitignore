@@ -3,8 +3,11 @@ dist
 node_modules
 build
 # 运行时数据目录（data 下含 vakao.db、uploads、software-update 等子目录）
-packages/backend/data/
-deploy
+/data/
+# 旧后端迁移用的只读数据快照
+/legacy-data/
+# Go 服务端构建产物
+/packages/server/bin/
 resource-roots.json
 
 # TypeScript incremental build info

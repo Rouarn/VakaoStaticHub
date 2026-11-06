@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "dist", "deploy"],
-  "compilerOptions": {
-    "declaration": false,
-    "noEmit": false,
-    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
-  }
-}

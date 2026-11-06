@@ -2,12 +2,8 @@ packages:
   - 'packages/*'
 nodeLinker: hoisted
 allowBuilds:
-  '@nestjs/core': true
   '@parcel/watcher': true
-  '@scarf/scarf': true
-  canvas: true
   esbuild: true
-  sharp: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@vakao-ui/scripts-utils@0.0.2 || 0.0.3'
