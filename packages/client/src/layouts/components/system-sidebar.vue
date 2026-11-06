@@ -110,11 +110,14 @@ const groups = computed(() => {
   })).filter((group) => group.items.length > 0);
 });
 
-/** 侧栏徽标：文件 / 分享总数来自轻量聚合接口 */
+/**
+ * 侧栏徽标：文件 / 分享总数来自轻量聚合接口。
+ * 计数为 0 时返回 undefined，整个徽标不渲染（不留空壳、不显示 0）。
+ */
 function badgeFor(name: string): number | undefined {
-  if (name === 'files') return overview.files;
-  if (name === 'shares') return overview.shares;
-  return undefined;
+  const value =
+    name === 'files' ? overview.files : name === 'shares' ? overview.shares : 0;
+  return value > 0 ? value : undefined;
 }
 
 onMounted(() => {
