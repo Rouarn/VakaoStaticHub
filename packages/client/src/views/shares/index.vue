@@ -727,11 +727,24 @@ onMounted(async () => {
       </template>
     </PageHeader>
 
-    <!-- 第 2 块：工具条区（状态筛选、搜索、全选） -->
-    <!-- 同一行按内容自适应：宽屏三组均分整行，窄屏逐项换行并占满整行，避免出现整块空白 -->
+    <!-- 第 2 块：工具条区（搜索、状态筛选），统一左侧起排 -->
     <section
-      class="glass-panel px-4 py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 shrink-0"
+      class="glass-panel px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2 shrink-0"
     >
+      <!-- 外层定宽：NInput 自身 width:100% 会覆盖 UnoCSS 的宽度；窄屏整行占满，宽屏固定 224px -->
+      <div class="w-full shrink-0 sm:w-56">
+        <NInput
+          v-model:value="keyword"
+          size="small"
+          clearable
+          placeholder="搜索 token / 文件 / 分类"
+        >
+          <template #prefix
+            ><NIcon :size="15"><SearchOutline /></NIcon
+          ></template>
+        </NInput>
+      </div>
+
       <div class="flex items-center gap-1 flex-wrap">
         <button
           v-for="tab in statusTabs"
@@ -747,36 +760,6 @@ onMounted(async () => {
           {{ tab.label }}
           <span class="tabular-nums opacity-80">{{ tab.count }}</span>
         </button>
-      </div>
-
-      <!-- 外层定宽：NInput 自身 width:100% 会覆盖 UnoCSS 的宽度；窄屏整行占满，宽屏固定 224px -->
-      <div class="w-full shrink-0 sm:w-56">
-        <NInput
-          v-model:value="keyword"
-          size="small"
-          clearable
-          placeholder="搜索 token / 文件 / 分类"
-        >
-          <template #prefix
-            ><NIcon :size="15"><SearchOutline /></NIcon
-          ></template>
-        </NInput>
-      </div>
-
-      <div
-        class="flex w-full items-center justify-between gap-2 flex-wrap sm:w-auto sm:justify-start"
-      >
-        <NCheckbox
-          :checked="allSelected"
-          :indeterminate="partiallySelected"
-          :disabled="links.length === 0"
-          @update:checked="toggleSelectAll"
-        >
-          {{ allSelected ? '取消全选' : '全选当前页' }}
-        </NCheckbox>
-        <span class="text-11px text-ink-sub tabular-nums">
-          已选 {{ selectedTotal }} 项 / 本页 {{ pageCount }} 项
-        </span>
       </div>
     </section>
 
