@@ -1032,7 +1032,7 @@ onMounted(async () => {
           共 {{ total }} 条 · 第 {{ page }} /
           {{ Math.max(1, Math.ceil(total / pageSize)) }} 页
         </span>
-        <NPagination v-model:page="page" :item-count="total" />
+        <NPagination v-model:page="page" :item-count="total" :page-size="pageSize" />
       </footer>
     </div>
 
