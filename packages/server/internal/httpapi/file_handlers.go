@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -57,7 +56,7 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request, _ *Curr
 		return internalError(err)
 	}
 	for i := range items {
-		items[i].URL = fileContentURL(items[i].RootID, items[i].Category, items[i].RelPath)
+		items[i].URL = fileContentURL(items[i].ID)
 	}
 	writeJSON(w, model.Page[model.FileEntry]{
 		Items:    items,
@@ -399,7 +398,7 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 		if err != nil {
 			return internalError(err)
 		}
-		entry.URL = fileContentURL(entry.RootID, entry.Category, entry.RelPath)
+		entry.URL = fileContentURL(entry.ID)
 		writeJSON(w, entry)
 		return nil
 	}
@@ -420,7 +419,7 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 	if err != nil {
 		return internalError(err)
 	}
-	entry.URL = fileContentURL(entry.RootID, entry.Category, entry.RelPath)
+	entry.URL = fileContentURL(entry.ID)
 	s.audit(r, user, "file.rename", "file", root.ID+"/"+category+"/"+targetRel,
 		map[string]any{"from": rel})
 	writeJSON(w, entry)
@@ -460,17 +459,31 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, user *
 }
 
 func (s *Server) handleFileContent(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
-	root, err := s.rootByID(r.Context(), pathValue(r, "rootId"))
+	id, err := parseInt64(pathValue(r, "fileId"), "file id")
 	if err != nil {
 		return err
 	}
-	category, err := validateCategoryName(pathValue(r, "category"))
+	if id <= 0 {
+		return badRequest("invalid file id")
+	}
+	entry, err := s.store.FileByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return notFound("file not found")
+		}
+		return internalError(err)
+	}
+	root, err := s.rootByID(r.Context(), entry.RootID)
 	if err != nil {
 		return err
 	}
-	rel, err := storage.CleanRel(pathValue(r, "path"))
+	category, err := validateCategoryName(entry.Category)
+	if err != nil {
+		return err
+	}
+	rel, err := storage.CleanRel(entry.RelPath)
 	if err != nil || rel == "" {
-		return badRequest("invalid path")
+		return notFound("file not found")
 	}
 	full, err := storage.Join(filepath.Join(root.Path, category), rel)
 	if err != nil {
@@ -486,7 +499,7 @@ func (s *Server) handleFileContent(w http.ResponseWriter, r *http.Request, _ *Cu
 	if info.IsDir() {
 		return notFound("file not found")
 	}
-	return s.serveStoredFile(w, r, full, info, root.ID+"/"+category+"/"+rel)
+	return s.serveStoredFile(w, r, full, info, entry.RootID+"/"+category+"/"+rel)
 }
 
 // serveStoredFile 输出生成的缩略图或文件原始内容。
@@ -625,12 +638,8 @@ func isEmptyDir(path string) bool {
 	return true
 }
 
-func fileContentURL(rootID, category, relPath string) string {
-	segments := strings.Split(relPath, "/")
-	for i, segment := range segments {
-		segments[i] = url.PathEscape(segment)
-	}
-	return "/api/v1/files/content/" + url.PathEscape(rootID) + "/" + url.PathEscape(category) + "/" + strings.Join(segments, "/")
+func fileContentURL(id int64) string {
+	return "/v1/i/" + strconv.FormatInt(id, 10)
 }
 
 func serveOriginal(w http.ResponseWriter, r *http.Request, path string, info os.FileInfo, download bool) error {

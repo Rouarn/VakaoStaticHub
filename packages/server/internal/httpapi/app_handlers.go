@@ -849,7 +849,7 @@ func (s *Server) versionView(record store.VersionRecord) model.AppVersion {
 }
 
 func (s *Server) packageDownloadURL(id int64) string {
-	path := "/api/v1/public/apps/versions/" + strconv.FormatInt(id, 10) + "/download"
+	path := "/v1/a/versions/" + strconv.FormatInt(id, 10) + "/download"
 	if s.cfg.AppPublicBase != "" {
 		return s.cfg.AppPublicBase + path
 	}

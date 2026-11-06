@@ -6,9 +6,12 @@ package httpapi
 //
 // 约定
 //
-//   - 基础路径为 /api/v1。所有 JSON 响应统一为
+//   - 基础路径为 /v1。所有 JSON 响应统一为
 //     {"code":200,"message":"ok","data":...}；列表分页结构位于 data 内：
 //     {"items":[],"total":n,"page":p,"pageSize":s}。
+//   - 公开高频入口使用单字母短前缀：/v1/i 为内容与图片（按 id 取文件、
+//     随机图、占位图），/v1/s 为分享，/v1/a 为 APP 更新；其余管理端
+//     CRUD 保持完整的 REST 命名。
 //   - 错误使用同一外层信封：code 为 HTTP 状态码、message 为错误说明、data 为 null。
 //   - 非 JSON 端点（文件流、图片、安装包下载、占位图、SPA 静态资源）
 //     直接返回原始字节，不使用信封；其错误仍为 JSON 信封。
@@ -45,90 +48,92 @@ var contractEntries = []ContractEntry{
 	{Route{"GET", "/healthz", Public, "liveness/readiness probe"}, true},
 
 	// 认证
-	{Route{"POST", "/api/v1/auth/login", Public, "exchange credentials for a bearer token (5/min/IP)"}, true},
-	{Route{"GET", "/api/v1/auth/me", User, "current user profile"}, true},
-	{Route{"POST", "/api/v1/auth/logout", User, "client-side token revocation"}, true},
-	{Route{"PATCH", "/api/v1/auth/password", User, "change own password"}, true},
+	{Route{"POST", "/v1/auth/login", Public, "exchange credentials for a bearer token (5/min/IP)"}, true},
+	{Route{"GET", "/v1/auth/me", User, "current user profile"}, true},
+	{Route{"POST", "/v1/auth/logout", User, "client-side token revocation"}, true},
+	{Route{"PATCH", "/v1/auth/password", User, "change own password"}, true},
 
 	// 用户（管理员）
-	{Route{"GET", "/api/v1/users", Admin, "paged user list (q)"}, true},
-	{Route{"POST", "/api/v1/users", Admin, "create user"}, true},
-	{Route{"PATCH", "/api/v1/users/{id}/password", Admin, "reset another user's password"}, true},
-	{Route{"DELETE", "/api/v1/users/{id}", Admin, "delete user"}, true},
+	{Route{"GET", "/v1/users", Admin, "paged user list (q)"}, true},
+	{Route{"POST", "/v1/users", Admin, "create user"}, true},
+	{Route{"PATCH", "/v1/users/{id}/password", Admin, "reset another user's password"}, true},
+	{Route{"DELETE", "/v1/users/{id}", Admin, "delete user"}, true},
 
 	// 资源根目录
-	{Route{"GET", "/api/v1/roots", User, "list storage roots"}, true},
-	{Route{"POST", "/api/v1/roots", User, "create a storage root"}, true},
-	{Route{"PATCH", "/api/v1/roots/{id}", User, "rename/move a storage root"}, true},
-	{Route{"DELETE", "/api/v1/roots/{id}", User, "delete an empty storage root"}, true},
-	{Route{"GET", "/api/v1/roots/browse", User, "browse server directories (path)"}, true},
-	{Route{"GET", "/api/v1/roots/browse/bounds", User, "browse boundaries and root shortcuts"}, true},
+	{Route{"GET", "/v1/roots", User, "list storage roots"}, true},
+	{Route{"POST", "/v1/roots", User, "create a storage root"}, true},
+	{Route{"PATCH", "/v1/roots/{id}", User, "rename/move a storage root"}, true},
+	{Route{"DELETE", "/v1/roots/{id}", User, "delete an empty storage root"}, true},
+	{Route{"GET", "/v1/roots/browse", User, "browse server directories (path)"}, true},
+	{Route{"GET", "/v1/roots/browse/bounds", User, "browse boundaries and root shortcuts"}, true},
 
 	// 文件
-	{Route{"GET", "/api/v1/files/config", User, "upload/image limits for the panel"}, true},
-	{Route{"GET", "/api/v1/files", User, "paged file list (rootId,category,q,sort,order,page,pageSize)"}, true},
-	{Route{"GET", "/api/v1/files/categories", User, "categories with counts (rootId)"}, true},
-	{Route{"POST", "/api/v1/files/categories", User, "create a category"}, true},
-	{Route{"PATCH", "/api/v1/files/categories", User, "rename a category"}, true},
-	{Route{"DELETE", "/api/v1/files/categories", User, "delete a category (recursive)"}, true},
-	{Route{"GET", "/api/v1/files/stats", User, "storage usage grouped by root/category"}, true},
-	{Route{"GET", "/api/v1/files/duplicates", User, "duplicate content groups"}, true},
-	{Route{"POST", "/api/v1/files/index", User, "rescan disk and refresh the index"}, true},
-	{Route{"POST", "/api/v1/files/batch-delete", User, "delete several files"}, true},
-	{Route{"POST", "/api/v1/files/batch-move", User, "move several files to another category"}, true},
-	{Route{"PATCH", "/api/v1/files/rename", User, "rename one file"}, true},
-	{Route{"DELETE", "/api/v1/files", User, "delete one file (rootId,category,path)"}, true},
-	{Route{"GET", "/api/v1/files/content/{rootId}/{category}/{path...}", Public, "serve/thumbnail file bytes (Range, w, h, format=jpeg|webp, q, download)"}, true},
+	{Route{"GET", "/v1/files/config", User, "upload/image limits for the panel"}, true},
+	{Route{"GET", "/v1/files", User, "paged file list (rootId,category,q,sort,order,page,pageSize)"}, true},
+	{Route{"GET", "/v1/files/categories", User, "categories with counts (rootId)"}, true},
+	{Route{"POST", "/v1/files/categories", User, "create a category"}, true},
+	{Route{"PATCH", "/v1/files/categories", User, "rename a category"}, true},
+	{Route{"DELETE", "/v1/files/categories", User, "delete a category (recursive)"}, true},
+	{Route{"GET", "/v1/files/stats", User, "storage usage grouped by root/category"}, true},
+	{Route{"GET", "/v1/files/duplicates", User, "duplicate content groups"}, true},
+	{Route{"POST", "/v1/files/index", User, "rescan disk and refresh the index"}, true},
+	{Route{"POST", "/v1/files/batch-delete", User, "delete several files"}, true},
+	{Route{"POST", "/v1/files/batch-move", User, "move several files to another category"}, true},
+	{Route{"PATCH", "/v1/files/rename", User, "rename one file"}, true},
+	{Route{"DELETE", "/v1/files", User, "delete one file (rootId,category,path)"}, true},
+	{Route{"GET", "/v1/i/{fileId}", Public, "serve/thumbnail file bytes by id (Range, w, h, format=jpeg|webp, q, download)"}, true},
 
 	// 上传
-	{Route{"POST", "/api/v1/files/upload", User, "multipart upload (files[])"}, true},
-	{Route{"POST", "/api/v1/uploads", User, "start a chunked upload"}, true},
-	{Route{"PUT", "/api/v1/uploads/{id}/chunks/{index}", User, "write one chunk (raw body)"}, true},
-	{Route{"POST", "/api/v1/uploads/{id}/complete", User, "merge chunks and register the file"}, true},
-	{Route{"DELETE", "/api/v1/uploads/{id}", User, "cancel a chunked upload"}, true},
+	{Route{"POST", "/v1/files/upload", User, "multipart upload (files[])"}, true},
+	{Route{"POST", "/v1/uploads", User, "start a chunked upload"}, true},
+	{Route{"PUT", "/v1/uploads/{id}/chunks/{index}", User, "write one chunk (raw body)"}, true},
+	{Route{"POST", "/v1/uploads/{id}/complete", User, "merge chunks and register the file"}, true},
+	{Route{"DELETE", "/v1/uploads/{id}", User, "cancel a chunked upload"}, true},
 
 	// 分享链接（管理端）
-	{Route{"GET", "/api/v1/shares", User, "paged share list (q,status)"}, true},
-	{Route{"POST", "/api/v1/shares", User, "create a share link"}, true},
-	{Route{"PATCH", "/api/v1/shares/{token}", User, "update a share link"}, true},
-	{Route{"DELETE", "/api/v1/shares/{token}", User, "revoke a share link"}, true},
-	{Route{"GET", "/api/v1/shares/{token}/access-logs", User, "paged access log"}, true},
+	{Route{"GET", "/v1/shares", User, "paged share list (q,status)"}, true},
+	{Route{"POST", "/v1/shares", User, "create a share link"}, true},
+	{Route{"PATCH", "/v1/shares/{token}", User, "update a share link"}, true},
+	{Route{"DELETE", "/v1/shares/{token}", User, "revoke a share link"}, true},
+	{Route{"GET", "/v1/shares/{token}/access-logs", User, "paged access log"}, true},
 
 	// 分享链接（公开）
-	{Route{"GET", "/api/v1/public/shares/{token}", Public, "share metadata (410 when unavailable)"}, true},
-	{Route{"POST", "/api/v1/public/shares/{token}/unlock", Public, "exchange the password for an access token (10/min/IP)"}, true},
-	{Route{"GET", "/api/v1/public/shares/{token}/files", Public, "list shared files (accessToken)"}, true},
-	{Route{"GET", "/api/v1/public/shares/{token}/files/{index}", Public, "stream one shared file (Range, w, h, format, q, download)"}, true},
+	{Route{"GET", "/v1/s/{token}", Public, "share metadata (410 when unavailable)"}, true},
+	{Route{"POST", "/v1/s/{token}/unlock", Public, "exchange the password for an access token (10/min/IP)"}, true},
+	{Route{"GET", "/v1/s/{token}/f", Public, "list shared files (accessToken)"}, true},
+	{Route{"GET", "/v1/s/{token}/f/{index}", Public, "stream one shared file (Range, w, h, format, q, download)"}, true},
 
 	// APP 发布（管理端）
-	{Route{"GET", "/api/v1/apps", User, "list apps"}, true},
-	{Route{"POST", "/api/v1/apps", User, "create app"}, true},
-	{Route{"PATCH", "/api/v1/apps/{appKey}", User, "rename app"}, true},
-	{Route{"DELETE", "/api/v1/apps/{appKey}", User, "delete app and its versions"}, true},
-	{Route{"GET", "/api/v1/apps/{appKey}/versions", User, "paged version list (platform,status)"}, true},
-	{Route{"POST", "/api/v1/apps/{appKey}/versions", User, "upload a package and create a draft"}, true},
-	{Route{"GET", "/api/v1/app-versions/{id}", User, "version detail"}, true},
-	{Route{"PATCH", "/api/v1/app-versions/{id}", User, "edit version metadata"}, true},
-	{Route{"DELETE", "/api/v1/app-versions/{id}", User, "delete a draft/offline version and its file"}, true},
-	{Route{"POST", "/api/v1/app-versions/{id}/publish", User, "publish full or gray"}, true},
-	{Route{"POST", "/api/v1/app-versions/{id}/offline", User, "take a version offline"}, true},
-	{Route{"POST", "/api/v1/app-versions/{id}/rollback", User, "rollback to a previous version"}, true},
-	{Route{"PUT", "/api/v1/app-versions/{id}/force", User, "toggle forced update without republishing"}, true},
-	{Route{"GET", "/api/v1/app-versions/{id}/rollback-candidates", User, "versions eligible as rollback target"}, true},
-	{Route{"GET", "/api/v1/apps/{appKey}/funnel", User, "upgrade funnel by version (startTime,endTime)"}, true},
+	{Route{"GET", "/v1/apps", User, "list apps"}, true},
+	{Route{"POST", "/v1/apps", User, "create app"}, true},
+	{Route{"PATCH", "/v1/apps/{appKey}", User, "rename app"}, true},
+	{Route{"DELETE", "/v1/apps/{appKey}", User, "delete app and its versions"}, true},
+	{Route{"GET", "/v1/apps/{appKey}/versions", User, "paged version list (platform,status)"}, true},
+	{Route{"POST", "/v1/apps/{appKey}/versions", User, "upload a package and create a draft"}, true},
+	{Route{"GET", "/v1/app-versions/{id}", User, "version detail"}, true},
+	{Route{"PATCH", "/v1/app-versions/{id}", User, "edit version metadata"}, true},
+	{Route{"DELETE", "/v1/app-versions/{id}", User, "delete a draft/offline version and its file"}, true},
+	{Route{"POST", "/v1/app-versions/{id}/publish", User, "publish full or gray"}, true},
+	{Route{"POST", "/v1/app-versions/{id}/offline", User, "take a version offline"}, true},
+	{Route{"POST", "/v1/app-versions/{id}/rollback", User, "rollback to a previous version"}, true},
+	{Route{"PUT", "/v1/app-versions/{id}/force", User, "toggle forced update without republishing"}, true},
+	{Route{"GET", "/v1/app-versions/{id}/rollback-candidates", User, "versions eligible as rollback target"}, true},
+	{Route{"GET", "/v1/apps/{appKey}/funnel", User, "upgrade funnel by version (startTime,endTime)"}, true},
 
 	// APP 发布（客户端）
-	{Route{"GET", "/api/v1/public/apps/{appKey}/update", Public, "check for updates (platform,versionCode,deviceId)"}, true},
-	{Route{"GET", "/api/v1/public/apps/versions/{id}/download", Public, "download a package (Range supported)"}, true},
-	{Route{"POST", "/api/v1/public/apps/events", Public, "report upgrade events"}, true},
+	{Route{"GET", "/v1/a/{appKey}/update", Public, "check for updates (platform,versionCode,deviceId)"}, true},
+	{Route{"GET", "/v1/a/versions/{id}/download", Public, "download a package (Range supported)"}, true},
+	{Route{"POST", "/v1/a/events", Public, "report upgrade events"}, true},
 
 	// 可观测性
-	{Route{"GET", "/api/v1/audit-logs", User, "paged audit log (userId,action,startTime,endTime)"}, true},
-	{Route{"GET", "/api/v1/metrics", User, "runtime, database and storage metrics"}, true},
-	{Route{"GET", "/api/v1/metrics/sidebar", User, "compact counts for the sidebar"}, true},
+	{Route{"GET", "/v1/audit-logs", User, "paged audit log (userId,action,startTime,endTime)"}, true},
+	{Route{"GET", "/v1/metrics", User, "runtime, database and storage metrics"}, true},
+	{Route{"GET", "/v1/metrics/sidebar", User, "compact counts for the sidebar"}, true},
 
 	// 杂项公开辅助接口
-	{Route{"GET", "/api/v1/public/hitokoto", Public, "proxied one-line quote"}, true},
-	{Route{"GET", "/api/v1/public/photo", Public, "random image bytes (rootId, category, w, h, format, q)"}, true},
-	{Route{"GET", "/api/v1/public/placeholder", Public, "generated SVG placeholder"}, true},
+	{Route{"GET", "/v1/hitokoto", Public, "proxied one-line quote"}, true},
+	{Route{"GET", "/v1/i/photo", Public, "random image bytes (rootId, category, w, h, format, q)"}, true},
+	{Route{"GET", "/v1/i/placeholder", Public, "generated SVG placeholder"}, true},
+	{Route{"GET", "/v1/i/placeholder/{width}/{height}", Public, "generated SVG placeholder at a given size"}, true},
+	{Route{"GET", "/v1/i/placeholder/{size}", Public, "generated square SVG placeholder"}, true},
 }

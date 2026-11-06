@@ -80,7 +80,7 @@ func (w *statusWriter) Flush() {
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // apiErrorShape 将 ServeMux 对未知路径返回的纯文本 404 改写为
-// JSON，使所有 /api/ 响应（包括未命中）都是 JSON。
+// JSON，使所有 /v1/ 响应（包括未命中）都是 JSON。
 type apiErrorShape struct {
 	http.ResponseWriter
 	path     string
@@ -88,7 +88,7 @@ type apiErrorShape struct {
 }
 
 func (w *apiErrorShape) WriteHeader(code int) {
-	if (strings.HasPrefix(w.path, "/api/") || w.path == "/healthz") && strings.HasPrefix(w.Header().Get("Content-Type"), "text/plain") {
+	if (strings.HasPrefix(w.path, "/v1/") || w.path == "/healthz") && strings.HasPrefix(w.Header().Get("Content-Type"), "text/plain") {
 		var body string
 		switch code {
 		case http.StatusNotFound:

@@ -35,7 +35,7 @@ func spaFileHandler(dir string, root http.FileSystem) http.Handler {
 
 func (s *Server) spaFallback(dir string, root http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if strings.HasPrefix(r.URL.Path, "/v1/") {
 			writeError(w, notFound("endpoint not found"))
 			return
 		}

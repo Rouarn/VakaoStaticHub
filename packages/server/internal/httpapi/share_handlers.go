@@ -261,7 +261,7 @@ func (s *Server) handleShareFiles(w http.ResponseWriter, r *http.Request, _ *Cur
 			Name:      name,
 			Path:      rel,
 			Extension: strings.TrimPrefix(strings.ToLower(filepath.Ext(name)), "."),
-			URL:       "/api/v1/public/shares/" + record.Token + "/files/" + strconv.Itoa(index),
+			URL:       "/v1/s/" + record.Token + "/f/" + strconv.Itoa(index),
 			Exists:    false,
 		}
 		if full, err := storage.Join(categoryDir, rel); err == nil {

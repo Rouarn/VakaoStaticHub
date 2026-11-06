@@ -127,7 +127,7 @@ func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot
 	if err != nil {
 		return model.FileEntry{}, errors.New("file stored but index update failed")
 	}
-	entry.URL = fileContentURL(entry.RootID, entry.Category, entry.RelPath)
+	entry.URL = fileContentURL(entry.ID)
 	return entry, nil
 }
 
@@ -284,7 +284,7 @@ func (s *Server) handleCompleteChunk(w http.ResponseWriter, r *http.Request, use
 		return internalError(err)
 	}
 	_ = s.uploads.Remove(id)
-	entry.URL = fileContentURL(entry.RootID, entry.Category, entry.RelPath)
+	entry.URL = fileContentURL(entry.ID)
 	writeJSON(w, entry)
 	s.audit(r, user, "file.upload", "file", entry.RelPath, map[string]any{
 		"rootId": root.ID, "category": session.Category, "size": size,
