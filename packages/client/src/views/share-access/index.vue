@@ -254,9 +254,19 @@ function fileUrl(index: number, download = false) {
   });
 }
 
+/** 分享页展示用图片地址：按 share 档位缩放，避免拉取原图 */
+function imageUrl(index: number) {
+  return buildShareFileUrl(token.value, {
+    accessToken: accessToken.value,
+    index,
+    imageTier: 'share',
+  });
+}
+
 const singleSrc = computed(() =>
   buildShareFileUrl(token.value, { accessToken: accessToken.value }),
 );
+const singleImageSrc = computed(() => imageUrl(0));
 const singleDownloadSrc = computed(() =>
   buildShareFileUrl(token.value, {
     accessToken: accessToken.value,
@@ -309,7 +319,9 @@ function openSinglePreview() {
   previewTargets.value = [
     {
       filename: singleFile.value.name,
-      src: singleSrc.value,
+      src: isImage(singleFile.value.name)
+        ? singleImageSrc.value
+        : singleSrc.value,
       downloadSrc: singleDownloadSrc.value,
       size: singleSize.value ?? 0,
     },
@@ -328,7 +340,7 @@ function openCollectionPreview(index: number) {
   if (position < 0) return;
   previewTargets.value = previewable.map(({ file, i }) => ({
     filename: file.name,
-    src: fileUrl(i),
+    src: isImage(file.name) ? imageUrl(i) : fileUrl(i),
     downloadSrc: fileUrl(i, true),
     size: file.size ?? 0,
   }));
@@ -549,7 +561,7 @@ onBeforeUnmount(() => {
 
             <img
               v-if="isImage(singleFile.name) && !singleMissing"
-              :src="singleSrc"
+              :src="singleImageSrc"
               :alt="singleFile.name"
               class="max-h-64 w-auto mx-auto rounded-xl object-contain"
             />

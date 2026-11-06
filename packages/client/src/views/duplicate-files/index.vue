@@ -30,6 +30,7 @@ import {
   formatTime,
   getExtension,
   getFileKind,
+  isImage,
 } from '@/utils/file-types';
 import { buildFileUrl, buildThumbUrl } from '@/utils/file-url';
 import { truncateMiddle } from '@/utils/format';
@@ -83,14 +84,16 @@ function extOf(file: DuplicateFileItem) {
 }
 
 function thumbOf(file: DuplicateFileItem) {
-  return buildThumbUrl({ code: file.code }, 160);
+  return buildThumbUrl({ code: file.code }, 'thumbnail');
 }
 
 /** 重复组内任意一张缩略图 → 打开整组预览，左右切换对比 */
 function openPreview(group: DuplicateGroup, index: number) {
   previewFiles.value = group.files.map((file) => ({
     filename: file.name,
-    src: buildFileUrl({ code: file.code }),
+    src: isImage(file.name)
+      ? buildThumbUrl({ code: file.code }, 'preview')
+      : buildFileUrl({ code: file.code }),
     downloadSrc: buildFileUrl({
       code: file.code,
       download: true,

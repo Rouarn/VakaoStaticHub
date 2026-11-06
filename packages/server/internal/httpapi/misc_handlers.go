@@ -196,37 +196,17 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 		category = validated
 	}
 
-	width, err := parsePositiveDimension(query.Get("w"), query.Get("width"))
-	if err != nil {
-		return err
-	}
-	height, err := parsePositiveDimension(query.Get("h"), query.Get("height"))
-	if err != nil {
-		return err
-	}
-	quality := 80
-	if raw := strings.TrimSpace(query.Get("q")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil {
-			return badRequest("q 必须为数字")
-		}
-		quality = parsed
-	}
-	format := "webp"
-	if raw := strings.ToLower(strings.TrimSpace(query.Get("format"))); raw != "" {
-		switch raw {
-		case "webp":
-			format = "webp"
-		case "jpeg", "jpg":
-			format = "jpeg"
-		case "original":
-			format = "original"
-		default:
-			return badRequest("format 只能为 jpeg、webp 或 original")
-		}
-	}
+	options := media.ParseOptions(query, media.Defaults{
+		Format:       media.FormatWebP,
+		Quality:      80,
+		Cover:        true,
+		MaxDimension: s.cfg.MaxImageDimension,
+	})
 
-	var root *model.ResourceRoot
+	var (
+		root *model.ResourceRoot
+		err  error
+	)
 	if rootID != "" {
 		root, err = s.rootByID(r.Context(), rootID)
 		if err != nil {
@@ -261,20 +241,20 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 	}
 	w.Header().Set("X-Photo-Id", strconv.FormatInt(entry.ID, 10))
 
-	// 旧版只有宽高同时存在时才缩放；缺任一项或明确要求
+	// 只有宽高同时存在时才缩放；缺任一项或明确要求
 	// 原图时直接输出原始字节。
-	if format == "original" || width == 0 || height == 0 {
+	if options.Format == media.FormatOriginal || options.Width == 0 || options.Height == 0 {
 		return serveRandomFile(w, r, full, info)
 	}
 
 	result, err := s.thumbnails.Get(r.Context(), media.Request{
 		SourcePath: full,
 		CacheKey:   entry.RootID + "/" + entry.Category + "/" + entry.RelPath,
-		Width:      width,
-		Height:     height,
-		Quality:    quality,
-		Format:     format,
-		Cover:      true,
+		Width:      options.Width,
+		Height:     options.Height,
+		Quality:    options.Quality,
+		Format:     options.Format,
+		Cover:      options.Cover,
 	})
 	switch {
 	case err == nil:
@@ -286,21 +266,6 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 	default:
 		return internalError(err)
 	}
-}
-
-func parsePositiveDimension(values ...string) (int, error) {
-	for _, raw := range values {
-		raw = strings.TrimSpace(raw)
-		if raw == "" {
-			continue
-		}
-		value, err := strconv.Atoi(raw)
-		if err != nil || value <= 0 {
-			return 0, badRequest("宽度和高度必须为正数")
-		}
-		return value, nil
-	}
-	return 0, nil
 }
 
 func randomImageMissingMessage(rootID, category string) string {

@@ -9,6 +9,12 @@
  * 这里统一剥离尾部前缀后再拼一次，避免出现 `/v1/v1/...`。
  */
 
+import {
+  IMAGE_QUALITY,
+  IMAGE_SIZES,
+  type ImageTier,
+} from '@/config/image-sizes';
+
 const API_PREFIX = '/v1';
 
 function stripPrefix(base: string, prefix: string): string {
@@ -50,11 +56,16 @@ export function buildFileUrl({ code, download }: FileUrlParams): string {
   return `${getApiOrigin()}${API_PREFIX}/i/${encoded}${qs}`;
 }
 
-/** 图片缩略图：文件直链 + 后端缩放参数，默认输出 JPEG */
-export function buildThumbUrl(params: FileUrlParams, size = 320): string {
-  const url = buildFileUrl(params);
+/** 追加后端识别的缩放参数；所有图片地址都必须经过这里 */
+function withImageParams(url: string, tier: ImageTier): string {
+  const size = IMAGE_SIZES[tier];
   const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}w=${size}&h=${size}&format=jpeg&q=78`;
+  return `${url}${sep}w=${size}&h=${size}&format=jpeg&q=${IMAGE_QUALITY}`;
+}
+
+/** 图片缩略图：文件直链 + 后端缩放参数，尺寸取 IMAGE_SIZES 档位 */
+export function buildThumbUrl(params: FileUrlParams, tier: ImageTier): string {
+  return withImageParams(buildFileUrl(params), tier);
 }
 
 /**
@@ -91,19 +102,22 @@ export interface ShareFileUrlOptions {
   /** collection 分享中的文件下标；单文件分享为 0 */
   index?: number;
   download?: boolean;
+  /** 传入后按该档位输出缩放图；不传则返回原始文件 */
+  imageTier?: ImageTier;
 }
 
 /** 分享内文件访问地址：`<origin>/v1/s/<token>/f/<index>`，解锁后凭 accessToken 访问 */
 export function buildShareFileUrl(
   token: string,
-  { accessToken, index, download }: ShareFileUrlOptions = {},
+  { accessToken, index, download, imageTier }: ShareFileUrlOptions = {},
 ): string {
   const query: string[] = [];
   if (accessToken) query.push(`accessToken=${encodeURIComponent(accessToken)}`);
   if (download) query.push('download=1');
   const qs = query.length > 0 ? `?${query.join('&')}` : '';
   const fileIndex = index ?? 0;
-  return `${getApiBaseUrl()}/s/${encodeURIComponent(token)}/f/${fileIndex}${qs}`;
+  const url = `${getApiBaseUrl()}/s/${encodeURIComponent(token)}/f/${fileIndex}${qs}`;
+  return imageTier ? withImageParams(url, imageTier) : url;
 }
 
 /**

@@ -35,7 +35,11 @@ import {
 } from '@/api/files';
 import PageHeader from '@/components/common/page-header.vue';
 import CategoryPanel from '@/layouts/components/category-panel.vue';
-import { buildFileUrl, buildSharePageUrl } from '@/utils/file-url';
+import {
+  buildFileUrl,
+  buildSharePageUrl,
+  buildThumbUrl,
+} from '@/utils/file-url';
 import { getErrorMessage } from '@/utils/http';
 import { formatBytes, isImage } from '@/utils/file-types';
 import { useAppStore } from '@/stores/modules/app';
@@ -69,9 +73,7 @@ const rootMgrShow = ref(false);
 
 const rootId = computed(() => appStore.activeRootId);
 /** 当前根目录的索引状态：扫描中时列表空态改为进度提示 */
-const rootIndexStatus = computed(() =>
-  indexStatusStore.statusOf(rootId.value),
-);
+const rootIndexStatus = computed(() => indexStatusStore.statusOf(rootId.value));
 const scanning = computed(() => rootIndexStatus.value?.state === 'running');
 const scannedFiles = computed(() => rootIndexStatus.value?.scannedFiles ?? 0);
 const scanningDir = computed(() => rootIndexStatus.value?.currentDir ?? '');
@@ -301,7 +303,10 @@ const previewTargets = ref<PreviewTarget[]>([]);
 function toTarget(file: FileItem): PreviewTarget {
   return {
     filename: file.name,
-    src: buildFileUrl({ code: file.code }),
+    // 图片走高分辨率档，其余类型仍需原始内容交给各自的预览组件
+    src: isImage(file.name)
+      ? buildThumbUrl({ code: file.code }, 'preview')
+      : buildFileUrl({ code: file.code }),
     downloadSrc: buildFileUrl({
       code: file.code,
       download: true,
@@ -682,9 +687,7 @@ function onShareCreated(link: ShareLink) {
           </template>
           <template v-else>
             <NEmpty
-              :description="
-                q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'
-              "
+              :description="q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'"
             />
             <NButton v-if="q" size="small" @click="q = ''">清除搜索</NButton>
             <NButton

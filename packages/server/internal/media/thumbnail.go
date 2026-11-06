@@ -81,33 +81,36 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	width, height := t.fit(req.Width, req.Height)
-	format := strings.ToLower(req.Format)
-	// 默认使用 JPEG：纯 Go 的 WebP 编码器是无损的，会生成
-	// 更大的文件，因此仅在显式请求时使用（它能保留
-	// 透明度，而 JPEG 不能）。
-	if format != "webp" {
-		format = "jpeg"
-	}
-	quality := req.Quality
-	if quality <= 0 {
-		quality = 75
-	}
-	if quality < 30 {
-		quality = 30
-	}
-	if quality > 95 {
-		quality = 95
+	// 复用统一的夹紧与量化规则：即使调用方直接构造 Request，
+	// 也不会绕过尺寸、画质与格式的约束。
+	options := Options{
+		Width:   req.Width,
+		Height:  req.Height,
+		Quality: req.Quality,
+		Format:  req.Format,
+		Cover:   req.Cover,
+	}.Normalize(t.maxDim)
+	width, height := t.fit(options.Width, options.Height)
+	format := options.Format
+	quality := options.Quality
+	// 仅 jpeg/png/webp 会真正编码；original 由调用方提前处理，
+	// 漏传时按 jpeg 兜底。
+	if format != FormatWebP && format != FormatPNG {
+		format = FormatJPEG
 	}
 
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%d|%d|%d|%d|%s|%t",
-		req.CacheKey, info.Size(), info.ModTime().UnixMilli(), width, height, quality, format, req.Cover)))
+		req.CacheKey, info.Size(), info.ModTime().UnixMilli(), width, height, quality, format, options.Cover)))
 	name := hex.EncodeToString(sum[:20])
-	extension := ".webp"
-	contentType := "image/webp"
-	if format == "jpeg" {
-		extension = ".jpg"
-		contentType = "image/jpeg"
+	extension := ".jpg"
+	contentType := "image/jpeg"
+	switch format {
+	case FormatWebP:
+		extension = ".webp"
+		contentType = "image/webp"
+	case FormatPNG:
+		extension = ".png"
+		contentType = "image/png"
 	}
 	cachePath := filepath.Join(t.cacheDir, "thumbs", name[:2], name+extension)
 	if fileExists(cachePath) {
@@ -151,12 +154,13 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 	}
 
 	var scaled image.Image
-	if req.Cover {
+	if options.Cover {
 		scaled = imaging.Fill(img, width, height, imaging.Center, imaging.Lanczos)
 	} else {
 		scaled = imaging.Fit(img, width, height, imaging.Lanczos)
 	}
-	if format == "jpeg" {
+	// JPEG 不支持透明通道，先铺白底，避免透明区域变黑。
+	if format == FormatJPEG {
 		background := imaging.New(scaled.Bounds().Dx(), scaled.Bounds().Dy(), color.White)
 		scaled = imaging.Overlay(background, scaled, image.Pt(0, 0), 1)
 	}
@@ -172,9 +176,12 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 		tmp.Close()
 		os.Remove(tmpName)
 	}
-	if format == "jpeg" {
+	switch format {
+	case FormatJPEG:
 		err = imaging.Encode(tmp, scaled, imaging.JPEG, imaging.JPEGQuality(quality))
-	} else {
+	case FormatPNG:
+		err = imaging.Encode(tmp, scaled, imaging.PNG)
+	default:
 		err = nativewebp.Encode(tmp, scaled, &nativewebp.Options{CompressionLevel: webpLevel(quality)})
 	}
 	if err != nil {
@@ -192,8 +199,8 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 	return Result{Path: cachePath, ContentType: contentType, ETag: `"t-` + name[:16] + `"`}, nil
 }
 
-// fit 将请求的尺寸限制在配置上限内，同时保留
-// 调用方的宽高意图（缺失的一边由另一边推导）。
+// fit 推导缺失的一边：宽高都缺失时使用 320 的方形默认值，
+// 只缺一边时按另一边补齐。夹紧与量化已由 Normalize 完成。
 func (t *Thumbnailer) fit(width, height int) (int, int) {
 	if width <= 0 && height <= 0 {
 		width, height = 320, 320
@@ -203,20 +210,6 @@ func (t *Thumbnailer) fit(width, height int) (int, int) {
 	}
 	if height <= 0 {
 		height = width
-	}
-	if t.maxDim > 0 {
-		if width > t.maxDim {
-			width = t.maxDim
-		}
-		if height > t.maxDim {
-			height = t.maxDim
-		}
-	}
-	if width < 1 {
-		width = 1
-	}
-	if height < 1 {
-		height = 1
 	}
 	return width, height
 }

@@ -18,8 +18,8 @@ import {
   registerBuiltinPreviews,
   resolvePreview,
 } from '@/utils/preview-registry';
-import { buildFileUrl } from '@/utils/file-url';
-import { formatBytes } from '@/utils/file-types';
+import { buildFileUrl, buildThumbUrl } from '@/utils/file-url';
+import { formatBytes, isImage } from '@/utils/file-types';
 
 /**
  * 文件预览（内部 / 外部共用一份逻辑与渲染）
@@ -121,13 +121,13 @@ function applyQuery() {
 
   const { code, name } = route.query;
   if (typeof code === 'string' && code) {
-    const src = buildFileUrl({ code });
+    const fileName = typeof name === 'string' && name ? name : `file-${code}`;
+    // 图片走预览档，其他类型仍需原始内容
+    const src = isImage(fileName)
+      ? buildThumbUrl({ code }, 'preview')
+      : buildFileUrl({ code });
     if (isInternal.value) url.value = src;
-    setTarget(
-      src,
-      buildFileUrl({ code, download: true }),
-      typeof name === 'string' && name ? name : `file-${code}`,
-    );
+    setTarget(src, buildFileUrl({ code, download: true }), fileName);
   }
 }
 

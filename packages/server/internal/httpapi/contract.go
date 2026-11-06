@@ -82,7 +82,7 @@ var contractEntries = []ContractEntry{
 	{Route{"POST", "/v1/files/batch-move", User, "批量移动文件到其他分类"}, true},
 	{Route{"PATCH", "/v1/files/rename", User, "重命名单个文件"}, true},
 	{Route{"DELETE", "/v1/files", User, "删除单个文件（rootId、category、path）"}, true},
-	{Route{"GET", "/v1/i/{code}", Public, "按内容短码读取文件内容或缩略图（Range、w、h、format=jpeg|webp、q、download）"}, true},
+	{Route{"GET", "/v1/i/{code}", Public, "按内容短码读取文件内容或缩略图（Range、w、h、format=jpeg|png|webp|original、q=30-95、cover=0|1、download）"}, true},
 
 	// 上传
 	{Route{"POST", "/v1/files/upload", User, "multipart 表单上传（files[]）"}, true},
@@ -102,7 +102,7 @@ var contractEntries = []ContractEntry{
 	{Route{"GET", "/v1/s/{token}", Public, "分享元信息（不可用时返回 410）"}, true},
 	{Route{"POST", "/v1/s/{token}/unlock", Public, "用访问密码换取访问令牌（每 IP 每分钟 10 次）"}, true},
 	{Route{"GET", "/v1/s/{token}/f", Public, "列出分享文件（accessToken）"}, true},
-	{Route{"GET", "/v1/s/{token}/f/{index}", Public, "读取单个分享文件（Range、w、h、format、q、download）"}, true},
+	{Route{"GET", "/v1/s/{token}/f/{index}", Public, "读取单个分享文件（Range、w、h、format=jpeg|png|webp|original、q=30-95、cover=0|1、download）"}, true},
 
 	// APP 发布（管理端）
 	{Route{"GET", "/v1/apps", User, "列出应用"}, true},
@@ -133,7 +133,7 @@ var contractEntries = []ContractEntry{
 
 	// 杂项公开辅助接口
 	{Route{"GET", "/v1/hitokoto", Public, "代理的一言短句"}, true},
-	{Route{"GET", "/v1/i/photo", Public, "随机图片内容（rootId、category、w、h、format、q）"}, true},
+	{Route{"GET", "/v1/i/photo", Public, "随机图片内容（rootId、category、w、h、format=jpeg|png|webp|original、q=30-95、cover=0|1）"}, true},
 	{Route{"GET", "/v1/i/placeholder", Public, "生成的 SVG 占位图"}, true},
 	{Route{"GET", "/v1/i/placeholder/{width}/{height}", Public, "生成指定尺寸的 SVG 占位图"}, true},
 	{Route{"GET", "/v1/i/placeholder/{size}", Public, "生成正方形 SVG 占位图"}, true},

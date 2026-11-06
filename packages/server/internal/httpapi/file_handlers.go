@@ -547,25 +547,24 @@ func (s *Server) serveStoredFile(w http.ResponseWriter, r *http.Request, full st
 	query := r.URL.Query()
 	download := query.Get("download") == "1" || strings.EqualFold(query.Get("download"), "true")
 	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(info.Name())), ".")
-	width, _ := strconv.Atoi(query.Get("w"))
-	height, _ := strconv.Atoi(query.Get("h"))
-	format := strings.ToLower(strings.TrimSpace(query.Get("format")))
-	quality, _ := strconv.Atoi(query.Get("q"))
+	options := media.ParseOptions(query, media.Defaults{
+		Format:       media.FormatJPEG,
+		Quality:      media.DefaultQuality,
+		MaxDimension: s.cfg.MaxImageDimension,
+	})
 
-	if !download && (width > 0 || height > 0) && format != "original" && media.Supports(extension) {
-		if format != "webp" && format != "jpeg" && format != "jpg" && format != "" {
-			return badRequest("format 只能为 jpeg 或 webp")
-		}
-		if format == "jpg" {
-			format = "jpeg"
-		}
+	if !download &&
+		(options.Width > 0 || options.Height > 0) &&
+		options.Format != media.FormatOriginal &&
+		media.Supports(extension) {
 		result, err := s.thumbnails.Get(r.Context(), media.Request{
 			SourcePath: full,
 			CacheKey:   cacheKey,
-			Width:      width,
-			Height:     height,
-			Quality:    quality,
-			Format:     format,
+			Width:      options.Width,
+			Height:     options.Height,
+			Quality:    options.Quality,
+			Format:     options.Format,
+			Cover:      options.Cover,
 		})
 		switch {
 		case err == nil:
