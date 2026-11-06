@@ -271,12 +271,14 @@ func (s *Server) RunIndexer(ctx context.Context) {
 	}
 }
 
-// RunScheduler 处理定时发布、灰度递增与
-// 过期的上传会话，应在独立的 goroutine 中运行。
+// RunScheduler 处理定时发布、灰度递增、过期的上传会话，
+// 以及每日缩略图缓存与过期分享清理。它应在独立的
+// goroutine 中运行。
 func (s *Server) RunScheduler(ctx context.Context) {
 	s.processScheduled(ctx)
 	s.processGrayRollouts(ctx)
 
+	lastCleanupDay := ""
 	minute := time.NewTicker(time.Minute)
 	defer minute.Stop()
 	cleanup := time.NewTicker(time.Hour)
@@ -289,11 +291,57 @@ func (s *Server) RunScheduler(ctx context.Context) {
 		case <-minute.C:
 			s.processScheduled(ctx)
 			s.processGrayRollouts(ctx)
+			lastCleanupDay = s.runDailyCleanupIfDue(ctx, lastCleanupDay)
 		case <-cleanup.C:
 			if removed := s.uploads.Cleanup(24 * time.Hour); removed > 0 {
 				s.log.Info("stale upload sessions removed", "count", removed)
 			}
 		}
+	}
+}
+
+// runDailyCleanupIfDue 在到达配置的每日清理时刻时执行一次清理，
+// 返回已执行的日期，避免同一分钟内重复触发。
+func (s *Server) runDailyCleanupIfDue(ctx context.Context, lastDay string) string {
+	now := time.Now()
+	day := now.Format("2006-01-02")
+	if lastDay == day || now.Hour() != s.cfg.CleanupHour || now.Minute() != s.cfg.CleanupMinute {
+		return lastDay
+	}
+	s.runDailyCleanup(ctx)
+	return day
+}
+
+// runDailyCleanup 清理缩略图缓存与过期分享。两类任务相互独立，
+// 任一失败只记录日志，不影响后续执行。
+func (s *Server) runDailyCleanup(ctx context.Context) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			s.log.Error("daily cleanup panicked", "panic", recovered)
+		}
+	}()
+
+	stats, err := s.thumbnails.Cleanup(media.CleanupOptions{
+		Retention: s.cfg.ThumbRetention,
+		MaxBytes:  s.cfg.ThumbCacheMax,
+	})
+	if err != nil {
+		s.log.Error("thumbnail cache cleanup failed", "error", err)
+	} else {
+		s.log.Info("thumbnail cache cleaned",
+			"expired", stats.Expired,
+			"temp", stats.Temp,
+			"overCap", stats.OverCap,
+			"freedBytes", stats.FreedBytes,
+			"remainingBytes", stats.RemainingBytes,
+		)
+	}
+
+	deleted, err := s.store.DeleteExpiredShares(ctx, store.NowMS())
+	if err != nil {
+		s.log.Error("expired share cleanup failed", "error", err)
+	} else if deleted > 0 {
+		s.log.Info("expired shares removed", "count", deleted)
 	}
 }
 

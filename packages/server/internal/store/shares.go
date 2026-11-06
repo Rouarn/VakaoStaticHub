@@ -266,6 +266,22 @@ func (s *Store) DeleteShare(ctx context.Context, token string) error {
 	return nil
 }
 
+// DeleteExpiredShares 删除已过期或访问次数已用尽的分享链接。
+// 关联的访问日志依赖 share_access_logs 的级联外键一并删除
+// （连接已启用 foreign_keys）。max_accesses 为空或 0 表示
+// 不限次数，不会被清理。
+func (s *Store) DeleteExpiredShares(ctx context.Context, nowMS int64) (int64, error) {
+	result, err := s.Writer.ExecContext(ctx,
+		`DELETE FROM share_links
+		 WHERE (expires_at IS NOT NULL AND expires_at < ?)
+		    OR (max_accesses IS NOT NULL AND max_accesses > 0 AND access_count >= max_accesses)`,
+		nowMS)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (s *Store) IncrementShareAccess(ctx context.Context, id int64) error {
 	_, err := s.Writer.ExecContext(ctx,
 		"UPDATE share_links SET access_count = access_count + 1, updated_at = ? WHERE id = ?",

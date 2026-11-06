@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/HugoSmits86/nativewebp"
 	"github.com/disintegration/imaging"
@@ -110,6 +111,7 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 	}
 	cachePath := filepath.Join(t.cacheDir, "thumbs", name[:2], name+extension)
 	if fileExists(cachePath) {
+		touchFile(cachePath)
 		return Result{Path: cachePath, ContentType: contentType, ETag: `"t-` + name[:16] + `"`}, nil
 	}
 
@@ -121,6 +123,7 @@ func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 	defer func() { <-t.sem }()
 
 	if fileExists(cachePath) {
+		touchFile(cachePath)
 		return Result{Path: cachePath, ContentType: contentType, ETag: `"t-` + name[:16] + `"`}, nil
 	}
 
@@ -232,4 +235,11 @@ func webpLevel(quality int) nativewebp.CompressionLevel {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
+}
+
+// touchFile 把缓存的修改时间更新为当前时间，作为
+// 「最近访问」标记供清理任务判断冷热。
+func touchFile(path string) {
+	now := time.Now()
+	_ = os.Chtimes(path, now, now)
 }

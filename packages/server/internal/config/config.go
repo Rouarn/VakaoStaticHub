@@ -34,6 +34,14 @@ type Config struct {
 	MaxImageDimension int
 	ThumbConcurrency  int
 
+	// ThumbRetention 为缩略图缓存保留时长，0 表示不按时间清理；
+	// ThumbCacheMax 为缓存总容量上限（字节），0 表示不限制；
+	// CleanupHour/CleanupMinute 为每日清理时刻。
+	ThumbRetention time.Duration
+	ThumbCacheMax  int64
+	CleanupHour    int
+	CleanupMinute  int
+
 	JWTSecret  string
 	JWTExpires time.Duration
 	AuthUser   string
@@ -65,6 +73,11 @@ func Load() (*Config, error) {
 	}
 	_ = loadDotEnv(filepath.Join(base, ".env"))
 
+	cleanupHour, cleanupMinute, err := parseClock(env("CLEANUP_AT", "03:00"))
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		BaseDir:           base,
 		Host:              env("HOST", "0.0.0.0"),
@@ -82,6 +95,10 @@ func Load() (*Config, error) {
 		MaxImagePixels:    envInt64("MAX_IMAGE_PIXELS", 60_000_000),
 		MaxImageDimension: envInt("MAX_IMAGE_DIMENSION", 4096),
 		ThumbConcurrency:  envInt("THUMB_CONCURRENCY", 2),
+		ThumbRetention:    time.Duration(envInt("THUMB_CACHE_RETENTION_DAYS", 30)) * 24 * time.Hour,
+		ThumbCacheMax:     envInt64("THUMB_CACHE_MAX_MB", 512) * 1024 * 1024,
+		CleanupHour:       cleanupHour,
+		CleanupMinute:     cleanupMinute,
 		JWTSecret:         os.Getenv("JWT_SECRET"),
 		JWTExpires:        envDuration("JWT_EXPIRES_IN", 12*time.Hour),
 		AuthUser:          env("AUTH_USER", "admin"),
@@ -108,7 +125,30 @@ func Load() (*Config, error) {
 	if cfg.ThumbConcurrency < 1 {
 		cfg.ThumbConcurrency = 1
 	}
+	if cfg.ThumbRetention < 0 {
+		return nil, errors.New("THUMB_CACHE_RETENTION_DAYS must not be negative")
+	}
+	if cfg.ThumbCacheMax < 0 {
+		return nil, errors.New("THUMB_CACHE_MAX_MB must not be negative")
+	}
 	return cfg, nil
+}
+
+// parseClock 解析 HH:MM 形式的每日时刻。
+func parseClock(value string) (int, int, error) {
+	parts := strings.Split(strings.TrimSpace(value), ":")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("CLEANUP_AT must use HH:MM format, got %q", value)
+	}
+	hour, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil || hour < 0 || hour > 23 {
+		return 0, 0, fmt.Errorf("CLEANUP_AT has invalid hour %q", value)
+	}
+	minute, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil || minute < 0 || minute > 59 {
+		return 0, 0, fmt.Errorf("CLEANUP_AT has invalid minute %q", value)
+	}
+	return hour, minute, nil
 }
 
 func (c *Config) Addr() string {
