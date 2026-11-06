@@ -314,6 +314,11 @@ const previewShow = ref(false);
 const previewIndex = ref(0);
 const previewTargets = ref<PreviewTarget[]>([]);
 
+/** 文件集合已解锁：中间区改为「只滚列表」，头尾固定 */
+const isCollectionReady = computed(
+  () => phase.value === 'ready' && !singleFile.value,
+);
+
 function openSinglePreview() {
   if (!singleFile.value) return;
   previewTargets.value = [
@@ -366,10 +371,12 @@ onBeforeUnmount(() => {
 
 <template>
   <PublicPage>
-    <div class="min-h-full flex flex-col items-center px-4 py-8 sm:py-14">
-      <div class="w-full max-w-2xl flex flex-col gap-4">
+    <div class="share-access-shell flex flex-col items-center">
+      <div class="w-full max-w-2xl flex flex-1 min-h-0 flex-col gap-4">
         <!-- 页头 -->
-        <header class="glass-panel px-4 py-2.5 flex items-center gap-3">
+        <header
+          class="glass-panel px-4 py-2.5 flex items-center gap-3 shrink-0"
+        >
           <div class="min-w-0 flex items-baseline gap-2.5">
             <span class="text-11px text-ink-sub">分享 /</span>
             <h1 class="m-0 text-15px font-600 text-ink leading-tight">
@@ -384,149 +391,156 @@ onBeforeUnmount(() => {
           </NButton>
         </header>
 
-        <!-- 加载 -->
-        <div
-          v-if="phase === 'loading'"
-          class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
+        <!-- 中间区：集合态只滚文件列表，其他状态整体可滚动 -->
+        <main
+          class="flex flex-1 min-h-0 flex-col gap-4"
+          :class="isCollectionReady ? 'overflow-hidden' : 'share-scroll'"
         >
-          <NSpin size="medium" />
-          <p class="m-0 text-12px text-ink-sub">正在读取分享信息…</p>
-        </div>
-
-        <!-- 链接不存在 -->
-        <EmptyState
-          v-else-if="phase === 'notfound'"
-          :icon="DocumentTextOutline"
-          title="分享链接不存在或已被撤销"
-          description="请确认链接是否完整（token 为 32 位十六进制字符），或联系分享者重新生成。"
-        >
-          <NButton size="small" @click="router.push('/files')">
-            <template #icon
-              ><NIcon><ArrowBackOutline /></NIcon
-            ></template>
-            返回首页
-          </NButton>
-        </EmptyState>
-
-        <!-- 加载失败 -->
-        <EmptyState
-          v-else-if="phase === 'error'"
-          :icon="RefreshOutline"
-          title="分享信息加载失败"
-          :description="errorText"
-        >
-          <NButton size="small" type="primary" @click="init">
-            <template #icon
-              ><NIcon><RefreshOutline /></NIcon
-            ></template>
-            重试
-          </NButton>
-        </EmptyState>
-
-        <!-- 已停用 -->
-        <EmptyState
-          v-else-if="phase === 'disabled'"
-          :icon="BanOutline"
-          title="分享链接已停用"
-          description="分享者已停用该链接，无法继续访问。请联系分享者重新启用或重新创建链接。"
-        />
-
-        <!-- 已过期 -->
-        <EmptyState
-          v-else-if="phase === 'expired'"
-          :icon="TimeOutline"
-          title="分享链接已过期"
-          description="该链接的有效期已结束，无法继续访问。请联系分享者重新创建并获取新链接。"
-        />
-
-        <!-- 次数用尽 -->
-        <EmptyState
-          v-else-if="phase === 'exhausted'"
-          :icon="LockClosedOutline"
-          title="分享链接打开次数已达上限"
-          description="分享者设置了最大打开次数，当前次数已用尽。请联系分享者调整或重新创建链接。"
-        />
-
-        <!-- 密码 / 打开 -->
-        <section
-          v-else-if="phase === 'gate' && info"
-          class="glass-panel px-5 py-6 flex flex-col gap-4"
-        >
-          <div class="flex flex-col gap-1">
-            <p class="m-0 text-14px font-600 text-ink">
-              {{
-                info.shareType === 'collection'
-                  ? `文件集合（${info.filePaths.length} 个文件）`
-                  : nameOf(info.filePaths[0])
-              }}
-            </p>
-            <p class="m-0 text-11px text-ink-sub">
-              {{ info.category }} · {{ expiresLabel }}
-              <template v-if="info.maxAccesses !== null">
-                · 最多打开 {{ info.maxAccesses }} 次</template
-              >
-            </p>
-          </div>
-
-          <p v-if="passwordError" class="m-0 text-12px text-red-500 leading-5">
-            {{ passwordError }}
-          </p>
-
-          <form
-            v-if="info.hasPassword"
-            class="flex flex-col gap-2"
-            @submit.prevent="unlock"
+          <!-- 加载 -->
+          <div
+            v-if="phase === 'loading'"
+            class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
           >
-            <label class="flex flex-col gap-1">
-              <span class="text-12px text-ink-sub">访问密码</span>
-              <NInput
-                v-model:value="password"
-                type="password"
-                show-password-on="click"
-                placeholder="请输入分享者设置的访问密码"
-                size="large"
-                :disabled="unlocking"
-                @keyup.enter="unlock"
-              />
-            </label>
-            <NButton
-              type="primary"
-              size="large"
-              attr-type="submit"
-              :loading="unlocking"
-              :disabled="rateLimited"
-            >
-              <template #icon
-                ><NIcon><LockClosedOutline /></NIcon
-              ></template>
-              验证并打开
-            </NButton>
-          </form>
-
-          <div v-else class="flex flex-col gap-2">
-            <p class="m-0 text-12px text-ink-sub">
-              该分享未设置密码。打开会消耗 1 次打开次数（若分享者设置过上限）。
-            </p>
-            <NButton
-              type="primary"
-              size="large"
-              :loading="unlocking"
-              :disabled="rateLimited"
-              @click="unlock"
-            >
-              <template #icon
-                ><NIcon><EyeOutline /></NIcon
-              ></template>
-              打开分享
-            </NButton>
+            <NSpin size="medium" />
+            <p class="m-0 text-12px text-ink-sub">正在读取分享信息…</p>
           </div>
-        </section>
 
-        <!-- 已解锁 -->
-        <template v-else-if="phase === 'ready' && info">
-          <!-- 单文件 -->
+          <!-- 链接不存在 -->
+          <EmptyState
+            v-else-if="phase === 'notfound'"
+            :icon="DocumentTextOutline"
+            title="分享链接不存在或已被撤销"
+            description="请确认链接是否完整（token 为 32 位十六进制字符），或联系分享者重新生成。"
+          >
+            <NButton size="small" @click="router.push('/files')">
+              <template #icon
+                ><NIcon><ArrowBackOutline /></NIcon
+              ></template>
+              返回首页
+            </NButton>
+          </EmptyState>
+
+          <!-- 加载失败 -->
+          <EmptyState
+            v-else-if="phase === 'error'"
+            :icon="RefreshOutline"
+            title="分享信息加载失败"
+            :description="errorText"
+          >
+            <NButton size="small" type="primary" @click="init">
+              <template #icon
+                ><NIcon><RefreshOutline /></NIcon
+              ></template>
+              重试
+            </NButton>
+          </EmptyState>
+
+          <!-- 已停用 -->
+          <EmptyState
+            v-else-if="phase === 'disabled'"
+            :icon="BanOutline"
+            title="分享链接已停用"
+            description="分享者已停用该链接，无法继续访问。请联系分享者重新启用或重新创建链接。"
+          />
+
+          <!-- 已过期 -->
+          <EmptyState
+            v-else-if="phase === 'expired'"
+            :icon="TimeOutline"
+            title="分享链接已过期"
+            description="该链接的有效期已结束，无法继续访问。请联系分享者重新创建并获取新链接。"
+          />
+
+          <!-- 次数用尽 -->
+          <EmptyState
+            v-else-if="phase === 'exhausted'"
+            :icon="LockClosedOutline"
+            title="分享链接打开次数已达上限"
+            description="分享者设置了最大打开次数，当前次数已用尽。请联系分享者调整或重新创建链接。"
+          />
+
+          <!-- 密码 / 打开 -->
           <section
-            v-if="singleFile"
+            v-else-if="phase === 'gate' && info"
+            class="glass-panel px-5 py-6 flex flex-col gap-4"
+          >
+            <div class="flex flex-col gap-1">
+              <p class="m-0 text-14px font-600 text-ink">
+                {{
+                  info.shareType === 'collection'
+                    ? `文件集合（${info.filePaths.length} 个文件）`
+                    : nameOf(info.filePaths[0])
+                }}
+              </p>
+              <p class="m-0 text-11px text-ink-sub">
+                {{ info.category }} · {{ expiresLabel }}
+                <template v-if="info.maxAccesses !== null">
+                  · 最多打开 {{ info.maxAccesses }} 次</template
+                >
+              </p>
+            </div>
+
+            <p
+              v-if="passwordError"
+              class="m-0 text-12px text-red-500 leading-5"
+            >
+              {{ passwordError }}
+            </p>
+
+            <form
+              v-if="info.hasPassword"
+              class="flex flex-col gap-2"
+              @submit.prevent="unlock"
+            >
+              <label class="flex flex-col gap-1">
+                <span class="text-12px text-ink-sub">访问密码</span>
+                <NInput
+                  v-model:value="password"
+                  type="password"
+                  show-password-on="click"
+                  placeholder="请输入分享者设置的访问密码"
+                  size="large"
+                  :disabled="unlocking"
+                  @keyup.enter="unlock"
+                />
+              </label>
+              <NButton
+                type="primary"
+                size="large"
+                attr-type="submit"
+                :loading="unlocking"
+                :disabled="rateLimited"
+              >
+                <template #icon
+                  ><NIcon><LockClosedOutline /></NIcon
+                ></template>
+                验证并打开
+              </NButton>
+            </form>
+
+            <div v-else class="flex flex-col gap-2">
+              <p class="m-0 text-12px text-ink-sub">
+                该分享未设置密码。打开会消耗 1
+                次打开次数（若分享者设置过上限）。
+              </p>
+              <NButton
+                type="primary"
+                size="large"
+                :loading="unlocking"
+                :disabled="rateLimited"
+                @click="unlock"
+              >
+                <template #icon
+                  ><NIcon><EyeOutline /></NIcon
+                ></template>
+                打开分享
+              </NButton>
+            </div>
+          </section>
+
+          <!-- 已解锁：单文件 -->
+          <section
+            v-else-if="phase === 'ready' && singleFile && info"
             class="glass-panel px-5 py-5 flex flex-col gap-4"
           >
             <div class="flex items-center gap-3">
@@ -598,9 +612,12 @@ onBeforeUnmount(() => {
             </div>
           </section>
 
-          <!-- 文件集合 -->
-          <section v-else class="glass-panel px-5 py-5 flex flex-col gap-3">
-            <div class="flex items-center gap-2 flex-wrap">
+          <!-- 已解锁：文件集合（卡片头尾固定，仅文件列表滚动） -->
+          <section
+            v-else-if="phase === 'ready' && info"
+            class="glass-panel px-5 py-5 flex flex-1 min-h-0 flex-col gap-3"
+          >
+            <div class="flex items-center gap-2 flex-wrap shrink-0">
               <p class="m-0 text-14px font-600 text-ink">
                 文件集合
                 <span class="text-11px text-ink-sub"
@@ -622,120 +639,123 @@ onBeforeUnmount(() => {
 
             <p
               v-if="collectionCategory"
-              class="m-0 text-11px text-ink-sub truncate"
+              class="m-0 shrink-0 text-11px text-ink-sub truncate"
             >
               {{ collectionRootId }} / {{ collectionCategory }}
             </p>
 
-            <NSpin :show="collectionLoading">
-              <p
-                v-if="collectionError"
-                class="m-0 text-12px text-red-500 leading-5"
-              >
-                {{ collectionError }}
-              </p>
-              <div
-                v-else-if="!collectionLoading && collectionFiles.length === 0"
-                class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-8 text-center text-12px text-ink-sub"
-              >
-                文件集合为空：分享创建后文件可能已被全部删除，请联系分享者重新创建。
-              </div>
-              <div v-else class="flex flex-col gap-2">
+            <div class="share-scroll flex flex-1 min-h-0 flex-col">
+              <NSpin :show="collectionLoading">
                 <p
-                  v-if="collectionMissingCount > 0"
-                  class="m-0 text-11px text-amber-600 dark:text-amber-400"
+                  v-if="collectionError"
+                  class="m-0 text-12px text-red-500 leading-5"
                 >
-                  有
-                  {{ collectionMissingCount }}
-                  个文件已被删除，已标记为不可预览/下载。
+                  {{ collectionError }}
                 </p>
-                <ul class="m-0 p-0 list-none flex flex-col gap-2">
-                  <li
-                    v-for="(file, index) in collectionFiles"
-                    :key="file.path"
-                    class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/45 dark:bg-white/4 px-3 py-2.5 flex items-center gap-3"
-                    :class="!file.exists ? 'opacity-60' : ''"
+                <div
+                  v-else-if="!collectionLoading && collectionFiles.length === 0"
+                  class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-8 text-center text-12px text-ink-sub"
+                >
+                  文件集合为空：分享创建后文件可能已被全部删除，请联系分享者重新创建。
+                </div>
+                <div v-else class="flex flex-col gap-2">
+                  <p
+                    v-if="collectionMissingCount > 0"
+                    class="m-0 text-11px text-amber-600 dark:text-amber-400"
                   >
-                    <div
-                      class="glass-chip w-8 h-8 flex items-center justify-center shrink-0"
+                    有
+                    {{ collectionMissingCount }}
+                    个文件已被删除，已标记为不可预览/下载。
+                  </p>
+                  <ul class="m-0 p-0 list-none flex flex-col gap-2">
+                    <li
+                      v-for="(file, index) in collectionFiles"
+                      :key="file.path"
+                      class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/45 dark:bg-white/4 px-3 py-2.5 flex items-center gap-3"
+                      :class="!file.exists ? 'opacity-60' : ''"
                     >
-                      <NIcon
-                        :size="16"
-                        class="text-brand-600 dark:text-brand-400"
+                      <div
+                        class="glass-chip w-8 h-8 flex items-center justify-center shrink-0"
                       >
-                        <DocumentTextOutline />
-                      </NIcon>
-                    </div>
-                    <span class="min-w-0 flex-1">
-                      <span
-                        class="block text-12px text-ink truncate"
-                        :title="file.path"
-                      >
-                        {{ file.name }}
-                      </span>
-                      <span
-                        class="block text-11px text-ink-sub truncate"
-                        :title="file.path"
-                      >
-                        {{ file.path }}
-                        <template v-if="file.exists">
-                          · {{ formatBytes(file.size ?? 0) }}</template
+                        <NIcon
+                          :size="16"
+                          class="text-brand-600 dark:text-brand-400"
                         >
+                          <DocumentTextOutline />
+                        </NIcon>
+                      </div>
+                      <span class="min-w-0 flex-1">
+                        <span
+                          class="block text-12px text-ink truncate"
+                          :title="file.path"
+                        >
+                          {{ file.name }}
+                        </span>
+                        <span
+                          class="block text-11px text-ink-sub truncate"
+                          :title="file.path"
+                        >
+                          {{ file.path }}
+                          <template v-if="file.exists">
+                            · {{ formatBytes(file.size ?? 0) }}</template
+                          >
+                        </span>
                       </span>
-                    </span>
-                    <span
-                      v-if="!file.exists"
-                      class="text-10px text-amber-600 dark:text-amber-400 shrink-0"
-                    >
-                      文件已删除
-                    </span>
-                    <span v-else class="text-10px text-ink-sub shrink-0">
-                      {{ getFileKind(file.name) }}
-                    </span>
-                    <NButton
-                      v-if="file.exists && isPreviewable(file.name)"
-                      size="tiny"
-                      quaternary
-                      @click="openCollectionPreview(index)"
-                    >
-                      <template #icon
-                        ><NIcon><EyeOutline /></NIcon
-                      ></template>
-                      预览
-                    </NButton>
-                    <NButton
-                      v-if="file.exists"
-                      tag="a"
-                      :href="fileUrl(index, true)"
-                      size="tiny"
-                      quaternary
-                    >
-                      <template #icon
-                        ><NIcon><DownloadOutline /></NIcon
-                      ></template>
-                      下载
-                    </NButton>
-                  </li>
-                </ul>
-              </div>
-            </NSpin>
+                      <span
+                        v-if="!file.exists"
+                        class="text-10px text-amber-600 dark:text-amber-400 shrink-0"
+                      >
+                        文件已删除
+                      </span>
+                      <span v-else class="text-10px text-ink-sub shrink-0">
+                        {{ getFileKind(file.name) }}
+                      </span>
+                      <NButton
+                        v-if="file.exists && isPreviewable(file.name)"
+                        size="tiny"
+                        quaternary
+                        @click="openCollectionPreview(index)"
+                      >
+                        <template #icon
+                          ><NIcon><EyeOutline /></NIcon
+                        ></template>
+                        预览
+                      </NButton>
+                      <NButton
+                        v-if="file.exists"
+                        tag="a"
+                        :href="fileUrl(index, true)"
+                        size="tiny"
+                        quaternary
+                      >
+                        <template #icon
+                          ><NIcon><DownloadOutline /></NIcon
+                        ></template>
+                        下载
+                      </NButton>
+                    </li>
+                  </ul>
+                </div>
+              </NSpin>
+            </div>
           </section>
+        </main>
 
-          <div
-            class="glass-chip px-3 py-2 flex items-start gap-2 text-11px text-ink-sub"
-          >
-            <NIcon :size="14" class="mt-0.5 shrink-0"
-              ><ShieldCheckmarkOutline
-            /></NIcon>
-            <span>
-              已成功解锁，本次访问已计数。文件访问令牌有效期 30
-              分钟，过期后刷新页面重新打开即可（可能再消耗一次打开次数）。
-            </span>
-          </div>
-        </template>
+        <div
+          v-if="phase === 'ready'"
+          class="glass-chip shrink-0 px-3 py-2 flex items-start gap-2 text-11px text-ink-sub"
+        >
+          <NIcon :size="14" class="mt-0.5 shrink-0"
+            ><ShieldCheckmarkOutline
+          /></NIcon>
+          <span>
+            已成功解锁，本次访问已计数。文件访问令牌有效期 30
+            分钟，过期后刷新页面重新打开即可（可能再消耗一次打开次数）。
+          </span>
+        </div>
 
         <p
-          class="m-0 text-center text-11px text-ink-sub flex items-center justify-center gap-1"
+          class="m-0 shrink-0 text-center text-11px text-ink-sub flex items-center justify-center gap-1"
         >
           <NIcon :size="12"><InformationCircleOutline /></NIcon>
           Vakao 静态资源中心 · 分享链接由文件所有者创建
@@ -750,3 +770,35 @@ onBeforeUnmount(() => {
     />
   </PublicPage>
 </template>
+
+<style scoped>
+/**
+ * 公开分享页：锁一屏高，头尾固定，只有中间区滚动。
+ * 100dvh 放在 100vh 之后，老浏览器回退到 100vh。
+ * box-sizing 显式声明，避免安全区 padding 把高度撑出视口。
+ */
+.share-access-shell {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .share-access-shell {
+    padding-top: max(2.5rem, env(safe-area-inset-top));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+}
+
+.share-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+</style>
