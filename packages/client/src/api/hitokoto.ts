@@ -40,8 +40,8 @@ export function buildHitokotoUrl(req: HitokotoRequest) {
 }
 
 /**
- * 一言是后端反向代理，原样透传上游响应，不走 {code,message,data} 信封，
- * 因此直接用 fetch 读取文本，不经过统一请求客户端。
+ * 一言是后端反向代理，JSON 响应同样套 {code,message,data} 信封，
+ * 因此直接用 fetch 读取文本后手动解包，不经过统一请求客户端（需要保留原始文本）。
  */
 export async function requestHitokoto(req: HitokotoRequest) {
   const url = buildHitokotoUrl(req);
@@ -94,16 +94,17 @@ export async function requestHitokoto(req: HitokotoRequest) {
   }
   if (req.encode === 'text')
     return { url, text, data: null as HitokotoResult | null };
-  let data: HitokotoResult;
+  let data: HitokotoResult | null;
   try {
-    data = JSON.parse(text) as HitokotoResult;
+    // 服务端统一返回 {code,message,data}，一言内容位于 data 内
+    data = (JSON.parse(text) as { data?: HitokotoResult | null }).data ?? null;
   } catch {
     throw new HitokotoError(
       'format',
       '一言响应不是合法 JSON（上游可能返回了错误页）',
     );
   }
-  if (typeof data.hitokoto !== 'string') {
+  if (!data || typeof data.hitokoto !== 'string') {
     throw new HitokotoError('format', '一言响应缺少 hitokoto 字段');
   }
   return { url, text, data };
