@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { NSpin } from 'naive-ui';
+import { useDelayedVisible } from '@/composables/use-list-loading';
 
 /**
  * 列表加载遮罩（全站唯一实现）
@@ -9,22 +10,52 @@ import { NSpin } from 'naive-ui';
  *
  * 遮罩底色统一取 CSS 变量 --mask-loading（定义在 design-tokens 的 colors.overlay，
  * 由 uno.config.ts 输出到 :root / html.dark），组件内不要再写死白/黑色值。
+ *
+ * 显示/隐藏动画：延迟 120ms 才淡入（短请求不闪遮罩），隐藏时 150ms 淡出；
+ * 时长、曲线与延迟都收敛在本组件与 use-list-loading 中，各页面不要单独实现。
  */
-defineProps<{
+const props = defineProps<{
   show: boolean;
   /** 中文加载提示，统一由 useListLoading 生成 */
   text: string;
 }>();
+
+const visible = useDelayedVisible(() => props.show);
 </script>
 
 <template>
-  <div
-    v-if="show"
-    class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[var(--mask-loading)] backdrop-blur-[2px]"
-    role="status"
-    aria-live="polite"
-  >
-    <NSpin size="large" />
-    <p class="m-0 text-13px text-ink-sub">{{ text }}</p>
-  </div>
+  <Transition name="list-loading">
+    <div
+      v-if="visible"
+      class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[var(--mask-loading)] backdrop-blur-[2px]"
+      role="status"
+      aria-live="polite"
+    >
+      <NSpin size="large" />
+      <p class="m-0 text-13px text-ink-sub">{{ text }}</p>
+    </div>
+  </Transition>
 </template>
+
+<style scoped>
+/* 淡入 180ms、淡出 150ms，配合 2% 轻微缩放，避免生硬跳变 */
+.list-loading-enter-active {
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+}
+
+.list-loading-leave-active {
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+  /* 淡出期间不再拦截点击，隐藏后节点整体移除 */
+  pointer-events: none;
+}
+
+.list-loading-enter-from,
+.list-loading-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+</style>
