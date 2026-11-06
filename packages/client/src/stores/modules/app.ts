@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
+import { STORAGE_KEYS, piniaStorage } from '@/utils/storage';
 
 /**
- * 应用级状态：主题偏好 + 当前资源根目录
+ * 应用级状态：主题偏好 + 当前根目录/分类 + 侧边栏
  *
- * 主题：isDark 持久化到 localStorage，App.vue 中 watch 同步到
+ * 全部字段持久化到 `vakao:app`，App.vue 中 watch 主题并同步到
  * documentElement 的 `dark` class（驱动 UnoCSS dark: 变体），
  * 同时决定 NConfigProvider 使用 light/dark theme overrides。
  */
@@ -12,6 +13,8 @@ export const useAppStore = defineStore('app', {
     isDark: false,
     /** 当前资源根目录 id（多根目录切换，分类面板与文件库共用） */
     activeRootId: 'default',
+    /** 当前分类；与根目录一起持久化，刷新后回到上次位置 */
+    activeCategory: null as string | null,
     /** 系统图标栏是否展开（收起 72px 纯图标 / 展开 208px 图标 + 文字） */
     sidebarExpanded: false,
   }),
@@ -29,6 +32,12 @@ export const useAppStore = defineStore('app', {
     setActiveRoot(rootId: string) {
       this.activeRootId = rootId;
     },
+    setActiveCategory(name: string | null) {
+      this.activeCategory = name;
+    },
   },
-  persist: true,
+  persist: {
+    key: STORAGE_KEYS.app,
+    storage: piniaStorage,
+  },
 });

@@ -30,6 +30,12 @@ import {
   requestHitokoto,
 } from '@/api/hitokoto';
 import { formatDateTime } from '@/utils/format';
+import {
+  STORAGE_KEYS,
+  readJson,
+  removeStorage,
+  writeJson,
+} from '@/utils/storage';
 import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 
@@ -57,8 +63,6 @@ const CATEGORY_OPTIONS = [
   { label: '抖机灵', value: 'l' },
 ];
 
-const STORAGE_KEY = 'vakao.hitokoto.history.v1';
-
 interface HistoryItem {
   text: string;
   from?: string;
@@ -69,14 +73,8 @@ interface HistoryItem {
 }
 
 function loadHistory(): HistoryItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as HistoryItem[];
-    return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
-  } catch {
-    return [];
-  }
+  const parsed = readJson<HistoryItem[]>(STORAGE_KEYS.hitokotoHistory);
+  return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
 }
 
 const categories = ref<string[]>([]);
@@ -154,16 +152,12 @@ async function send() {
 
 function pushHistory(item: HistoryItem) {
   history.value = [item, ...history.value].slice(0, 30);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.value));
-  } catch {
-    // localStorage 写入失败不影响主流程
-  }
+  writeJson(STORAGE_KEYS.hitokotoHistory, history.value);
 }
 
 function clearHistory() {
   history.value = [];
-  localStorage.removeItem(STORAGE_KEY);
+  removeStorage(STORAGE_KEYS.hitokotoHistory);
   message.success('历史记录已清空');
 }
 

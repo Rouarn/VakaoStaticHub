@@ -35,46 +35,6 @@ interface RootCategoryEntry extends CategoryEntry {
 const categoryInflight = new Map<string, Promise<void>>();
 let rootsInflight: Promise<void> | null = null;
 
-/** 文件库上次选中分类的本地记录：分类必须连同所属根目录一起保存才能还原 */
-const SELECTION_STORAGE_KEY = 'vakao:file-selection';
-
-interface StoredSelection {
-  rootId: string;
-  category: string;
-}
-
-function readStoredSelection(): StoredSelection | null {
-  try {
-    const raw = localStorage.getItem(SELECTION_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StoredSelection> | null;
-    if (
-      parsed &&
-      typeof parsed.rootId === 'string' &&
-      typeof parsed.category === 'string' &&
-      parsed.rootId &&
-      parsed.category
-    ) {
-      return { rootId: parsed.rootId, category: parsed.category };
-    }
-  } catch {
-    // 本地记录损坏或存储不可用时按未记录处理
-  }
-  return null;
-}
-
-function writeStoredSelection(selection: StoredSelection | null) {
-  try {
-    if (selection) {
-      localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(selection));
-    } else {
-      localStorage.removeItem(SELECTION_STORAGE_KEY);
-    }
-  } catch {
-    // 隐私模式等写入失败不影响当前会话
-  }
-}
-
 /** 请求取消（被同 key 请求取代）不是错误，不应污染错误态 */
 const isCanceled = (e: unknown) =>
   e instanceof RequestError && e.type === 'cancel';
@@ -84,13 +44,14 @@ export const useCategoryStore = defineStore('category', {
     roots: [] as ResourceRoot[],
     /** 全部分类条目（含 rootId） */
     entries: [] as RootCategoryEntry[],
-    activeCategory: null as string | null,
     loading: false,
     error: '',
     /** 面板查询计数时的静默刷新标记 */
     refreshing: false,
   }),
   getters: {
+    /** 当前分类的唯一数据源在 app store，与根目录一起持久化 */
+    activeCategory: (): string | null => useAppStore().activeCategory,
     categoriesOf:
       (state) =>
       (rootId: string): CategoryEntry[] =>
@@ -169,31 +130,29 @@ export const useCategoryStore = defineStore('category', {
     },
 
     setActiveCategory(name: string | null) {
-      this.activeCategory = name;
-      // 分类归属于某个根目录，根目录一并记录，刷新后才能还原到正确位置
-      writeStoredSelection(
-        name ? { rootId: useAppStore().activeRootId, category: name } : null,
-      );
+      useAppStore().setActiveCategory(name);
     },
 
     /**
      * 恢复上次选择的分类（含所属根目录）。
      *
-     * 记录的根目录或分类已不存在时清掉本地记录并返回 false；接口为空或
-     * 加载失败时同样返回 false，但保留记录（可能只是本次请求失败），
-     * 由调用方安静回退到默认分类，不阻断页面。
+     * 根目录或分类已不存在时清掉记录并返回 false；接口为空或加载失败时
+     * 同样返回 false，但保留记录（可能只是本次请求失败），由调用方安静
+     * 回退到默认分类，不阻断页面。
      */
     async restoreSelection(): Promise<boolean> {
-      const saved = readStoredSelection();
-      if (!saved) return false;
-
       const app = useAppStore();
+      const saved = {
+        rootId: app.activeRootId,
+        category: app.activeCategory,
+      };
+      if (!saved.category) return false;
+
       if (!this.roots.some((root) => root.id === saved.rootId)) {
         // 根目录加载成功且确实不存在才清理；空列表可能只是本次请求失败
-        if (this.roots.length > 0) writeStoredSelection(null);
+        if (this.roots.length > 0) app.setActiveCategory(null);
         return false;
       }
-      app.setActiveRoot(saved.rootId);
 
       if (this.categoriesOf(saved.rootId).length === 0) {
         await this.loadCategories(saved.rootId);
@@ -201,11 +160,10 @@ export const useCategoryStore = defineStore('category', {
       const list = this.categoriesOf(saved.rootId);
       if (list.length === 0) return false;
       if (!list.some((entry) => entry.name === saved.category)) {
-        writeStoredSelection(null);
+        app.setActiveCategory(null);
         return false;
       }
-      // 经由 setter 写回，确保根目录变化触发的清理不会把记录一起丢掉
-      this.setActiveCategory(saved.category);
+      app.setActiveRoot(saved.rootId);
       return true;
     },
 
