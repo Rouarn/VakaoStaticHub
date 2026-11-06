@@ -209,13 +209,13 @@ packages/client/
 - **双视图**：网格（文件卡片）与列表；分页（默认 24 条/页）、关键词搜索、按名称/大小/修改时间排序。
 - **分类面板**（`layouts/components/category-panel.vue`）：根目录选择、分类列表与计数、新建/重命名/删除分类（非空删除需勾选递归）。
 - **根目录管理**：面板内「管理根目录」弹窗支持新增、编辑（名称/路径）、删除；数据接口：
-  - `GET /api/v1/roots` 列表
-  - `POST /api/v1/roots` 新增
-  - `PATCH /api/v1/roots/:id` 更新
-  - `DELETE /api/v1/roots/:id` 删除
-  - `GET /api/v1/roots/browse` 服务器目录浏览（用于选择路径）
+  - `GET /v1/roots` 列表
+  - `POST /v1/roots` 新增
+  - `PATCH /v1/roots/:id` 更新
+  - `DELETE /v1/roots/:id` 删除
+  - `GET /v1/roots/browse` 服务器目录浏览（用于选择路径）
 - **文件操作**：预览、下载、图片缩放（w/h/q/format）、重命名、移动到其他分类、批量删除、批量移动、快速创建分享。
-- **URL 构造**：所有直链、缩略图、预览页、分享页地址统一经 `utils/file-url.ts`，保证 `/api/v1` 只出现一次。
+- **URL 构造**：所有直链、缩略图、预览页、分享页地址统一经 `utils/file-url.ts`，保证 `/v1` 只出现一次。
 
 ### 2. 上传（先选后传 + 拖拽）
 
@@ -225,7 +225,7 @@ packages/client/
 - **落点锁定**：任务入队时锁定目标根/分类，上传中途切换目录不会造成落点漂移。
 - **取消语义**：取消会中止在途请求并调用 `upload/cancel` 清理临时分片目录，不伪造成功。
 
-接口：`POST /api/v1/files/upload`（multipart 多文件）、`POST /api/v1/uploads` + `PUT /api/v1/uploads/:id/chunks/:index` + `POST /api/v1/uploads/:id/complete` + `DELETE /api/v1/uploads/:id`（分片）。
+接口：`POST /v1/files/upload`（multipart 多文件）、`POST /v1/uploads` + `PUT /v1/uploads/:id/chunks/:index` + `POST /v1/uploads/:id/complete` + `DELETE /v1/uploads/:id`（分片）。
 
 ### 3. 文件分享
 
@@ -235,12 +235,12 @@ packages/client/
   - 文件库多选 → 批量条「创建分享（N 个文件）」：一次创建集合分享。
   - 分享管理页「创建分享」：选择根目录/分类后勾选文件创建。
 - **校验**：未选文件、勾选「需要密码」但密码为空、自定义有效期为空/非正数都会被前端拦截并给出明确提示。
-- **访问**：公开页 `/share/:token`；设密码时先 `POST /api/v1/public/shares/:token/unlock` 换取访问令牌，再 `GET /api/v1/public/shares/:token/files?accessToken=` 读取集合、`GET /api/v1/public/shares/:token/files/:index` 读取单个文件；下载追加 `download=1`。
+- **访问**：公开页 `/share/:token`；设密码时先 `POST /v1/s/:token/unlock` 换取访问令牌，再 `GET /v1/s/:token/f?accessToken=` 读取集合、`GET /v1/s/:token/f/:index` 读取单个文件；下载追加 `download=1`。
 - **管理**：列表筛选、复制链接/二维码、编辑（备注/有效期/密码/次数/启停）、撤销、访问记录。
 - **批量管理**：卡片内联选择框 + 工具条「全选当前页 / 取消全选」+「已选 N 项 / 本页 M 项」计数；选中后出现批量操作条（批量启用 / 批量停用 / 批量删除）。
   - 选中语义只作用于**当前页**：翻页、筛选、修改每页条数都会清空选择，避免误以为选中了全部。
   - 批量删除走二次确认，明确删除数量与「物理删除、不可恢复」。
-  - 后端没有批量接口：前端 `api/shares.ts` 的 `batchShareAction()` 限并发（4）复用 `PATCH /api/v1/shares/:token`（启停）与 `DELETE /api/v1/shares/:token`（删除），逐条收集结果。部分失败会弹出结果面板，给出成功/失败条数与每个失败项的原因；仍在当前页的失败项保持选中便于重试，已不存在的项明确标注无法重试。
+  - 后端没有批量接口：前端 `api/shares.ts` 的 `batchShareAction()` 限并发（4）复用 `PATCH /v1/shares/:token`（启停）与 `DELETE /v1/shares/:token`（删除），逐条收集结果。部分失败会弹出结果面板，给出成功/失败条数与每个失败项的原因；仍在当前页的失败项保持选中便于重试，已不存在的项明确标注无法重试。
 
 ### 4. 文件预览
 
@@ -252,7 +252,7 @@ packages/client/
 
 - 应用（appKey）创建/重命名/删除（重命名与删除需输入包含 appKey 的确认短语）。
 - 版本：上传 APK（ZIP 魔数校验 + 流式 SHA-256）→ DRAFT；发布门禁 versionCode 必须递增；全量/灰度（指定百分比或自动递增，到 100% 自动转全量）；定时发布；一键回滚只恢复被新全量挤掉的历史版本；远程强更；一键下架。
-- 客户端检查 `GET /api/v1/public/apps/:appKey/update`，下载 `GET /api/v1/public/apps/versions/:id/download` 支持 Range。
+- 客户端检查 `GET /v1/a/:appKey/update`，下载 `GET /v1/a/versions/:id/download` 支持 Range。
 - 升级漏斗看板：check / download / install_success / install_fail。
 
 ### 6. 其它页面
@@ -325,7 +325,7 @@ pnpm preview
 | ----------------------- | --------------------- | ----------------------------------------------------------- |
 | `VITE_API_BASE_URL`     | 空                    | 空 → 相对路径走 Vite 代理；`origin` → 当前站点域名；也可填后端绝对地址 |
 
-`src/utils/file-url.ts` 是 URL 的唯一构造入口：`getApiOrigin()` 会剥离末尾 `/api/v1` 后统一拼一次，避免出现 `/api/v1/api/v1/...`。
+`src/utils/file-url.ts` 是 URL 的唯一构造入口：`getApiOrigin()` 会剥离末尾 `/v1` 后统一拼一次，避免出现 `/v1/v1/...`。
 
 ---
 
