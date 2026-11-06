@@ -8,7 +8,6 @@ import {
   PauseOutline,
   PlayOutline,
   PulseOutline,
-  RefreshOutline,
   RocketOutline,
   SaveOutline,
   ServerOutline,
@@ -26,6 +25,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import StatCard from '@/components/common/stat-card.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import BarList from '@/components/charts/bar-list.vue';
 
@@ -39,11 +39,13 @@ import BarList from '@/components/charts/bar-list.vue';
 const data = ref<SystemMetrics | null>(null);
 /**
  * 加载态：仅首次进入与重试时显示遮罩；
- * 30 秒静默刷新与手动「立即刷新」都不显示遮罩，前者无任何反馈，后者只让按钮转圈并提示结果。
+ * 30 秒静默刷新与手动「立即刷新」都不显示遮罩，前者无任何图标变化与提示，
+ * 后者只让刷新按钮的图标旋转 → 对勾 → 箭头。
  */
-const { loading, loadingText, refreshing, refresh } = useListLoading({
-  text: '正在加载系统指标…',
-});
+const { loading, loadingText, refreshing, justRefreshed, refresh } =
+  useListLoading({
+    text: '正在加载系统指标…',
+  });
 const error = ref('');
 const lastUpdated = ref<number | null>(null);
 
@@ -61,7 +63,9 @@ let timer: ReturnType<typeof setInterval> | null = null;
  * silent=true：不显示遮罩（自动刷新与手动刷新共用）
  * throwOnError=true：失败时抛给 useListLoading.refresh 统一提示，界面保留上次成功的数据
  */
-async function load(options: { silent?: boolean; throwOnError?: boolean } = {}) {
+async function load(
+  options: { silent?: boolean; throwOnError?: boolean } = {},
+) {
   if (!options.silent) loading.value = true;
   error.value = '';
   try {
@@ -75,11 +79,10 @@ async function load(options: { silent?: boolean; throwOnError?: boolean } = {}) 
   }
 }
 
-/** 页头「立即刷新」：不走遮罩，只让按钮转圈，结束后提示结果 */
+/** 页头「立即刷新」：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function refreshNow() {
   void refresh(
     () => load({ silent: true, throwOnError: true }),
-    () => `当前 ${rootItems.value.length} 个资源目录`,
     '系统指标刷新失败',
   );
 }
@@ -211,18 +214,12 @@ function rootShareLabel(totalSize: number | null): string {
           </template>
           {{ paused ? '恢复刷新' : '暂停刷新' }}
         </NButton>
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
+          text="立即刷新"
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="refreshNow"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon
-          ></template>
-          立即刷新
-        </NButton>
+        />
       </template>
     </PageHeader>
 

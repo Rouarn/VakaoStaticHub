@@ -16,7 +16,6 @@ import {
   CloudUploadOutline,
   GridOutline,
   ListOutline,
-  RefreshOutline,
   SearchOutline,
   ServerOutline,
   SettingsOutline,
@@ -35,6 +34,7 @@ import {
 } from '@/api/files';
 import PageHeader from '@/components/common/page-header.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import CategoryPanel from '@/layouts/components/category-panel.vue';
 import {
@@ -127,6 +127,7 @@ const {
   loading,
   loadingText,
   refreshing,
+  justRefreshed,
   begin: beginLoading,
   refresh,
 } = useListLoading({ page });
@@ -188,13 +189,9 @@ function scheduleLoad() {
 
 const reload = () => scheduleLoad();
 
-/** 顶部刷新按钮：不走遮罩，只让按钮转圈，结束后提示当前文件数 */
+/** 顶部刷新按钮：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function refreshFiles() {
-  void refresh(
-    () => load({ silent: true }),
-    () => `当前 ${total.value} 个文件`,
-    '刷新失败',
-  );
+  void refresh(() => load({ silent: true }), '刷新失败');
 }
 
 onMounted(async () => {
@@ -509,18 +506,11 @@ function onShareCreated(link: ShareLink) {
     <!-- 页头 + 工具条（对齐原型：topbar + toolbar 两段） -->
     <PageHeader title="文件库" :description="headerDescription">
       <template #actions>
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="refreshFiles"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon>
-          </template>
-          刷新
-        </NButton>
+        />
         <NButton type="primary" size="small" @click="uploadShow = true">
           <template #icon
             ><NIcon><CloudUploadOutline /></NIcon>

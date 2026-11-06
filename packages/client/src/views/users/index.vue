@@ -16,7 +16,6 @@ import {
   LockClosedOutline,
   PeopleOutline,
   PersonAddOutline,
-  RefreshOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
 import type { UserInfo, UserRole } from '@vakao/shared';
@@ -35,6 +34,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 
 /**
@@ -63,7 +63,8 @@ const ROLE_META: Record<
 
 const users = ref<UserInfo[]>([]);
 /** 加载态与中文提示：文案规则见 useListLoading */
-const { loading, loadingText, refreshing, refresh } = useListLoading();
+const { loading, loadingText, refreshing, justRefreshed, refresh } =
+  useListLoading();
 const error = ref('');
 
 const page = ref(1);
@@ -98,13 +99,9 @@ async function load(options: { silent?: boolean } = {}) {
   }
 }
 
-/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前账号数 */
+/** 页头「刷新」：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function refreshList() {
-  void refresh(
-    () => load({ silent: true }),
-    () => `当前 ${users.value.length} 个账号`,
-    '刷新失败',
-  );
+  void refresh(() => load({ silent: true }), '刷新失败');
 }
 
 watch(pageSize, () => {
@@ -304,18 +301,11 @@ onMounted(() => void load());
       :icon="PeopleOutline"
     >
       <template #actions>
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="refreshList"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon
-          ></template>
-          刷新
-        </NButton>
+        />
         <NButton size="small" type="primary" @click="openCreate">
           <template #icon
             ><NIcon><PersonAddOutline /></NIcon

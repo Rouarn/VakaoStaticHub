@@ -5,7 +5,6 @@ import {
   AlbumsOutline,
   FolderOpenOutline,
   PieChartOutline,
-  RefreshOutline,
   SyncOutline,
 } from '@vicons/ionicons5';
 import type { RootIndexStatus, UsageStatsResult } from '@vakao/shared';
@@ -19,6 +18,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import StatCard from '@/components/common/stat-card.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import DonutChart from '@/components/charts/donut-chart.vue';
 import BarList from '@/components/charts/bar-list.vue';
@@ -32,6 +32,7 @@ const {
   loading,
   loadingText,
   refreshing,
+  justRefreshed,
   begin: beginLoading,
   refresh,
 } = useListLoading();
@@ -60,13 +61,9 @@ async function load(options: { silent?: boolean } = {}) {
   }
 }
 
-/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前文件数 */
+/** 页头「刷新」：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function refreshStats() {
-  void refresh(
-    () => load({ silent: true }),
-    () => `当前 ${data.value?.fileCount ?? 0} 个文件`,
-    '刷新失败',
-  );
+  void refresh(() => load({ silent: true }), '刷新失败');
 }
 
 const REBUILD_POLL_MS = 500;
@@ -86,7 +83,9 @@ function formatDuration(ms: number) {
  * 以它的完成时间为基线，等到出现更新的完成记录才返回。
  */
 async function waitRebuild(targets: RootIndexStatus[]) {
-  const baseline = new Map(targets.map((item) => [item.rootId, item.finishedAt]));
+  const baseline = new Map(
+    targets.map((item) => [item.rootId, item.finishedAt]),
+  );
   const deadline = Date.now() + REBUILD_TIMEOUT_MS;
   let latest = targets;
   while (Date.now() < deadline) {
@@ -125,9 +124,7 @@ async function rebuildIndex() {
     }
     const files = finished.reduce((sum, item) => sum + item.indexedFiles, 0);
     const duration = finished.reduce((sum, item) => sum + item.durationMs, 0);
-    message.success(
-      `重建完成 · ${files} 个文件 · ${formatDuration(duration)}`,
-    );
+    message.success(`重建完成 · ${files} 个文件 · ${formatDuration(duration)}`);
     try {
       await load({ silent: true });
     } catch {
@@ -190,18 +187,11 @@ onMounted(() => void load());
           </template>
           重新扫描磁盘并刷新文件索引，文件较多时可能耗时，确认继续？
         </NPopconfirm>
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="refreshStats"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon
-          ></template>
-          刷新
-        </NButton>
+        />
       </template>
     </PageHeader>
 

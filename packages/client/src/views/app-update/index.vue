@@ -32,7 +32,6 @@ import {
   InformationCircleOutline,
   KeyOutline,
   PlayOutline,
-  RefreshOutline,
   RocketOutline,
   TimeOutline,
   TrashOutline,
@@ -70,6 +69,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 
 /**
@@ -94,6 +94,7 @@ const {
   loading,
   loadingText,
   refreshing,
+  justRefreshed,
   begin: beginLoading,
   refresh,
 } = useListLoading({ page });
@@ -177,13 +178,9 @@ async function loadVersions(options: { silent?: boolean } = {}) {
   }
 }
 
-/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前版本数 */
+/** 页头「刷新」：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function refreshVersions() {
-  void refresh(
-    () => loadVersions({ silent: true }),
-    () => `当前 ${total.value} 个版本`,
-    '刷新失败',
-  );
+  void refresh(() => loadVersions({ silent: true }), '刷新失败');
 }
 
 /** 切换分页 / 筛选前清空版本卡片；total 保留，避免分页条跳动 */
@@ -890,18 +887,11 @@ onMounted(async () => {
           class="w-32"
           @update:value="changeFilter"
         />
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="refreshVersions"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon
-          ></template>
-          刷新
-        </NButton>
+        />
         <span class="ml-auto text-11px text-ink-sub">
           共 {{ total }} 个版本 · 后端分页
         </span>

@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue';
+import { computed, onScopeDispose, ref, type Ref } from 'vue';
 import { useMessage } from 'naive-ui';
 import { getErrorMessage } from '@/utils/http';
 
@@ -9,20 +9,37 @@ export interface ListLoadingOptions {
   text?: string;
 }
 
+/** 刷新成功后对勾停留时长（毫秒） */
+const SUCCESS_HOLD_MS = 1000;
+
 /**
  * 列表加载态（全站唯一实现）
  *
  * 区分两种触发来源：
  * - begin(reset)：首次进入、翻页、切换筛选/排序/每页条数 → 立即显示遮罩
- * - refresh(task, summary)：手动点「刷新」→ 不显示遮罩，只让按钮进入加载态，
- *   结束后统一提示「已刷新 · 当前 …」，失败则提示可读错误
+ * - refresh(task)：手动点「刷新」→ 不显示遮罩，只驱动页头刷新按钮的图标：
+ *   请求中旋转，成功后短暂显示对勾（约 1 秒）再恢复箭头，失败则提示可读错误
  *
- * 各列表页只调用这两个入口并引用 ListLoading 组件，不要各自复制一套。
+ * 各列表页只调用这两个入口并引用 ListLoading、RefreshButton，不要各自复制一套。
  */
 export function useListLoading(options: ListLoadingOptions = {}) {
   const message = useMessage();
   const loading = ref(false);
   const refreshing = ref(false);
+  /** 刷新成功后的对勾态，由 RefreshButton 消费 */
+  const justRefreshed = ref(false);
+
+  let successTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearJustRefreshed() {
+    if (successTimer) {
+      clearTimeout(successTimer);
+      successTimer = null;
+    }
+    justRefreshed.value = false;
+  }
+
+  onScopeDispose(clearJustRefreshed);
 
   const loadingText = computed(() => {
     const page = options.page?.value ?? 1;
@@ -32,32 +49,47 @@ export function useListLoading(options: ListLoadingOptions = {}) {
 
   /** 进入加载态；reset 用于清空当前列表与选中项，避免旧数据在遮罩下残留 */
   function begin(reset?: () => void) {
+    clearJustRefreshed();
     reset?.();
     loading.value = true;
   }
 
   /**
-   * 手动刷新：不触碰遮罩，只驱动页头按钮的加载态
+   * 手动刷新：不触碰遮罩，只驱动页头按钮的图标状态
    *
    * task 需要在「不显示遮罩、不清空旧数据」的前提下重新拉取，失败时抛出错误；
-   * summary 返回本次刷新后的数据摘要（如「当前 12 个文件」）。
+   * errorText 支持传入函数，便于按失败时的实际状态给出更准确的说明。
    */
   async function refresh(
     task: () => Promise<void>,
-    summary: () => string,
-    errorText = '刷新失败',
+    errorText: string | (() => string) = '刷新失败',
   ) {
     if (refreshing.value) return;
+    // 连点：立刻回到旋转态，避免对勾与旋转同时存在
+    clearJustRefreshed();
     refreshing.value = true;
     try {
       await task();
-      message.success(`已刷新 · ${summary()}`);
+      justRefreshed.value = true;
+      successTimer = setTimeout(() => {
+        justRefreshed.value = false;
+        successTimer = null;
+      }, SUCCESS_HOLD_MS);
     } catch (e) {
-      message.error(getErrorMessage(e, errorText));
+      const fallback =
+        typeof errorText === 'function' ? errorText() : errorText;
+      message.error(getErrorMessage(e, fallback));
     } finally {
       refreshing.value = false;
     }
   }
 
-  return { loading, loadingText, refreshing, begin, refresh };
+  return {
+    loading,
+    loadingText,
+    refreshing,
+    justRefreshed,
+    begin,
+    refresh,
+  };
 }

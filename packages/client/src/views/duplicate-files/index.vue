@@ -1,19 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import {
-  NButton,
-  NIcon,
-  NPagination,
-  NSelect,
-  useMessage,
-} from 'naive-ui';
+import { NButton, NIcon, NPagination, NSelect, useMessage } from 'naive-ui';
 import {
   ChevronDownOutline,
   ChevronForwardOutline,
   CopyOutline,
   FolderOpenOutline,
   InformationCircleOutline,
-  RefreshOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
 import type {
@@ -38,6 +31,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
 import type { PreviewTarget } from '@/components/preview/types';
@@ -62,6 +56,7 @@ const {
   loading,
   loadingText,
   refreshing,
+  justRefreshed,
   begin: beginLoading,
   refresh,
 } = useListLoading({ page });
@@ -124,10 +119,7 @@ async function loadRoots() {
  * 加载当前页；页码超出末页时回退到末页（清理后总组数可能变少）
  * silent=true 用于手动重新扫描：不显示遮罩、失败时保留当前分组，错误抛给 refresh 统一提示。
  */
-async function load(
-  allowClamp = true,
-  options: { silent?: boolean } = {},
-) {
+async function load(allowClamp = true, options: { silent?: boolean } = {}) {
   if (!options.silent) loading.value = true;
   error.value = '';
   try {
@@ -154,13 +146,9 @@ async function load(
   }
 }
 
-/** 页头「重新扫描」：不走遮罩，只让按钮转圈，结束后提示当前重复组数 */
+/** 页头「重新扫描」：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function rescan() {
-  void refresh(
-    () => load(true, { silent: true }),
-    () => `当前 ${groupCount.value} 组重复文件`,
-    '重新扫描失败',
-  );
+  void refresh(() => load(true, { silent: true }), '重新扫描失败');
 }
 
 /** 切换根目录 / 每页条数 / 页码前清空分组；统计数字保留到新数据返回，避免分页总数跳动 */
@@ -333,18 +321,12 @@ onMounted(async () => {
           :options="rootOptions"
           @update:value="changeFilter"
         />
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
+          text="重新扫描"
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="rescan"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon
-          ></template>
-          重新扫描
-        </NButton>
+        />
         <NButton
           size="small"
           type="primary"

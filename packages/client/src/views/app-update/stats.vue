@@ -12,7 +12,6 @@ import {
   DownloadOutline,
   FunnelOutline,
   InformationCircleOutline,
-  RefreshOutline,
   RocketOutline,
   TimeOutline,
 } from '@vicons/ionicons5';
@@ -25,6 +24,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import StatCard from '@/components/common/stat-card.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 
 /**
@@ -42,7 +42,14 @@ const data = ref<{ items: FunnelStatItem[]; checkNoUpdateTotal: number }>({
   checkNoUpdateTotal: 0,
 });
 /** 加载态与中文提示：文案规则见 useListLoading */
-const { loading, loadingText, begin: beginLoading } = useListLoading();
+const {
+  loading,
+  loadingText,
+  refreshing,
+  justRefreshed,
+  begin: beginLoading,
+  refresh,
+} = useListLoading();
 const error = ref('');
 
 const presets = [
@@ -57,11 +64,12 @@ function applyPreset(days: number) {
   void load();
 }
 
-async function loadApps() {
+async function loadApps(options: { rethrow?: boolean } = {}) {
   try {
     apps.value = await listApps();
     if (!appKey.value && apps.value.length > 0) appKey.value = apps.value[0];
   } catch (e) {
+    if (options.rethrow) throw e;
     message.error(getErrorMessage(e, '应用列表加载失败'));
   }
 }
@@ -69,6 +77,11 @@ async function loadApps() {
 /** 切换应用 / 时间范围前清空旧统计，避免遮罩下残留上一次的数字 */
 function clearStats() {
   data.value = { items: [], checkNoUpdateTotal: 0 };
+}
+
+async function fetchStats() {
+  const [startTime, endTime] = range.value ?? [];
+  data.value = await getFunnelStats(appKey.value, startTime, endTime);
 }
 
 async function load() {
@@ -79,14 +92,37 @@ async function load() {
   beginLoading(clearStats);
   error.value = '';
   try {
-    const [startTime, endTime] = range.value ?? [];
-    data.value = await getFunnelStats(appKey.value, startTime, endTime);
+    await fetchStats();
   } catch (e) {
     error.value = getErrorMessage(e, '漏斗统计加载失败');
     clearStats();
   } finally {
     loading.value = false;
   }
+}
+
+/**
+ * 手动刷新：不显示遮罩、不清空旧数据，按钮图标旋转 → 对勾 → 箭头。
+ * 没有选中应用时先补拉应用列表，避免「点了没反应」。
+ */
+async function refreshStats() {
+  await refresh(
+    async () => {
+      await loadApps({ rethrow: true });
+      if (!appKey.value) throw new Error('没有可统计的应用');
+      error.value = '';
+      try {
+        await fetchStats();
+      } catch (e) {
+        error.value = getErrorMessage(e, '漏斗统计加载失败');
+        throw e;
+      }
+    },
+    () =>
+      appKey.value
+        ? '漏斗统计刷新失败'
+        : '当前没有可统计的应用，请先创建应用并发布版本',
+  );
 }
 
 const sum = (key: keyof FunnelStatItem) =>
@@ -159,12 +195,11 @@ onMounted(async () => {
       :icon="FunnelOutline"
     >
       <template #actions>
-        <NButton size="small" quaternary @click="load">
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon
-          ></template>
-          刷新
-        </NButton>
+        <RefreshButton
+          :loading="refreshing"
+          :success="justRefreshed"
+          @click="refreshStats"
+        />
       </template>
     </PageHeader>
 
@@ -226,7 +261,7 @@ onMounted(async () => {
               : '换一个时间范围，或确认客户端已上报 check / download / install 事件。'
           "
         >
-          <NButton v-if="!appKey" size="small" @click="loadApps"
+          <NButton v-if="!appKey" size="small" @click="loadApps()"
             >刷新应用列表</NButton
           >
           <NButton v-else size="small" @click="applyPreset(90)"

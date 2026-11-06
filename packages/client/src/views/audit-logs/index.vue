@@ -16,7 +16,6 @@ import {
   DocumentTextOutline,
   EyeOutline,
   InformationCircleOutline,
-  RefreshOutline,
   SearchOutline,
 } from '@vicons/ionicons5';
 import type { AuditLog, AuditLogPage } from '@vakao/shared';
@@ -33,6 +32,7 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 
 /** 审计日志：后端分页 + 操作人/动作/资源/时间筛选 + 详情抽屉 */
@@ -52,6 +52,7 @@ const {
   loading,
   loadingText,
   refreshing,
+  justRefreshed,
   begin: beginLoading,
   refresh,
 } = useListLoading({ page });
@@ -103,13 +104,9 @@ async function load(options: { silent?: boolean } = {}) {
   }
 }
 
-/** 页头「刷新」：不走遮罩，只让按钮转圈，结束后提示当前日志条数 */
+/** 页头「刷新」：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function refreshList() {
-  void refresh(
-    () => load({ silent: true }),
-    () => `当前 ${data.value.total} 条日志`,
-    '刷新失败',
-  );
+  void refresh(() => load({ silent: true }), '刷新失败');
 }
 
 /** 切换筛选 / 分页前清空表格行；total 保留，避免分页总数与页码跳动 */
@@ -175,18 +172,11 @@ onMounted(() => void load());
       :icon="DocumentTextOutline"
     >
       <template #actions>
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="refreshList"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon
-          ></template>
-          刷新
-        </NButton>
+        />
       </template>
     </PageHeader>
 

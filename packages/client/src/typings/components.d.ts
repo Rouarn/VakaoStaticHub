@@ -32,6 +32,7 @@ declare module 'vue' {
     PlaceholderView: typeof import('./../components/common/placeholder-view.vue')['default']
     PreviewDialog: typeof import('./../components/preview/preview-dialog.vue')['default']
     PublicPage: typeof import('./../components/common/public-page.vue')['default']
+    RefreshButton: typeof import('./../components/common/refresh-button.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StatCard: typeof import('./../components/common/stat-card.vue')['default']

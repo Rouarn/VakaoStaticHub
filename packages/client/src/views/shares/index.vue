@@ -25,7 +25,6 @@ import {
   LinkOutline,
   PauseCircleOutline,
   PlayCircleOutline,
-  RefreshOutline,
   SearchOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
@@ -61,6 +60,7 @@ import PageHeader from '@/components/common/page-header.vue';
 import ErrorState from '@/components/common/error-state.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import ListLoading from '@/components/common/list-loading.vue';
+import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import ShareQrModal from './components/share-qr-modal.vue';
 
@@ -84,6 +84,7 @@ const {
   loading,
   loadingText,
   refreshing,
+  justRefreshed,
   begin: beginLoading,
   refresh,
 } = useListLoading();
@@ -219,13 +220,9 @@ async function load(options: { silent?: boolean } = {}, allowClamp = true) {
   }
 }
 
-/** 顶部刷新按钮：不走遮罩，只让按钮转圈，结束后提示当前分享数 */
+/** 顶部刷新按钮：不走遮罩，图标旋转 → 对勾 → 箭头 */
 function refreshList() {
-  void refresh(
-    () => load({ silent: true }),
-    () => `当前 ${total.value} 条分享`,
-    '刷新失败',
-  );
+  void refresh(() => load({ silent: true }), '刷新失败');
 }
 
 /** 进入加载态并清空当前页，再拉取目标页 */
@@ -732,18 +729,11 @@ onMounted(async () => {
       :description="`共 ${total} 条 · 活跃 ${counts.active} · 已停用 ${counts.disabled} · 已失效 ${counts.expired + counts.exhausted}`"
     >
       <template #actions>
-        <NButton
-          size="small"
-          quaternary
+        <RefreshButton
           :loading="refreshing"
-          :disabled="refreshing"
+          :success="justRefreshed"
           @click="refreshList"
-        >
-          <template #icon
-            ><NIcon><RefreshOutline /></NIcon>
-          </template>
-          刷新
-        </NButton>
+        />
         <NButton type="primary" size="small" @click="openCreate">
           <template #icon
             ><NIcon><AddOutline /></NIcon>
