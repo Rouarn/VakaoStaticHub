@@ -170,6 +170,26 @@ function scheduleLoad() {
 
 const reload = () => scheduleLoad();
 
+/** 顶部刷新按钮：进入加载态，完成后提示本次刷新到的文件数量 */
+const refreshing = ref(false);
+
+async function refreshFiles() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    await load();
+    if (error.value) {
+      message.error(error.value);
+      return;
+    }
+    message.success(`已刷新 · 当前分类 ${total.value} 个文件`);
+  } catch (e) {
+    message.error(getErrorMessage(e, '刷新失败'));
+  } finally {
+    refreshing.value = false;
+  }
+}
+
 onMounted(async () => {
   void indexStatusStore.start();
   try {
@@ -462,7 +482,13 @@ function onShareCreated(link: ShareLink) {
     <!-- 页头 + 工具条（对齐原型：topbar + toolbar 两段） -->
     <PageHeader title="文件库" :description="headerDescription">
       <template #actions>
-        <NButton size="small" quaternary @click="reload">
+        <NButton
+          size="small"
+          quaternary
+          :loading="refreshing"
+          :disabled="refreshing"
+          @click="refreshFiles"
+        >
           <template #icon
             ><NIcon><RefreshOutline /></NIcon>
           </template>
