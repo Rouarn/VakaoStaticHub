@@ -286,12 +286,15 @@ func (s *Server) handleReindex(w http.ResponseWriter, r *http.Request, _ *Curren
 	for _, root := range roots {
 		ids = append(ids, root.ID)
 	}
+	// 先取入队前的状态作为基线，再入队：调用方据此判断「本次扫描」是否已结束，
+	// 避免秒级完成的根目录看起来像没执行。
+	baseline := s.indexQueue.Snapshot(ids)
 	queued := s.indexQueue.EnqueueAll(ids)
 	// 语义改为「入队」：立即返回，实际扫描由单 worker 串行执行
 	writeJSON(w, struct {
 		Queued []string             `json:"queued"`
 		Status []indexer.RootStatus `json:"status"`
-	}{Queued: queued, Status: s.indexQueue.Snapshot(ids)})
+	}{Queued: queued, Status: baseline})
 	return nil
 }
 

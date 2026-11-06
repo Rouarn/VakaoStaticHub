@@ -22,15 +22,21 @@ export interface RootIndexStatus {
   indexedFiles: number;
   /** 当前扫描目录，相对根目录 */
   currentDir: string;
-  /** 开始时间（Unix 毫秒），未扫描过为 0 */
+  /** 开始时间（Unix 毫秒），未扫描过为 0；每次扫描独立记录 */
   startedAt: number;
+  /** 结束时间（Unix 毫秒），未结束为 0 */
+  finishedAt: number;
+  /** 本次扫描耗时（毫秒），未结束为 0 */
+  durationMs: number;
   /** 失败原因，成功时为空字符串 */
   error: string;
 }
 
 /** 手动重建索引（POST /files/index）的入队结果 */
 export interface ReindexResult {
+  /** 本次真正入队的根目录 */
   queued: string[];
+  /** 入队前的状态，作为判断本次扫描是否结束的基线 */
   status: RootIndexStatus[];
 }
 

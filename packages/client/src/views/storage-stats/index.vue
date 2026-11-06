@@ -8,8 +8,9 @@ import {
   RefreshOutline,
   SyncOutline,
 } from '@vicons/ionicons5';
-import type { UsageStatsResult } from '@vakao/shared';
+import type { RootIndexStatus, UsageStatsResult } from '@vakao/shared';
 import { getUsageStats, syncFileIndex } from '@/api/files';
+import { getRootIndexStatus } from '@/api/roots';
 import { getErrorMessage } from '@/utils/http';
 import { formatBytes } from '@/utils/file-types';
 import { percentOf } from '@/utils/format';
@@ -40,12 +41,65 @@ async function load() {
   }
 }
 
-/** 重扫磁盘并刷新索引；完成后刷新统计 */
+const REBUILD_POLL_MS = 500;
+const REBUILD_TIMEOUT_MS = 120_000;
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
+function formatDuration(ms: number) {
+  if (ms < 1000) return `${ms} 毫秒`;
+  return `${(ms / 1000).toFixed(1)} 秒`;
+}
+
+/**
+ * 等待本次重建结束：入队响应带回的是入队前的状态，
+ * 以它的完成时间为基线，等到出现更新的完成记录才返回。
+ */
+async function waitRebuild(targets: RootIndexStatus[]) {
+  const baseline = new Map(targets.map((item) => [item.rootId, item.finishedAt]));
+  const deadline = Date.now() + REBUILD_TIMEOUT_MS;
+  let latest = targets;
+  while (Date.now() < deadline) {
+    await wait(REBUILD_POLL_MS);
+    latest = await getRootIndexStatus();
+    const pending = latest.some((item) => {
+      if (!baseline.has(item.rootId)) return false;
+      if (item.state === 'running') return true;
+      return item.finishedAt <= (baseline.get(item.rootId) ?? 0);
+    });
+    if (!pending) return latest;
+  }
+  return null;
+}
+
+/** 入队重建并等待本次扫描结束，按结果给出带文件数与耗时的提示 */
 async function rebuildIndex() {
   syncing.value = true;
   try {
-    await syncFileIndex();
-    message.success('文件索引已重建');
+    const result = await syncFileIndex();
+    if (result.status.length === 0) {
+      message.warning('没有可重建的资源目录');
+      return;
+    }
+    const latest = await waitRebuild(result.status);
+    if (!latest) {
+      message.warning('重建仍在进行，请稍后刷新查看');
+      return;
+    }
+    const ids = new Set(result.status.map((item) => item.rootId));
+    const finished = latest.filter((item) => ids.has(item.rootId));
+    const failed = finished.find((item) => item.state === 'failed');
+    if (failed) {
+      message.error(`重建失败：${failed.error || '未知原因'}`);
+      return;
+    }
+    const files = finished.reduce((sum, item) => sum + item.indexedFiles, 0);
+    const duration = finished.reduce((sum, item) => sum + item.durationMs, 0);
+    message.success(
+      `重建完成 · ${files} 个文件 · ${formatDuration(duration)}`,
+    );
     await load();
   } catch (e) {
     message.error(getErrorMessage(e, '重建索引失败'));

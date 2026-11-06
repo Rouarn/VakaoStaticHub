@@ -20,7 +20,7 @@ const (
 )
 
 // RootStatus 单个根目录的索引状态。只保存在内存中，进程重启后回到 idle，
-// 由启动扫描重新产生。
+// 由启动扫描重新产生。startedAt/finishedAt/durationMs 均为本次扫描的独立记录。
 type RootStatus struct {
 	RootID       string     `json:"rootId"`
 	State        IndexState `json:"state"`
@@ -28,6 +28,8 @@ type RootStatus struct {
 	IndexedFiles int        `json:"indexedFiles"`
 	CurrentDir   string     `json:"currentDir"`
 	StartedAt    int64      `json:"startedAt"`
+	FinishedAt   int64      `json:"finishedAt"`
+	DurationMs   int64      `json:"durationMs"`
 	Error        string     `json:"error"`
 }
 
@@ -190,6 +192,7 @@ func (q *Queue) run(rootID string) {
 
 // finish 收尾状态。scanned/indexed 为 0 时保留回调累计的进度。
 func (q *Queue) finish(rootID string, state IndexState, scanned, indexed int, currentDir string, started time.Time, err error) {
+	finished := time.Now()
 	q.mu.Lock()
 	st := q.statuses[rootID]
 	if st == nil {
@@ -205,6 +208,8 @@ func (q *Queue) finish(rootID string, state IndexState, scanned, indexed int, cu
 	}
 	st.CurrentDir = currentDir
 	st.StartedAt = started.UnixMilli()
+	st.FinishedAt = finished.UnixMilli()
+	st.DurationMs = finished.Sub(started).Milliseconds()
 	if err != nil {
 		st.Error = err.Error()
 	} else {
