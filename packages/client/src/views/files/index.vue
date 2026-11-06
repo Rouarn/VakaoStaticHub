@@ -121,6 +121,10 @@ const order = ref<'asc' | 'desc'>('desc');
 const viewMode = ref<'grid' | 'list'>('grid');
 
 const loading = ref(false);
+/** 加载中的提示文案：带上目标页码，让用户明确是在翻页加载而非卡住 */
+const loadingText = computed(() =>
+  page.value > 1 ? `正在加载第 ${page.value} 页…` : '正在加载…',
+);
 const error = ref('');
 const selected = ref<Set<string>>(new Set());
 /** 内容区滚动容器：翻页后回到顶部 */
@@ -660,9 +664,9 @@ function onShareCreated(link: ShareLink) {
       >
     </div>
 
-    <!-- 内容区 -->
-    <div ref="scrollRef" class="flex-1 min-h-0 overflow-y-auto pr-1">
-      <NSpin :show="loading">
+    <!-- 内容区：加载遮罩相对可视区域居中，不随内容高度或滚动位置偏移 -->
+    <div class="relative flex-1 min-h-0">
+      <div ref="scrollRef" class="h-full overflow-y-auto pr-1">
         <div v-if="error" class="glass-panel px-6 py-10 text-center">
           <p class="m-0 text-13px text-ink-sub">{{ error }}</p>
           <NButton class="mt-3" size="small" @click="reload">重试</NButton>
@@ -737,7 +741,16 @@ function onShareCreated(link: ShareLink) {
             @remove="openDelete"
           />
         </div>
-      </NSpin>
+      </div>
+
+      <div
+        v-if="loading"
+        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/70 dark:bg-black/40 backdrop-blur-[2px]"
+        aria-live="polite"
+      >
+        <NSpin size="large" />
+        <p class="m-0 text-13px text-ink-sub">{{ loadingText }}</p>
+      </div>
     </div>
 
     <!-- 分页（无数据时隐藏，避免 0 条却显示页码） -->
