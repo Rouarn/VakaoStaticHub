@@ -405,12 +405,26 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request, _ *Current
 	})
 	return nil
 }
+
+// logContract 在启动时逐条输出契约路由，最后再打一行汇总。
+// 每条都带方法、路径、中文说明、鉴权级别与实现状态，便于对照
+// 线上日志排查某个端点是否存在。
 func (s *Server) logContract() {
 	live := 0
 	for _, entry := range contractEntries {
+		status := "pending"
 		if entry.Implemented {
 			live++
+			status = "implemented"
 		}
+		s.log.Info("http route",
+			"method", entry.Method,
+			"path", entry.Path,
+			"summary", entry.Summary,
+			"auth", string(entry.Auth),
+			"authRequired", entry.Auth != Public,
+			"status", status,
+		)
 	}
 	s.log.Info("http contract loaded",
 		"routes", len(contractEntries),
