@@ -75,8 +75,8 @@ export default defineConfig({
     port: 9867,
     open: false, // 关闭内置打开行为，改用 listening 事件精确指定 Chrome
     proxy: {
-      // Go 服务端所有接口统一挂在 /api/v1 下
-      '/api': { target: 'http://localhost:9865', changeOrigin: true },
+      // Go 服务端所有接口统一挂在 /v1 下
+      '/v1': { target: 'http://localhost:9865', changeOrigin: true },
     },
   },
   build: {

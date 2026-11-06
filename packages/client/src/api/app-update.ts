@@ -172,7 +172,7 @@ export async function deleteApp(appKey: string) {
   };
 }
 
-/** 单个版本详情（GET /api/v1/app-versions/:id） */
+/** 单个版本详情（GET /v1/app-versions/:id） */
 export async function getVersion(id: number) {
   const version = await http.get<ServerAppVersion>(`/app-versions/${id}`);
   return toAppVersion(version);
@@ -396,5 +396,5 @@ export async function createVersion(
 }
 
 export function getApkDownloadUrl(id: number) {
-  return `${getApiBaseUrl()}/public/apps/versions/${id}/download`;
+  return `${getApiBaseUrl()}/a/versions/${id}/download`;
 }

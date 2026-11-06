@@ -10,7 +10,7 @@ import { buildRandomPhotoUrl } from '@/utils/file-url';
  * 布局底部状态栏（恢复旧版右下角的「随机图片」入口）
  *
  * - 左侧：当前根目录 / 分类，随切换实时变化，避免用户忘记自己在看哪个分类
- * - 右侧：点击后在新标签页打开 `<origin>/api/v1/public/photo?rootId=..&category=..`
+ * - 右侧：点击后在新标签页打开 `<origin>/v1/i/photo?rootId=..&category=..`
  *   接口直接返回图片字节流，不会跳转到列表 / 预览等前端路由
  *
  * 每次点击都会改写 href 并追加新的缓存键，避免浏览器复用上一次的图片；

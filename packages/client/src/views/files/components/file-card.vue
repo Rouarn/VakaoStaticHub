@@ -37,8 +37,6 @@ import { useVideoPoster } from '@/composables/use-video-poster';
  */
 const props = defineProps<{
   file: FileItem;
-  rootId: string;
-  category: string;
   selected: boolean;
   mode: 'grid' | 'list';
 }>();
@@ -58,13 +56,10 @@ const kind = computed(() => getFileKind(props.file.name));
 const extLabel = computed(() =>
   (getExtension(props.file.name) || 'FILE').toUpperCase(),
 );
-const urlParams = computed(() => ({
-  rootId: props.rootId,
-  category: props.category,
-  relPath: props.file.path,
-}));
-const previewUrl = computed(() => buildFileUrl(urlParams.value));
-const thumbUrl = computed(() => buildThumbUrl(urlParams.value, 480));
+const previewUrl = computed(() => buildFileUrl({ fileId: props.file.id }));
+const thumbUrl = computed(() =>
+  buildThumbUrl({ fileId: props.file.id }, 480),
+);
 
 const ICON_BY_KIND: Record<string, Component> = {
   image: ImageOutline,

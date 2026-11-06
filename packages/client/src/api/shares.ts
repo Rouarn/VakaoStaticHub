@@ -268,7 +268,7 @@ export async function listShareAccessLogs(token: string) {
 export async function getShareInfo(token: string) {
   try {
     const info = await publicHttp.get<ServerShareInfo>(
-      `/public/shares/${encodeURIComponent(token)}`,
+      `/s/${encodeURIComponent(token)}`,
     );
     return toShareInfo(info);
   } catch (error) {
@@ -279,7 +279,7 @@ export async function getShareInfo(token: string) {
 export async function unlockShare(token: string, password?: string) {
   try {
     const result = await publicHttp.post<{ token: string; expiresAt: string }>(
-      `/public/shares/${encodeURIComponent(token)}/unlock`,
+      `/s/${encodeURIComponent(token)}/unlock`,
       password ? { password } : {},
     );
     return { success: true as const, accessToken: result.token };
@@ -301,7 +301,7 @@ export async function fetchShareCollection(token: string, accessToken: string) {
         size: number;
         exists: boolean;
       }>;
-    }>(`/public/shares/${encodeURIComponent(token)}/files`, { accessToken });
+    }>(`/s/${encodeURIComponent(token)}/f`, { accessToken });
     return {
       shareType: 'collection',
       rootId: result.share.rootId,

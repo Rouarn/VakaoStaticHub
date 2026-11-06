@@ -28,7 +28,7 @@ import { formatBytes } from '@/utils/file-types';
  *   输入框只在内部壳里渲染；
  * - /file-preview（公开，独立整页）：不渲染页头/输入，只认 URL 参数，
  *   无参数时只显示图标提示，有参数时整页内联渲染。
- * 两者共用 ?file= / ?url= / rootId+category+path 的解析与预览组件分发。
+ * 两者共用 ?file= / ?url= / id+name 的解析与预览组件分发。
  */
 const route = useRoute();
 /** 内部还是外部：由路由名区分，决定是否显示输入工具栏 */
@@ -119,21 +119,14 @@ function applyQuery() {
     return;
   }
 
-  const { rootId, category, path } = route.query;
-  if (
-    typeof rootId === 'string' &&
-    typeof category === 'string' &&
-    typeof path === 'string' &&
-    rootId &&
-    category &&
-    path
-  ) {
-    const src = buildFileUrl({ rootId, category, relPath: path });
+  const { id, name } = route.query;
+  if (typeof id === 'string' && id) {
+    const src = buildFileUrl({ fileId: id });
     if (isInternal.value) url.value = src;
     setTarget(
       src,
-      buildFileUrl({ rootId, category, relPath: path, download: true }),
-      path.split('/').pop() ?? 'file',
+      buildFileUrl({ fileId: id, download: true }),
+      typeof name === 'string' && name ? name : `file-${id}`,
     );
   }
 }

@@ -29,6 +29,8 @@ export interface UsageStatsResult {
 
 /** 重复文件组中的单个文件 */
 export interface DuplicateFileItem {
+  /** 文件索引 id，用于拼接内容直链 `/v1/i/{id}` */
+  id: number;
   rootId: string;
   category: string;
   relPath: string;

@@ -83,27 +83,15 @@ function extOf(file: DuplicateFileItem) {
 }
 
 function thumbOf(file: DuplicateFileItem) {
-  return buildThumbUrl(
-    { rootId: file.rootId, category: file.category, relPath: file.relPath },
-    160,
-  );
+  return buildThumbUrl({ fileId: file.id }, 160);
 }
 
 /** 重复组内任意一张缩略图 → 打开整组预览，左右切换对比 */
 function openPreview(group: DuplicateGroup, index: number) {
   previewFiles.value = group.files.map((file) => ({
     filename: file.name,
-    src: buildFileUrl({
-      rootId: file.rootId,
-      category: file.category,
-      relPath: file.relPath,
-    }),
-    downloadSrc: buildFileUrl({
-      rootId: file.rootId,
-      category: file.category,
-      relPath: file.relPath,
-      download: true,
-    }),
+    src: buildFileUrl({ fileId: file.id }),
+    downloadSrc: buildFileUrl({ fileId: file.id, download: true }),
     size: file.size,
   }));
   previewIndex.value = index;

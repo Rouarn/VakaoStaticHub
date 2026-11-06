@@ -36,7 +36,7 @@ export function buildHitokotoUrl(req: HitokotoRequest) {
   if (req.categories.length > 0) query.set('c', req.categories.join('|'));
   if (req.encode === 'text') query.set('encode', 'text');
   const qs = query.toString();
-  return `${getApiBaseUrl()}/public/hitokoto${qs ? `?${qs}` : ''}`;
+  return `${getApiBaseUrl()}/hitokoto${qs ? `?${qs}` : ''}`;
 }
 
 /**
@@ -88,7 +88,7 @@ export async function requestHitokoto(req: HitokotoRequest) {
         : res.status === 502
           ? '一言上游暂不可用（后端代理返回 502）'
           : res.status === 404
-            ? '一言代理未启用：后端未匹配 /api/v1/public/hitokoto 路由（返回 404）'
+            ? '一言代理未启用：后端未匹配 /v1/hitokoto 路由（返回 404）'
             : `一言请求失败（HTTP ${res.status}）`,
     );
   }

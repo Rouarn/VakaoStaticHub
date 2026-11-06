@@ -72,6 +72,8 @@ export interface BrowseShortcut {
 }
 
 export interface FileItem {
+  /** 文件索引 id，用于拼接内容直链 `/v1/i/{id}` */
+  id: number;
   name: string;
   path: string;
   size: number;

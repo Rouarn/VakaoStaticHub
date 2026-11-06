@@ -28,16 +28,16 @@ function styleQuery(params: PlaceholderStyleParams) {
 }
 
 /**
- * 占位图接口地址：GET /placeholder/:width/:height
+ * 占位图接口地址：GET /v1/i/placeholder/:width/:height
  * 后端只输出 SVG；PNG/JPEG 由前端栅格化后下载。
  */
 export function buildPlaceholderUrl(params: PlaceholderParams) {
   const qs = styleQuery(params);
-  const base = `${getApiBaseUrl()}/public/placeholder/${Math.round(params.width)}/${Math.round(params.height)}`;
+  const base = `${getApiBaseUrl()}/i/placeholder/${Math.round(params.width)}/${Math.round(params.height)}`;
   return qs ? `${base}?${qs}` : base;
 }
 
-/** 默认（/placeholder）与方形（/placeholder/:size）两种快捷接口 */
+/** 默认（/v1/i/placeholder）与方形（/v1/i/placeholder/:size）两种快捷接口 */
 export function buildPlaceholderPresetUrl(
   kind: 'default' | 'square',
   size: number,
@@ -45,8 +45,8 @@ export function buildPlaceholderPresetUrl(
 ) {
   const base =
     kind === 'default'
-      ? `${getApiBaseUrl()}/public/placeholder`
-      : `${getApiBaseUrl()}/public/placeholder/${Math.round(size)}`;
+      ? `${getApiBaseUrl()}/i/placeholder`
+      : `${getApiBaseUrl()}/i/placeholder/${Math.round(size)}`;
   const qs = styleQuery(params);
   return qs ? `${base}?${qs}` : base;
 }

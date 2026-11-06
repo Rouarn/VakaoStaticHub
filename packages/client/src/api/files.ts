@@ -51,6 +51,7 @@ interface ServerStorageStat {
 
 function toFileItem(entry: ServerFileEntry): FileItem {
   return {
+    id: entry.id,
     name: entry.name,
     path: entry.relPath,
     size: entry.size,
@@ -199,6 +200,7 @@ export async function getDuplicateFiles(params: DuplicateFilesQuery = {}) {
       size: number;
       count: number;
       files: Array<{
+        id: number;
         rootId: string;
         category: string;
         relPath: string;
@@ -218,6 +220,7 @@ export async function getDuplicateFiles(params: DuplicateFilesQuery = {}) {
     size: group.size,
     count: group.count,
     files: group.files.map((file) => ({
+      id: file.id,
       rootId: file.rootId,
       category: file.category,
       relPath: file.relPath,

@@ -233,15 +233,10 @@ const previewIndex = ref(0);
 const previewTargets = ref<PreviewTarget[]>([]);
 
 function toTarget(file: FileItem): PreviewTarget {
-  const params = {
-    rootId: rootId.value,
-    category: category.value,
-    relPath: file.path,
-  };
   return {
     filename: file.name,
-    src: buildFileUrl(params),
-    downloadSrc: buildFileUrl({ ...params, download: true }),
+    src: buildFileUrl({ fileId: file.id }),
+    downloadSrc: buildFileUrl({ fileId: file.id, download: true }),
     size: file.size,
   };
 }
@@ -263,11 +258,7 @@ function openPreview(file: FileItem) {
 
 // —— 复制直链 ——
 async function copyLink(file: FileItem) {
-  const url = buildFileUrl({
-    rootId: rootId.value,
-    category: category.value,
-    relPath: file.path,
-  });
+  const url = buildFileUrl({ fileId: file.id });
   try {
     await navigator.clipboard.writeText(url);
     message.success('直链已复制');
@@ -621,8 +612,6 @@ function onShareCreated(link: ShareLink) {
             v-for="file in items"
             :key="file.path"
             :file="file"
-            :root-id="rootId"
-            :category="category"
             :selected="selected.has(file.path)"
             mode="grid"
             @toggle-select="toggleSelect"
@@ -640,8 +629,6 @@ function onShareCreated(link: ShareLink) {
             v-for="file in items"
             :key="file.path"
             :file="file"
-            :root-id="rootId"
-            :category="category"
             :selected="selected.has(file.path)"
             mode="list"
             @toggle-select="toggleSelect"
