@@ -727,55 +727,56 @@ onMounted(async () => {
       </template>
     </PageHeader>
 
-    <!-- 第 2 块：工具条区（状态筛选、全选、搜索、每页条数、刷新、创建） -->
-    <section class="glass-panel px-4 py-3 flex flex-col gap-3 shrink-0">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div class="flex items-center gap-1 flex-wrap">
-          <button
-            v-for="tab in statusTabs"
-            :key="tab.key"
-            class="px-2.5 py-1 rounded-full text-12px transition-colors cursor-pointer border-none"
-            :class="
-              statusFilter === tab.key
-                ? 'bg-brand-600 text-white'
-                : 'bg-white/50 dark:bg-white/8 text-ink-sub hover:text-brand-600 dark:hover:text-brand-400'
-            "
-            @click="statusFilter = tab.key"
-          >
-            {{ tab.label }}
-            <span class="tabular-nums opacity-80">{{ tab.count }}</span>
-          </button>
-        </div>
-
-        <div class="ml-auto flex items-center gap-2 flex-wrap">
-          <NCheckbox
-            :checked="allSelected"
-            :indeterminate="partiallySelected"
-            :disabled="links.length === 0"
-            @update:checked="toggleSelectAll"
-          >
-            {{ allSelected ? '取消全选' : '全选当前页' }}
-          </NCheckbox>
-          <span class="text-11px text-ink-sub tabular-nums">
-            已选 {{ selectedTotal }} 项 / 本页 {{ pageCount }} 项
-          </span>
-        </div>
+    <!-- 第 2 块：工具条区（状态筛选、搜索、全选） -->
+    <!-- 同一行按内容自适应：宽屏三组均分整行，窄屏逐项换行并占满整行，避免出现整块空白 -->
+    <section
+      class="glass-panel px-4 py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 shrink-0"
+    >
+      <div class="flex items-center gap-1 flex-wrap">
+        <button
+          v-for="tab in statusTabs"
+          :key="tab.key"
+          class="px-2.5 py-1 rounded-full text-12px transition-colors cursor-pointer border-none"
+          :class="
+            statusFilter === tab.key
+              ? 'bg-brand-600 text-white'
+              : 'bg-white/50 dark:bg-white/8 text-ink-sub hover:text-brand-600 dark:hover:text-brand-400'
+          "
+          @click="statusFilter = tab.key"
+        >
+          {{ tab.label }}
+          <span class="tabular-nums opacity-80">{{ tab.count }}</span>
+        </button>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- 外层定宽：NInput 自身 width:100% 会覆盖 UnoCSS 的 w-56，导致搜索框撑满并挤掉同行控件 -->
-        <div class="w-56 shrink-0">
-          <NInput
-            v-model:value="keyword"
-            size="small"
-            clearable
-            placeholder="搜索 token / 文件 / 分类"
-          >
-            <template #prefix
-              ><NIcon :size="15"><SearchOutline /></NIcon
-            ></template>
-          </NInput>
-        </div>
+      <!-- 外层定宽：NInput 自身 width:100% 会覆盖 UnoCSS 的宽度；窄屏整行占满，宽屏固定 224px -->
+      <div class="w-full shrink-0 sm:w-56">
+        <NInput
+          v-model:value="keyword"
+          size="small"
+          clearable
+          placeholder="搜索 token / 文件 / 分类"
+        >
+          <template #prefix
+            ><NIcon :size="15"><SearchOutline /></NIcon
+          ></template>
+        </NInput>
+      </div>
+
+      <div
+        class="flex w-full items-center justify-between gap-2 flex-wrap sm:w-auto sm:justify-start"
+      >
+        <NCheckbox
+          :checked="allSelected"
+          :indeterminate="partiallySelected"
+          :disabled="links.length === 0"
+          @update:checked="toggleSelectAll"
+        >
+          {{ allSelected ? '取消全选' : '全选当前页' }}
+        </NCheckbox>
+        <span class="text-11px text-ink-sub tabular-nums">
+          已选 {{ selectedTotal }} 项 / 本页 {{ pageCount }} 项
+        </span>
       </div>
     </section>
 
