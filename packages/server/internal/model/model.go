@@ -69,12 +69,6 @@ type DuplicateGroup struct {
 	Files []DuplicateFile `json:"files"`
 }
 
-type FileIndexResult struct {
-	Indexed    int   `json:"indexed"`
-	Removed    int   `json:"removed"`
-	DurationMS int64 `json:"durationMs"`
-}
-
 type FileConfig struct {
 	MaxUploadCount    int    `json:"maxUploadCount"`
 	ChunkSizeLimit    int64  `json:"chunkSizeLimit"`

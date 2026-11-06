@@ -40,6 +40,7 @@ import { getErrorMessage } from '@/utils/http';
 import { formatBytes, isImage } from '@/utils/file-types';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
+import { useIndexStatusStore } from '@/stores/modules/index-status';
 import FileCard from './components/file-card.vue';
 import UploadPanel from './components/upload-panel.vue';
 import RenameFileModal from './components/rename-file-modal.vue';
@@ -57,6 +58,7 @@ import type { PreviewTarget } from '@/components/preview/types';
  */
 const appStore = useAppStore();
 const categoryStore = useCategoryStore();
+const indexStatusStore = useIndexStatusStore();
 const message = useMessage();
 
 const defaultCategory = ref('TemporaryFile');
@@ -64,6 +66,13 @@ const manageShow = ref(false);
 const rootMgrShow = ref(false);
 
 const rootId = computed(() => appStore.activeRootId);
+/** 当前根目录的索引状态：扫描中时列表空态改为进度提示 */
+const rootIndexStatus = computed(() =>
+  indexStatusStore.statusOf(rootId.value),
+);
+const scanning = computed(() => rootIndexStatus.value?.state === 'running');
+const scannedFiles = computed(() => rootIndexStatus.value?.scannedFiles ?? 0);
+const scanningDir = computed(() => rootIndexStatus.value?.currentDir ?? '');
 const category = computed(
   () => categoryStore.activeCategory || defaultCategory.value,
 );
@@ -160,6 +169,7 @@ function scheduleLoad() {
 const reload = () => scheduleLoad();
 
 onMounted(async () => {
+  void indexStatusStore.start();
   try {
     const config = await getFileConfig();
     defaultCategory.value = config.defaultCategory;
@@ -207,6 +217,17 @@ watch(category, () => {
 });
 
 watch([page, pageSize, sort, order], () => scheduleLoad());
+
+// 当前根目录扫描结束（成功或失败）后自动刷新一次列表
+watch(
+  () => rootIndexStatus.value?.state,
+  (state, prev) => {
+    if (prev === 'running' && (state === 'done' || state === 'failed')) {
+      void categoryStore.loadCategories(rootId.value, { silent: true });
+      scheduleLoad();
+    }
+  },
+);
 
 watch(
   q,
@@ -602,18 +623,35 @@ function onShareCreated(link: ShareLink) {
           v-else-if="!loading && items.length === 0"
           class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
         >
-          <NEmpty
-            :description="q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'"
-          />
-          <NButton v-if="q" size="small" @click="q = ''">清除搜索</NButton>
-          <NButton
-            v-else
-            size="small"
-            type="primary"
-            @click="uploadShow = true"
-          >
-            上传第一个文件
-          </NButton>
+          <template v-if="scanning && !q">
+            <NSpin size="small" />
+            <p class="m-0 text-13px text-ink-sub">
+              正在扫描 · 已处理
+              <span class="tabular-nums">{{ scannedFiles }}</span> 个文件
+            </p>
+            <p
+              v-if="scanningDir"
+              class="m-0 max-w-full truncate text-11px text-ink-sub font-mono"
+            >
+              {{ scanningDir }}
+            </p>
+          </template>
+          <template v-else>
+            <NEmpty
+              :description="
+                q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'
+              "
+            />
+            <NButton v-if="q" size="small" @click="q = ''">清除搜索</NButton>
+            <NButton
+              v-else
+              size="small"
+              type="primary"
+              @click="uploadShow = true"
+            >
+              上传第一个文件
+            </NButton>
+          </template>
         </div>
 
         <div

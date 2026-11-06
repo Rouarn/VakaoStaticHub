@@ -37,7 +37,7 @@ type Server struct {
 	mux     *http.ServeMux
 	handler http.Handler
 
-	indexer    *indexer.Indexer
+	indexQueue *indexer.Queue
 	thumbnails *media.Thumbnailer
 	uploads    *upload.Manager
 
@@ -51,6 +51,7 @@ type Server struct {
 }
 
 func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version string) *Server {
+	ix := indexer.New(st)
 	s := &Server{
 		cfg:           cfg,
 		store:         st,
@@ -62,7 +63,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 		loginLimiter:  newRateLimiter(5, time.Minute),
 		shareLimiter:  newRateLimiter(10, time.Minute),
 		shareTokens:   sharelink.NewManager(cfg.JWTSecret, 30*time.Minute),
-		indexer:       indexer.New(st),
+		indexQueue:    indexer.NewQueue(ix, st, logger),
 		thumbnails:    media.NewThumbnailer(cfg.CacheDir, cfg.MaxImagePixels, cfg.MaxImageDimension, cfg.ThumbConcurrency),
 		uploads:       upload.New(cfg.UploadTempDir),
 		hitokotoCache: hitokotoCache{entries: make(map[string]hitokotoEntry)},
@@ -174,6 +175,7 @@ func (s *Server) routes() {
 	s.mux.Handle("DELETE /v1/roots/{id}", s.user(s.handleDeleteRoot))
 	s.mux.Handle("GET /v1/roots/browse", s.user(s.handleBrowse))
 	s.mux.Handle("GET /v1/roots/browse/bounds", s.user(s.handleBrowseBounds))
+	s.mux.Handle("GET /v1/roots/index-status", s.user(s.handleRootIndexStatus))
 
 	s.mux.Handle("GET /v1/files/config", s.user(s.handleFileConfig))
 	s.mux.Handle("GET /v1/files", s.user(s.handleListFiles))
@@ -240,23 +242,25 @@ func (s *Server) routes() {
 	s.mountSPA()
 }
 
-// RunIndexer 先执行一次初始扫描，之后按
-// 配置的间隔刷新索引。它会阻塞直到 ctx 被取消，
+// RunIndexer 启动单 worker 索引队列，先入队一次初始扫描，之后按
+// 配置的间隔把全部根目录重新入队。同一根目录重复入队会被合并，
+// 因此这里不需要等待上一轮结束。它会阻塞直到 ctx 被取消，
 // 应在独立的 goroutine 中启动。
 func (s *Server) RunIndexer(ctx context.Context) {
+	s.indexQueue.Start(ctx)
 	scan := func() {
-		result, err := s.indexer.ScanAll(ctx)
+		roots, err := s.store.ListRoots(ctx)
 		if err != nil {
 			if ctx.Err() == nil {
 				s.log.Error("index scan failed", "error", err)
 			}
 			return
 		}
-		s.log.Info("index refreshed",
-			"indexed", result.Indexed,
-			"removed", result.Removed,
-			"durationMs", result.DurationMS,
-		)
+		ids := make([]string, 0, len(roots))
+		for _, root := range roots {
+			ids = append(ids, root.ID)
+		}
+		s.indexQueue.EnqueueAll(ids)
 	}
 	scan()
 	ticker := time.NewTicker(s.cfg.CacheRefresh)

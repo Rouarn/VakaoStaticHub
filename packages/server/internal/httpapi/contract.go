@@ -66,6 +66,7 @@ var contractEntries = []ContractEntry{
 	{Route{"DELETE", "/v1/roots/{id}", User, "删除空资源根目录"}, true},
 	{Route{"GET", "/v1/roots/browse", User, "浏览服务器目录（path）"}, true},
 	{Route{"GET", "/v1/roots/browse/bounds", User, "浏览授权边界与根目录快捷入口"}, true},
+	{Route{"GET", "/v1/roots/index-status", User, "所有根目录的索引状态（扫描进度）"}, true},
 
 	// 文件
 	{Route{"GET", "/v1/files/config", User, "面板的上传与图片限制"}, true},
@@ -76,7 +77,7 @@ var contractEntries = []ContractEntry{
 	{Route{"DELETE", "/v1/files/categories", User, "删除分类（recursive 递归）"}, true},
 	{Route{"GET", "/v1/files/stats", User, "按资源根目录与分类统计的存储用量"}, true},
 	{Route{"GET", "/v1/files/duplicates", User, "重复内容分组"}, true},
-	{Route{"POST", "/v1/files/index", User, "重新扫描磁盘并刷新索引"}, true},
+	{Route{"POST", "/v1/files/index", User, "入队重建索引（rootId 可选），返回各根目录状态"}, true},
 	{Route{"POST", "/v1/files/batch-delete", User, "批量删除文件"}, true},
 	{Route{"POST", "/v1/files/batch-move", User, "批量移动文件到其他分类"}, true},
 	{Route{"PATCH", "/v1/files/rename", User, "重命名单个文件"}, true},

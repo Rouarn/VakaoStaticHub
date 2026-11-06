@@ -10,6 +10,30 @@ export interface ResourceRoot {
   path: string;
 }
 
+/** 根目录索引任务状态（GET /roots/index-status，仅内存态） */
+export type RootIndexState = 'idle' | 'running' | 'done' | 'failed';
+
+export interface RootIndexStatus {
+  rootId: string;
+  state: RootIndexState;
+  /** 已发现（遍历到）的文件数 */
+  scannedFiles: number;
+  /** 已写入索引的文件数 */
+  indexedFiles: number;
+  /** 当前扫描目录，相对根目录 */
+  currentDir: string;
+  /** 开始时间（Unix 毫秒），未扫描过为 0 */
+  startedAt: number;
+  /** 失败原因，成功时为空字符串 */
+  error: string;
+}
+
+/** 手动重建索引（POST /files/index）的入队结果 */
+export interface ReindexResult {
+  queued: string[];
+  status: RootIndexStatus[];
+}
+
 /**
  * 服务器目录浏览（GET /roots/browse）
  *

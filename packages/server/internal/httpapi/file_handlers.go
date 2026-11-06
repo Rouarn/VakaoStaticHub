@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"vakao-static-hub/server/internal/indexer"
 	"vakao-static-hub/server/internal/media"
 	"vakao-static-hub/server/internal/model"
 	"vakao-static-hub/server/internal/storage"
@@ -256,11 +257,41 @@ func (s *Server) handleDuplicates(w http.ResponseWriter, r *http.Request, _ *Cur
 }
 
 func (s *Server) handleReindex(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
-	result, err := s.indexer.ScanAll(r.Context())
-	if err != nil {
-		return internalError(err)
+	var req struct {
+		RootID string `json:"rootId"`
 	}
-	writeJSON(w, result)
+	if err := decodeJSON(w, r, &req); err != nil {
+		return err
+	}
+
+	var roots []model.ResourceRoot
+	if req.RootID != "" {
+		root, err := s.store.RootByID(r.Context(), req.RootID)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return notFound("资源根目录不存在")
+			}
+			return internalError(err)
+		}
+		roots = []model.ResourceRoot{*root}
+	} else {
+		var err error
+		roots, err = s.store.ListRoots(r.Context())
+		if err != nil {
+			return internalError(err)
+		}
+	}
+
+	ids := make([]string, 0, len(roots))
+	for _, root := range roots {
+		ids = append(ids, root.ID)
+	}
+	queued := s.indexQueue.EnqueueAll(ids)
+	// 语义改为「入队」：立即返回，实际扫描由单 worker 串行执行
+	writeJSON(w, struct {
+		Queued []string             `json:"queued"`
+		Status []indexer.RootStatus `json:"status"`
+	}{Queued: queued, Status: s.indexQueue.Snapshot(ids)})
 	return nil
 }
 

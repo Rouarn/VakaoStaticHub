@@ -12,9 +12,11 @@ import {
 } from '@vicons/ionicons5';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import DirectoryPicker from '@/components/common/directory-picker.vue';
+import { syncFileIndex } from '@/api/files';
 import { SYSTEM_ROOT_IDS } from '@vakao/shared';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
+import { useIndexStatusStore } from '@/stores/modules/index-status';
 import { getErrorMessage } from '@/utils/http';
 
 /**
@@ -32,6 +34,7 @@ const showProxy = computed({
 const message = useMessage();
 const appStore = useAppStore();
 const categoryStore = useCategoryStore();
+const indexStatusStore = useIndexStatusStore();
 
 const rootForm = reactive({ id: '', name: '', path: '' });
 const rootFormError = ref('');
@@ -92,6 +95,40 @@ function autoRootId(name: string) {
   return `root-${Date.now().toString(36)}`;
 }
 
+/** 每行右侧的扫描状态：文案、颜色与失败原因 */
+function rootStatus(rootId: string) {
+  return indexStatusStore.statusOf(rootId);
+}
+
+function rootStatusText(rootId: string) {
+  const status = indexStatusStore.statusOf(rootId);
+  if (!status || status.state === 'idle') return '待扫描';
+  if (status.state === 'running') {
+    return `扫描中 · 已处理 ${status.scannedFiles} 个`;
+  }
+  if (status.state === 'done') return `已索引 ${status.indexedFiles} 个`;
+  return '扫描失败';
+}
+
+function rootStatusClass(rootId: string) {
+  const state = indexStatusStore.statusOf(rootId)?.state;
+  if (state === 'running') return 'text-amber-500';
+  if (state === 'done') return 'text-emerald-500';
+  if (state === 'failed') return 'text-red-500';
+  return 'text-ink-sub';
+}
+
+/** 失败重试：只把该根目录重新入队 */
+async function retryRoot(rootId: string) {
+  try {
+    await syncFileIndex(rootId);
+    message.success('已加入扫描队列');
+    await indexStatusStore.start();
+  } catch (e) {
+    message.error(getErrorMessage(e, '重新扫描失败'));
+  }
+}
+
 async function submitRoot() {
   const name = rootForm.name.trim();
   const path = rootForm.path.trim();
@@ -112,6 +149,8 @@ async function submitRoot() {
       await categoryStore.addRoot({ id, name, path });
       appStore.setActiveRoot(id);
       await categoryStore.loadCategories(id);
+      // 服务端已把新根目录排入扫描队列，这里开始轮询进度
+      void indexStatusStore.start();
       message.success(`根目录「${name}」已创建`);
     } else {
       await categoryStore.editRoot(rootEditId.value, { name, path });
@@ -153,7 +192,10 @@ async function confirmDeleteRoot() {
 watch(
   () => props.show,
   (v) => {
-    if (v) openCreateRoot();
+    if (v) {
+      openCreateRoot();
+      void indexStatusStore.start();
+    }
   },
 );
 </script>
@@ -302,6 +344,34 @@ watch(
                 {{ root.path }}
               </p>
             </div>
+            <div class="max-w-40 shrink-0 text-right">
+              <span
+                class="text-11px"
+                :class="rootStatusClass(root.id)"
+                :title="rootStatus(root.id)?.error || ''"
+              >
+                {{ rootStatusText(root.id) }}
+              </span>
+              <p
+                v-if="
+                  rootStatus(root.id)?.state === 'running' &&
+                  rootStatus(root.id)?.currentDir
+                "
+                class="m-0 truncate text-10px text-ink-sub font-mono"
+              >
+                {{ rootStatus(root.id)?.currentDir }}
+              </p>
+            </div>
+            <NButton
+              v-if="rootStatus(root.id)?.state === 'failed'"
+              size="tiny"
+              quaternary
+              type="error"
+              :title="rootStatus(root.id)?.error || '重新扫描'"
+              @click="retryRoot(root.id)"
+            >
+              重试
+            </NButton>
             <div class="flex items-center gap-1 shrink-0">
               <NButton
                 size="tiny"

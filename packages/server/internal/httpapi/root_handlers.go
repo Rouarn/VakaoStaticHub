@@ -80,7 +80,23 @@ func (s *Server) handleCreateRoot(w http.ResponseWriter, r *http.Request, user *
 		return internalError(err)
 	}
 	s.audit(r, user, "root.create", "root", req.ID, map[string]any{"path": created.Path})
+	// 新根目录立即排队扫描，不阻塞创建请求
+	s.indexQueue.Enqueue(created.ID)
 	writeJSON(w, created)
+	return nil
+}
+
+// handleRootIndexStatus 一次返回全部根目录的索引状态。
+func (s *Server) handleRootIndexStatus(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
+	roots, err := s.store.ListRoots(r.Context())
+	if err != nil {
+		return internalError(err)
+	}
+	ids := make([]string, 0, len(roots))
+	for _, root := range roots {
+		ids = append(ids, root.ID)
+	}
+	writeJSON(w, s.indexQueue.Snapshot(ids))
 	return nil
 }
 

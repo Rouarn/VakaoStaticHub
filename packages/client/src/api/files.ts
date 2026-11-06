@@ -8,6 +8,7 @@ import type {
   FileConfig,
   FileItem,
   PagedResult,
+  ReindexResult,
   UsageCategory,
   UsageRoot,
   UsageStatsResult,
@@ -340,16 +341,14 @@ export async function cancelChunkUpload(uploadId: string) {
   return { success: true };
 }
 
-/** 强制重建文件索引：重扫磁盘并刷新数据库 */
-export async function syncFileIndex() {
-  const result = await http.post<{
-    indexed: number;
-    removed: number;
-    durationMs: number;
-  }>('/files/index', {});
-  return {
-    message: `索引完成：新增 ${result.indexed} 条，移除 ${result.removed} 条，耗时 ${result.durationMs}ms`,
-  };
+/**
+ * 重建文件索引（POST /files/index）
+ *
+ * 语义为「入队」：立即返回，实际扫描由服务端单 worker 串行执行。
+ * 省略 rootId 时重建全部根目录；返回本次真正入队的根目录与当前状态。
+ */
+export function syncFileIndex(rootId?: string) {
+  return http.post<ReindexResult>('/files/index', rootId ? { rootId } : {});
 }
 
 // ==================== 文件操作 ====================

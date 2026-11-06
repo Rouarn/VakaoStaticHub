@@ -3,6 +3,7 @@ import type {
   BrowseBoundsResult,
   BrowseDirectoriesResult,
   ResourceRoot,
+  RootIndexStatus,
 } from '@vakao/shared';
 
 interface ServerRoot {
@@ -73,4 +74,9 @@ export async function updateRoot(
 export async function deleteRoot(id: string) {
   await http.delete(`/roots/${encodeURIComponent(id)}`);
   return { success: true };
+}
+
+/** 全部根目录的索引状态（GET /v1/roots/index-status） */
+export function getRootIndexStatus() {
+  return http.get<RootIndexStatus[]>('/roots/index-status');
 }

@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"vakao-static-hub/server/internal/model"
 	"vakao-static-hub/server/internal/store"
@@ -26,31 +25,27 @@ func New(st *store.Store) *Indexer {
 	return &Indexer{store: st}
 }
 
-func (ix *Indexer) ScanAll(ctx context.Context) (model.FileIndexResult, error) {
-	started := time.Now()
-	roots, err := ix.store.ListRoots(ctx)
-	if err != nil {
-		return model.FileIndexResult{}, err
-	}
-	var result model.FileIndexResult
-	for _, root := range roots {
-		indexed, removed, err := ix.ScanRoot(ctx, root)
-		if err != nil {
-			return model.FileIndexResult{}, err
-		}
-		result.Indexed += indexed
-		result.Removed += removed
-	}
-	result.DurationMS = time.Since(started).Milliseconds()
-	return result, nil
-}
+// ProgressFunc 扫描过程中的进度回调：已发现文件数、已写入索引数、当前目录。
+// currentDir 为相对根目录的路径（如「摄影/相机」），根目录本身为空字符串。
+type ProgressFunc func(scanned, indexed int, currentDir string)
 
-func (ix *Indexer) ScanRoot(ctx context.Context, root model.ResourceRoot) (indexed, removed int, err error) {
+// ScanRootWithProgress 扫描单个根目录，并在遍历与计算哈希时回调进度。
+func (ix *Indexer) ScanRootWithProgress(
+	ctx context.Context,
+	root model.ResourceRoot,
+	progress ProgressFunc,
+) (indexed, removed int, err error) {
 	metas, err := ix.store.FileMetas(ctx, root.ID)
 	if err != nil {
 		return 0, 0, err
 	}
-	entries, err := scanRootDirectory(root)
+	scanned := 0
+	entries, err := scanRootDirectory(root, func(currentDir string) {
+		scanned++
+		if progress != nil {
+			progress(scanned, 0, currentDir)
+		}
+	})
 	if err != nil {
 		return 0, 0, err
 	}
@@ -59,6 +54,9 @@ func (ix *Indexer) ScanRoot(ctx context.Context, root model.ResourceRoot) (index
 		meta, ok := metas[key]
 		if ok && meta.Size == entries[i].Size && meta.MTimeMS == entries[i].MTime.UnixMilli() && meta.ContentHash != "" {
 			entries[i].ContentHash = meta.ContentHash
+			if progress != nil {
+				progress(scanned, i+1, entryDir(entries[i]))
+			}
 			continue
 		}
 		hash, err := hashFile(filepath.Join(root.Path, entries[i].Category, filepath.FromSlash(entries[i].RelPath)))
@@ -66,9 +64,12 @@ func (ix *Indexer) ScanRoot(ctx context.Context, root model.ResourceRoot) (index
 			// 无法读取的文件仍会保留索引但不带哈希；提供该文件时
 			// 仍会返回有用的错误。
 			entries[i].ContentHash = ""
-			continue
+		} else {
+			entries[i].ContentHash = hash
 		}
-		entries[i].ContentHash = hash
+		if progress != nil {
+			progress(scanned, i+1, entryDir(entries[i]))
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return 0, 0, err
@@ -76,9 +77,19 @@ func (ix *Indexer) ScanRoot(ctx context.Context, root model.ResourceRoot) (index
 	return ix.store.ReplaceRootIndex(ctx, root.ID, entries)
 }
 
+// entryDir 返回文件所属目录（相对根目录），用于展示当前扫描位置。
+func entryDir(entry model.FileEntry) string {
+	rel := entry.RelPath
+	if idx := strings.LastIndex(rel, "/"); idx >= 0 {
+		return entry.Category + "/" + rel[:idx]
+	}
+	return entry.Category
+}
+
 // scanRootDirectory 为每个普通文件返回一条记录。分类即
 // 第一层目录，其下所有层级都属于 rel_path。
-func scanRootDirectory(root model.ResourceRoot) ([]model.FileEntry, error) {
+// onFile 在每发现一个文件时回调，参数为该文件所在目录（相对根目录）。
+func scanRootDirectory(root model.ResourceRoot, onFile func(currentDir string)) ([]model.FileEntry, error) {
 	top, err := os.ReadDir(root.Path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -128,6 +139,13 @@ func scanRootDirectory(root model.ResourceRoot) ([]model.FileEntry, error) {
 				Size:      info.Size(),
 				MTime:     info.ModTime(),
 			})
+			if onFile != nil {
+				currentDir := category
+				if dir := filepath.ToSlash(filepath.Dir(rel)); dir != "." {
+					currentDir = category + "/" + dir
+				}
+				onFile(currentDir)
+			}
 			return nil
 		})
 		if walkErr != nil {
