@@ -632,25 +632,17 @@ onBeforeUnmount(() => {
             v-else-if="phase === 'ready' && info"
             class="glass-panel px-5 py-5 flex flex-1 min-h-0 flex-col gap-3"
           >
-            <!-- 卡片信息收成一行：标题、路径自适应截断，操作按钮右对齐 -->
-            <div class="flex items-center gap-2 shrink-0">
-              <p class="m-0 shrink-0 text-14px font-600 text-ink">
+            <div class="flex items-center gap-2 flex-wrap shrink-0">
+              <p class="m-0 text-14px font-600 text-ink">
                 文件集合
                 <span class="text-11px text-ink-sub"
                   >（{{ collectionFiles.length }} 个）</span
                 >
               </p>
-              <p
-                v-if="collectionCategory"
-                class="m-0 min-w-0 flex-1 truncate text-11px text-ink-sub"
-                :title="`${collectionRootId} / ${collectionCategory}`"
-              >
-                {{ collectionRootId }} / {{ collectionCategory }}
-              </p>
               <NButton
                 size="tiny"
                 quaternary
-                class="ml-auto shrink-0"
+                class="ml-auto"
                 @click="loadCollection"
               >
                 <template #icon
@@ -659,6 +651,13 @@ onBeforeUnmount(() => {
                 刷新列表
               </NButton>
             </div>
+
+            <p
+              v-if="collectionCategory"
+              class="m-0 shrink-0 text-11px text-ink-sub truncate"
+            >
+              {{ collectionRootId }} / {{ collectionCategory }}
+            </p>
 
             <div class="relative flex flex-1 min-h-0 flex-col">
               <div class="share-scroll flex flex-1 min-h-0 flex-col">
