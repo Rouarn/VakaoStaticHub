@@ -179,10 +179,11 @@ func (s *Server) handleHitokoto(w http.ResponseWriter, r *http.Request, _ *Curre
 	return nil
 }
 
-// handleRandomPhoto 从随机图池中返回一张图片的字节流。
-// 与旧版语义一致：rootId / category 均可省略，省略 rootId
-// 表示跨根目录，省略 category 表示全部范围；无宽高时输出
-// 原图，带宽高时按 webp（默认质量 80）生成缩略图。
+// handleRandomPhoto 从随机图池中轮转返回一张图片的字节流。
+// rootId / category 均可省略：省略 rootId 表示跨根目录，
+// 省略 category 表示全部范围；每个范围内部按打乱后的队列
+// 逐张发出，发完重新洗牌。无宽高时输出原图，带宽高时按
+// webp（默认质量 80）生成缩略图。
 func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	query := r.URL.Query()
 	rootID := strings.TrimSpace(query.Get("rootId"))
@@ -233,7 +234,7 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 		}
 	}
 
-	entry, err := s.store.RandomImage(r.Context(), rootID, category)
+	entry, err := s.photos.Next(r.Context(), s.store, rootID, category)
 	if errors.Is(err, store.ErrNotFound) {
 		return notFound(randomImageMissingMessage(rootID, category))
 	}
@@ -258,6 +259,7 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 	if err != nil || info.IsDir() {
 		return notFound("image file is missing on disk")
 	}
+	w.Header().Set("X-Photo-Id", strconv.FormatInt(entry.ID, 10))
 
 	// 旧版只有宽高同时存在时才缩放；缺任一项或明确要求
 	// 原图时直接输出原始字节。

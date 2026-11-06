@@ -44,6 +44,7 @@ type Server struct {
 	shareTokens   *sharelink.Manager
 	shareLimiter  *rateLimiter
 	hitokotoCache hitokotoCache
+	photos        *photoPools
 	qps           qpsMeter
 
 	loginLimiter *rateLimiter
@@ -65,6 +66,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 		thumbnails:    media.NewThumbnailer(cfg.CacheDir, cfg.MaxImagePixels, cfg.MaxImageDimension, cfg.ThumbConcurrency),
 		uploads:       upload.New(cfg.UploadTempDir),
 		hitokotoCache: hitokotoCache{entries: make(map[string]hitokotoEntry)},
+		photos:        newPhotoPools(),
 	}
 	s.routes()
 	s.handler = chain(s.mux,

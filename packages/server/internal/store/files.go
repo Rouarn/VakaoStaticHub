@@ -420,9 +420,9 @@ func (s *Store) CountFiles(ctx context.Context) (int, error) {
 // tif 是 tiff 的常见别名，缩略图同样支持。
 var randomImageExtensions = []string{"jpg", "jpeg", "png", "gif", "webp", "avif", "tiff", "tif"}
 
-// RandomImage 随机选取一张已索引图片。rootID 与 category
-// 均可省略：省略 rootID 表示跨根目录，省略 category 表示全部范围。
-func (s *Store) RandomImage(ctx context.Context, rootID, category string) (model.FileEntry, error) {
+// imagePoolConditions 构造随机图池的过滤条件。
+// rootID / category 为空时不收窄范围。
+func imagePoolConditions(rootID, category string) ([]string, []any) {
 	where := []string{"LOWER(extension) IN (?, ?, ?, ?, ?, ?, ?, ?)"}
 	args := make([]any, 0, len(randomImageExtensions)+2)
 	for _, extension := range randomImageExtensions {
@@ -436,12 +436,37 @@ func (s *Store) RandomImage(ctx context.Context, rootID, category string) (model
 		where = append(where, "category = ?")
 		args = append(args, category)
 	}
-	query := `SELECT id, root_id, category, rel_path, name, extension, size, mtime_ms,
-	                 COALESCE(content_hash, ''), created_at, updated_at
-	          FROM file_entries WHERE ` + strings.Join(where, " AND ") +
-		` ORDER BY RANDOM() LIMIT 1`
+	return where, args
+}
 
-	entry, err := scanFileEntry(s.Reader.QueryRowContext(ctx, query, args...))
+// ImageIDs 返回随机图池内的图片记录 id，按 id 升序。
+// 调用方可用它判断池成员是否发生变化。
+func (s *Store) ImageIDs(ctx context.Context, rootID, category string) ([]int64, error) {
+	where, args := imagePoolConditions(rootID, category)
+	rows, err := s.Reader.QueryContext(ctx,
+		`SELECT id FROM file_entries WHERE `+strings.Join(where, " AND ")+` ORDER BY id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	ids := make([]int64, 0, 64)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// FileByID 按主键读取一条文件记录。
+func (s *Store) FileByID(ctx context.Context, id int64) (model.FileEntry, error) {
+	entry, err := scanFileEntry(s.Reader.QueryRowContext(ctx,
+		`SELECT id, root_id, category, rel_path, name, extension, size, mtime_ms,
+		        COALESCE(content_hash, ''), created_at, updated_at
+		 FROM file_entries WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.FileEntry{}, ErrNotFound
 	}
