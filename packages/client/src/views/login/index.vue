@@ -16,13 +16,19 @@ const authStore = useAuthStore();
 const username = ref('');
 const password = ref('');
 const loading = ref(false);
+/**
+ * 登录成功后立即锁定。
+ * loading 只覆盖请求进行中，请求返回后到路由跳转完成之间页面仍可点击，
+ * 仅靠 loading 会让连点/连按回车重复提交并重复弹出「欢迎回来」。
+ */
+const submitted = ref(false);
 /** 用户名去空格后非空且密码非空才允许提交；为空时按钮禁用、回车静默忽略 */
 const canSubmit = computed(
   () => username.value.trim().length > 0 && password.value.length > 0,
 );
 
 function submit() {
-  if (loading.value || !canSubmit.value) return;
+  if (loading.value || submitted.value || !canSubmit.value) return;
   void doLogin();
 }
 
@@ -37,6 +43,7 @@ async function doLogin() {
   try {
     const resp = await login(username.value.trim(), password.value);
     authStore.setAuth(resp);
+    submitted.value = true;
     message.success(`欢迎回来，${resp.user.username}`);
     const redirect = route.query.redirect;
     void router.replace(
@@ -102,7 +109,7 @@ async function doLogin() {
             block
             class="login-submit"
             :loading="loading"
-            :disabled="!canSubmit"
+            :disabled="!canSubmit || loading"
             @click="submit"
           >
             登 录
