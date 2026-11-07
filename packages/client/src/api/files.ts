@@ -13,7 +13,7 @@ import type {
   UsageRoot,
   UsageStatsResult,
 } from '@vakao/shared';
-import type { RequestOptions } from '@vakao-ui/axios';
+import type { RequestOptions } from '@vakao/axios';
 import { http } from '@/utils/http';
 
 interface ServerFileEntry {

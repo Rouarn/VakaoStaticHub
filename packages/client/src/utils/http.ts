@@ -1,10 +1,10 @@
-import { createClient, RequestError } from '@vakao-ui/axios';
+import { createClient, RequestError } from '@vakao/axios';
 import { useAuthStore } from '@/stores/modules/auth';
 import router from '@/router';
 import { getApiBaseUrl } from '@/utils/file-url';
 
 /**
- * 全局请求客户端（基于 @vakao-ui/axios）
+ * 全局请求客户端（基于 @vakao/axios）
  *
  * - 服务端所有 JSON 响应统一为 { code, message, data }，请求库默认契约
  *   （successCode=200、unwrap=body.data）直接解包真实信封

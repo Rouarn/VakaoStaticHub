@@ -1,4 +1,4 @@
-import { RequestError } from '@vakao-ui/axios';
+import { RequestError } from '@vakao/axios';
 import type {
   CreateShareLinkParams,
   ShareAccessLog,

@@ -11,7 +11,7 @@ importers:
       '@eslint/js':
         specifier: ^9.39.5
         version: 9.39.5
-      '@vakao-ui/scripts-utils':
+      '@vakao/scripts-utils':
         specifier: ^0.0.3
         version: 0.0.3
       concurrently:
@@ -38,7 +38,7 @@ importers:
 
   packages/client:
     dependencies:
-      '@vakao-ui/axios':
+      '@vakao/axios':
         specifier: ^0.0.2
         version: 0.0.2(axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2))
       '@vakao/shared':
@@ -745,13 +745,13 @@ packages:
     peerDependencies:
       vite: ^5.0.0-0 || ^6.0.0-0 || ^7.0.0-0 || ^8.0.0-0
 
-  '@vakao-ui/axios@0.0.2':
-    resolution: {integrity: sha512-nPs0KZNITawqW1P5WZQwcfXGhGsPBiywpqmBOkMNaC3gR71mv2ogw9p3890ZdwGeenL6Yu9Lz8w3t7tZC3ggLA==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao-ui/axios/-/@vakao-ui/axios-0.0.2.tgz}
+  '@vakao/axios@0.0.2':
+    resolution: {integrity: sha512-LSy3oB4JoyiPjmyzNwX7cdEPUcdg41fNyW8AGVoj0fhBoXJFxCqHKEsQUmUm8ne94sXtw+L9rm9EbG4yU8LTGw==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao/axios/-/@vakao/axios-0.0.2.tgz}
     peerDependencies:
       axios: '>=1.0.0'
 
-  '@vakao-ui/scripts-utils@0.0.3':
-    resolution: {integrity: sha512-ss52FJBvLqB8QdZwe8D7MGOB88cwQFIFhGEXYW/phq4t3peOqmUFGQUSX13WoNb8hLgonpT3vlHV9xhWeDbyGg==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao-ui/scripts-utils/-/@vakao-ui/scripts-utils-0.0.3.tgz}
+  '@vakao/scripts-utils@0.0.3':
+    resolution: {integrity: sha512-NyvKDgZdwqC8gEnQVbhh7/JW1J8OsCBaWj/GA4gUTBSBh0qwGrIgcQopcergetnXEIW7ev7uh3V3B0rGcTQyXw==, tarball: https://packages.aliyun.com/676d377c721f4dc7be6ca65a/npm/npm-registry/@vakao/scripts-utils/-/@vakao/scripts-utils-0.0.3.tgz}
     engines: {node: '>=18'}
 
   '@vicons/ionicons5@0.13.0':
@@ -2855,11 +2855,11 @@ snapshots:
       - ocache
       - srvx
 
-  '@vakao-ui/axios@0.0.2(axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2))':
+  '@vakao/axios@0.0.2(axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2))':
     dependencies:
       axios: 1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
 
-  '@vakao-ui/scripts-utils@0.0.3': {}
+  '@vakao/scripts-utils@0.0.3': {}
 
   '@vicons/ionicons5@0.13.0': {}
 

@@ -12,7 +12,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
-    "@vakao-ui/axios": "^0.0.2",
+    "@vakao/axios": "^0.0.2",
     "@vakao/shared": "workspace:*",
     "@vueuse/core": "^14.4.0",
     "axios": "^1.20.0",

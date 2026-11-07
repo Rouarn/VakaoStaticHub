@@ -14,7 +14,7 @@ import {
   ShieldCheckmarkOutline,
   TimeOutline,
 } from '@vicons/ionicons5';
-import { RequestError } from '@vakao-ui/axios';
+import { RequestError } from '@vakao/axios';
 import type { ShareInfo } from '@vakao/shared';
 import {
   fetchShareCollection,

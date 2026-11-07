@@ -6,5 +6,5 @@ allowBuilds:
   esbuild: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
-  - '@vakao-ui/scripts-utils@0.0.2 || 0.0.3'
-  - '@vakao-ui/axios@0.0.2'
+  - '@vakao/scripts-utils@0.0.2 || 0.0.3'
+  - '@vakao/axios@0.0.2'

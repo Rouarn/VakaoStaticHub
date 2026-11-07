@@ -19,7 +19,7 @@
 | UI 组件  | NaiveUI 2                                      | 组件由 unplugin-vue-components + NaiveUiResolver 自动按需导入           |
 | 状态管理 | Pinia 3 + pinia-plugin-persistedstate          | 认证状态持久化到 localStorage（key `auth`）                             |
 | 路由     | Vue Router                                     | 路由守卫 + 认证拦截                                                     |
-| HTTP     | `@vakao-ui/axios`（封装于 `src/utils/http.ts`） | 自动附带 Token、解包 `{ code, message, data }` 统一信封、401 跳登录     |
+| HTTP     | `@vakao/axios`（封装于 `src/utils/http.ts`） | 自动附带 Token、解包 `{ code, message, data }` 统一信封、401 跳登录     |
 | CSS      | UnoCSS + 设计令牌                              | 原子化 CSS，NaiveUI ConfigProvider 统一暗色模式                         |
 | 图标     | @vicons/ionicons5                              | 侧边栏与操作图标                                                        |
 | 日期工具 | dayjs                                          | 格式化时间戳                                                            |

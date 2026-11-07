@@ -38,7 +38,7 @@ import type {
   ShareListResult,
   UpdateShareLinkParams,
 } from '@vakao/shared';
-import { RequestError } from '@vakao-ui/axios';
+import { RequestError } from '@vakao/axios';
 import {
   batchShareAction,
   createShare,

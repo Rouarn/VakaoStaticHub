@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { RequestError } from '@vakao-ui/axios';
+import { RequestError } from '@vakao/axios';
 import type { ResourceRoot } from '@vakao/shared';
 import { useAppStore } from '@/stores/modules/app';
 import { listRoots, createRoot, updateRoot, deleteRoot } from '@/api/roots';
@@ -31,7 +31,7 @@ interface RootCategoryEntry extends CategoryEntry {
   rootId: string;
 }
 
-/** 同 key 的重复请求在 @vakao-ui/axios 内会被后发请求取消，因此按 rootId 去重 */
+/** 同 key 的重复请求在 @vakao/axios 内会被后发请求取消，因此按 rootId 去重 */
 const categoryInflight = new Map<string, Promise<boolean>>();
 let rootsInflight: Promise<void> | null = null;
 

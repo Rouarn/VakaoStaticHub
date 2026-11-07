@@ -10,7 +10,7 @@ import type {
   RollbackCandidatesResult,
   RollbackResult,
 } from '@vakao/shared';
-import type { RequestOptions } from '@vakao-ui/axios';
+import type { RequestOptions } from '@vakao/axios';
 import { http } from '@/utils/http';
 import { getApiBaseUrl } from '@/utils/file-url';
 
