@@ -207,9 +207,9 @@ func (s *Server) handlePublicShareInfo(w http.ResponseWriter, r *http.Request, _
 		return err
 	}
 	info := shareInfo(record)
-	files, err := s.shareFiles(r, record)
-	if err != nil {
-		// 元信息读取失败不影响分享可用性：前端会退回 /f
+	info.Files = []model.ShareFile{}
+	if files, err := s.shareFiles(r, record); err != nil {
+		// 元信息读取失败不影响分享本身可用，前端按空列表渲染
 		s.log.Warn("share files metadata failed", "error", err, "token", record.Token)
 	} else {
 		info.Files = files
@@ -260,7 +260,9 @@ func (s *Server) handleShareFiles(w http.ResponseWriter, r *http.Request, _ *Cur
 	if err != nil {
 		return err
 	}
-	writeJSON(w, model.ShareContent{Share: shareInfo(record), Files: files})
+	info := shareInfo(record)
+	info.Files = files
+	writeJSON(w, model.ShareContent{Share: info, Files: files})
 	return nil
 }
 

@@ -6,7 +6,6 @@ import type {
   ShareBatchItemResult,
   ShareBatchResult,
   ShareCollectionFile,
-  ShareCollectionResult,
   ShareInfo,
   ShareLink,
   ShareListQuery,
@@ -42,8 +41,8 @@ interface ServerShareFile {
   path: string;
   size: number;
   exists: boolean;
-  extension?: string;
-  mtime?: string;
+  extension: string;
+  mtime: string | null;
 }
 
 interface ServerShareInfo {
@@ -57,7 +56,7 @@ interface ServerShareInfo {
   maxAccesses?: number;
   accessCount: number;
   enabled: boolean;
-  files?: ServerShareFile[];
+  files: ServerShareFile[];
 }
 
 interface ServerPage<T> {
@@ -97,18 +96,14 @@ function toShareInfo(info: ServerShareInfo): ShareInfo {
     expiresAt: info.expiresAt ? new Date(info.expiresAt).getTime() : null,
     maxAccesses: info.maxAccesses ?? null,
     hasPassword: info.hasPassword,
-    ...(info.files
-      ? {
-          files: info.files.map((file) => ({
-            name: file.name,
-            path: file.path,
-            size: file.exists ? file.size : null,
-            exists: file.exists,
-            ...(file.extension ? { extension: file.extension } : {}),
-            ...(file.mtime ? { mtime: new Date(file.mtime).getTime() } : {}),
-          })),
-        }
-      : {}),
+    files: info.files.map((file) => ({
+      name: file.name,
+      path: file.path,
+      size: file.exists ? file.size : null,
+      exists: file.exists,
+      extension: file.extension,
+      mtime: file.mtime ? new Date(file.mtime).getTime() : null,
+    })),
   };
 }
 
@@ -310,38 +305,7 @@ export async function unlockShare(token: string, password?: string) {
   }
 }
 
-export type { ShareCollectionFile, ShareCollectionResult };
-
-export async function fetchShareCollection(token: string, accessToken: string) {
-  try {
-    const result = await publicHttp.get<{
-      share: ServerShareInfo;
-      files: Array<{
-        index: number;
-        name: string;
-        path: string;
-        size: number;
-        exists: boolean;
-      }>;
-    }>(`/s/${encodeURIComponent(token)}/f`, { accessToken });
-    return {
-      shareType: 'collection',
-      rootId: result.share.rootId,
-      category: result.share.category,
-      files: result.files.map(
-        (file) =>
-          ({
-            path: file.path,
-            name: file.name,
-            size: file.exists ? file.size : null,
-            exists: file.exists,
-          }) satisfies ShareCollectionFile,
-      ),
-    } satisfies ShareCollectionResult;
-  } catch (error) {
-    translateShareError(error);
-  }
-}
+export type { ShareCollectionFile };
 
 /** 分享访问页地址（前端路由，统一由 utils/file-url.ts 构造） */
 export const getSharePageUrl = buildSharePageUrl;

@@ -8,12 +8,7 @@ import {
 } from '@vicons/ionicons5';
 import { RequestError } from '@vakao/axios';
 import type { ShareInfo } from '@vakao/shared';
-import {
-  fetchShareCollection,
-  getShareInfo,
-  SHARE_TOKEN_RE,
-  unlockShare,
-} from '@/api/shares';
+import { getShareInfo, SHARE_TOKEN_RE, unlockShare } from '@/api/shares';
 import type { ShareCollectionFile } from '@/api/shares';
 import { buildShareFileUrl } from '@/utils/file-url';
 import { isImage, isPreviewable } from '@/utils/file-types';
@@ -189,7 +184,7 @@ async function unlock() {
     accessToken.value = result.accessToken;
     password.value = '';
     phase.value = 'ready';
-    await applyUnlockedFiles();
+    applyShareFiles();
   } catch (e) {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
@@ -226,25 +221,35 @@ async function unlock() {
   }
 }
 
-async function loadCollection() {
+/** 分享信息已包含全部文件元信息：解锁后直接使用，不再请求文件列表接口 */
+function applyShareFiles() {
+  const files = info.value?.files ?? [];
+  if (singleFile.value) {
+    const file = files[0];
+    singleSize.value = file?.size ?? null;
+    singleMissing.value = file ? !file.exists : false;
+    return;
+  }
+  collectionFiles.value = files;
+  collectionRootId.value = info.value?.rootId ?? '';
+  collectionCategory.value = info.value?.category ?? '';
+}
+
+/** 刷新按钮：重新读取分享信息（含文件元信息），保持已解锁状态 */
+async function refreshFiles() {
   collectionError.value = '';
   beginCollectionLoading();
   try {
-    const result = await fetchShareCollection(token.value, accessToken.value);
-    collectionFiles.value = result.files ?? [];
-    collectionRootId.value = result.rootId ?? '';
-    collectionCategory.value = result.category ?? '';
+    info.value = await getShareInfo(token.value);
+    applyShareFiles();
   } catch (e) {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
     const unavailable = code === 410 ? unavailablePhase(text) : null;
     if (unavailable) {
       phase.value = unavailable;
-    } else if (code === 401) {
-      collectionError.value =
-        '访问令牌已过期（有效期 30 分钟），请刷新页面重新打开分享';
     } else {
-      collectionError.value = text || '文件列表加载失败';
+      collectionError.value = text || '文件列表刷新失败';
     }
   } finally {
     collectionLoading.value = false;
@@ -279,39 +284,13 @@ const singleDownloadSrc = computed(() =>
   }),
 );
 
-/**
- * 解锁后填充文件视图。
- * 分享信息（/s/{token}）已经携带 files 元信息，单文件与集合都直接使用；
- * 仅在旧后端未下发 files 时退回一次 /f，保证过渡期兼容。
- */
-async function applyUnlockedFiles() {
-  if (singleFile.value) {
-    applySingleMeta();
-    return;
-  }
-  const embedded = info.value?.files ?? [];
-  if (embedded.length > 0) {
-    collectionFiles.value = embedded;
-    collectionRootId.value = info.value?.rootId ?? '';
-    collectionCategory.value = info.value?.category ?? '';
-    return;
-  }
-  await loadCollection();
-}
-
-function applySingleMeta() {
-  const file = info.value?.files?.[0];
-  singleSize.value = file?.size ?? null;
-  singleMissing.value = file ? !file.exists : false;
-}
-
 function nameOf(path: string) {
   return path.split('/').pop() ?? path;
 }
 
 /**
  * 单文件视图仅在 shareType==='file' 时渲染。
- * shareType 由后端按 filePaths 长度派生，是唯一的判定依据。
+ * shareType 由 filePaths 长度派生，是唯一的判定依据。
  */
 const singleFile = computed(() => {
   if (info.value?.shareType !== 'file') return null;
@@ -458,7 +437,7 @@ onBeforeUnmount(() => {
             :error="collectionError"
             :missing-count="collectionMissingCount"
             :file-url="fileUrl"
-            @refresh="loadCollection"
+            @refresh="refreshFiles"
             @preview="openCollectionPreview"
           />
         </main>

@@ -237,10 +237,9 @@ type ShareInfo struct {
 	MaxAccesses *int       `json:"maxAccesses,omitempty"`
 	AccessCount int        `json:"accessCount"`
 	Enabled     bool       `json:"enabled"`
-	// Files 是 filePaths 的元信息投影（名称/大小/存在性/扩展名/修改时间）。
-	// 公开信息接口直接下发，访问页解锁后无需再请求 /f；
-	// /f 仍保留原响应结构（share + files），兼容旧客户端。
-	Files []ShareFile `json:"files,omitempty"`
+	// Files 是 filePaths 的元信息（名称/大小/存在性/扩展名/修改时间），
+	// 随分享信息一并下发，访问页解锁后无需再请求文件列表。
+	Files []ShareFile `json:"files"`
 }
 
 type ShareVerifyRequest struct {
@@ -557,8 +556,8 @@ type ShareFile struct {
 	// 当文件在创建分享后已从存储中删除时，Exists 为 false。
 	// 公开列表会保留该条目，便于客户端展示。
 	Exists bool `json:"exists"`
-	// MTime 是磁盘上的修改时间；文件不存在时为空。
-	MTime *time.Time `json:"mtime,omitempty"`
+	// MTime 是磁盘上的修改时间；文件不存在时为 null。
+	MTime *time.Time `json:"mtime"`
 }
 
 type ShareContent struct {
