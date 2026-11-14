@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
   NButton,
   NIcon,
-  NInput,
-  NModal,
   NPagination,
-  NSelect,
   NTag,
   NTooltip,
   useMessage,
@@ -19,13 +16,7 @@ import {
   TrashOutline,
 } from '@vicons/ionicons5';
 import type { UserInfo, UserRole } from '@vakao/shared';
-import {
-  changeMyPassword,
-  createUser,
-  deleteUser,
-  listUsers,
-  resetUserPassword,
-} from '@/api/users';
+import { deleteUser, listUsers } from '@/api/users';
 import { getErrorMessage } from '@/utils/http';
 import { formatDateTime } from '@/utils/format';
 import { useAuthStore } from '@/stores/modules/auth';
@@ -36,6 +27,8 @@ import ConfirmModal from '@/components/common/confirm-modal.vue';
 import ListLoading from '@/components/common/list-loading.vue';
 import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
+import CreateUserModal from './components/create-user-modal.vue';
+import PasswordModal from './components/password-modal.vue';
 
 /**
  * 用户管理
@@ -111,63 +104,9 @@ watch(pageSize, () => {
 // ===================== 创建账号 =====================
 
 const createShow = ref(false);
-const creating = ref(false);
-const createError = ref('');
-const createForm = reactive<{
-  username: string;
-  password: string;
-  confirm: string;
-  role: UserRole;
-}>({ username: '', password: '', confirm: '', role: 'user' });
 
 function openCreate() {
-  createForm.username = '';
-  createForm.password = '';
-  createForm.confirm = '';
-  createForm.role = 'user';
-  createError.value = '';
   createShow.value = true;
-}
-
-function validateCreate(): string {
-  const username = createForm.username.trim();
-  if (!/^[a-zA-Z0-9_-]{3,32}$/.test(username)) {
-    return '用户名需为 3~32 位字母、数字、下划线或连字符';
-  }
-  if (createForm.password.length < 6 || createForm.password.length > 64) {
-    return '密码长度需在 6~64 个字符之间';
-  }
-  if (createForm.password !== createForm.confirm) {
-    return '两次输入的密码不一致';
-  }
-  if (users.value.some((user) => user.username === username)) {
-    return `用户名 ${username} 已存在`;
-  }
-  return '';
-}
-
-async function submitCreate() {
-  const invalid = validateCreate();
-  if (invalid) {
-    createError.value = invalid;
-    return;
-  }
-  creating.value = true;
-  createError.value = '';
-  try {
-    const created = await createUser(
-      createForm.username.trim(),
-      createForm.password,
-      createForm.role,
-    );
-    message.success(`账号 ${created.username} 已创建`);
-    createShow.value = false;
-    await load();
-  } catch (e) {
-    createError.value = getErrorMessage(e, '创建账号失败');
-  } finally {
-    creating.value = false;
-  }
 }
 
 // ===================== 删除账号 =====================
@@ -213,27 +152,10 @@ type PasswordMode = 'self' | 'other';
 const passwordMode = ref<PasswordMode>('self');
 const passwordTarget = ref<UserInfo | null>(null);
 const passwordShow = ref(false);
-const passwordBusy = ref(false);
-const passwordError = ref('');
-const passwordForm = reactive({
-  oldPassword: '',
-  newPassword: '',
-  confirm: '',
-});
-
-const passwordTitle = computed(() =>
-  passwordMode.value === 'self'
-    ? '修改我的密码'
-    : `重置「${passwordTarget.value?.username ?? ''}」的密码`,
-);
 
 function openChangeSelf() {
   passwordMode.value = 'self';
   passwordTarget.value = null;
-  passwordForm.oldPassword = '';
-  passwordForm.newPassword = '';
-  passwordForm.confirm = '';
-  passwordError.value = '';
   passwordShow.value = true;
 }
 
@@ -244,50 +166,7 @@ function openResetOther(user: UserInfo) {
   }
   passwordMode.value = 'other';
   passwordTarget.value = user;
-  passwordForm.oldPassword = '';
-  passwordForm.newPassword = '';
-  passwordForm.confirm = '';
-  passwordError.value = '';
   passwordShow.value = true;
-}
-
-async function submitPassword() {
-  if (passwordMode.value === 'self' && !passwordForm.oldPassword) {
-    passwordError.value = '请输入当前密码';
-    return;
-  }
-  if (
-    passwordForm.newPassword.length < 6 ||
-    passwordForm.newPassword.length > 64
-  ) {
-    passwordError.value = '新密码长度需在 6~64 个字符之间';
-    return;
-  }
-  if (passwordForm.newPassword !== passwordForm.confirm) {
-    passwordError.value = '两次输入的新密码不一致';
-    return;
-  }
-  passwordBusy.value = true;
-  passwordError.value = '';
-  try {
-    if (passwordMode.value === 'self') {
-      await changeMyPassword(
-        passwordForm.oldPassword,
-        passwordForm.newPassword,
-      );
-      message.success('密码已修改');
-    } else {
-      const target = passwordTarget.value;
-      if (!target) return;
-      await resetUserPassword(target.id, passwordForm.newPassword);
-      message.success(`已重置「${target.username}」的密码`);
-    }
-    passwordShow.value = false;
-  } catch (e) {
-    passwordError.value = getErrorMessage(e, '密码操作失败');
-  } finally {
-    passwordBusy.value = false;
-  }
 }
 
 onMounted(() => void load());
@@ -499,140 +378,19 @@ onMounted(() => void load());
     </div>
 
     <!-- 创建账号 -->
-    <NModal
+    <CreateUserModal
       v-model:show="createShow"
-      preset="card"
-      title="创建账号"
-      class="max-w-440px"
-      :mask-closable="!creating"
-      :closable="!creating"
-    >
-      <div class="flex flex-col gap-3">
-        <div class="flex flex-col gap-1">
-          <label class="text-12px text-ink-sub">用户名</label>
-          <NInput
-            v-model:value="createForm.username"
-            placeholder="3~32 位字母、数字、下划线或连字符"
-            :maxlength="32"
-            @keyup.enter="submitCreate"
-          />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-12px text-ink-sub">密码</label>
-          <NInput
-            v-model:value="createForm.password"
-            type="password"
-            show-password-on="click"
-            placeholder="6~64 位"
-            :maxlength="64"
-            @keyup.enter="submitCreate"
-          />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-12px text-ink-sub">确认密码</label>
-          <NInput
-            v-model:value="createForm.confirm"
-            type="password"
-            show-password-on="click"
-            placeholder="再次输入密码"
-            :maxlength="64"
-            @keyup.enter="submitCreate"
-          />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-12px text-ink-sub">角色</label>
-          <NSelect
-            v-model:value="createForm.role"
-            :options="[
-              { label: '普通用户（user）', value: 'user' },
-              { label: '管理员（admin）', value: 'admin' },
-            ]"
-            :disabled="!isAdmin"
-          />
-          <p v-if="!isAdmin" class="m-0 text-11px text-ink-sub">
-            仅管理员可以创建管理员账号，后端会拒绝提权请求
-          </p>
-        </div>
-        <p v-if="createError" class="m-0 text-12px text-red-500">
-          {{ createError }}
-        </p>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton quaternary :disabled="creating" @click="createShow = false">
-            取消
-          </NButton>
-          <NButton type="primary" :loading="creating" @click="submitCreate">
-            创建
-          </NButton>
-        </div>
-      </template>
-    </NModal>
+      :is-admin="isAdmin"
+      :users="users"
+      @created="load"
+    />
 
     <!-- 修改自己的密码 -->
-    <NModal
+    <PasswordModal
       v-model:show="passwordShow"
-      preset="card"
-      :title="passwordTitle"
-      class="max-w-440px"
-      :mask-closable="!passwordBusy"
-      :closable="!passwordBusy"
-    >
-      <div class="flex flex-col gap-3">
-        <div v-if="passwordMode === 'self'" class="flex flex-col gap-1">
-          <label class="text-12px text-ink-sub">当前密码</label>
-          <NInput
-            v-model:value="passwordForm.oldPassword"
-            type="password"
-            show-password-on="click"
-            placeholder="输入当前密码"
-            :maxlength="64"
-          />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-12px text-ink-sub">新密码</label>
-          <NInput
-            v-model:value="passwordForm.newPassword"
-            type="password"
-            show-password-on="click"
-            placeholder="6~64 位"
-            :maxlength="64"
-          />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-12px text-ink-sub">确认新密码</label>
-          <NInput
-            v-model:value="passwordForm.confirm"
-            type="password"
-            show-password-on="click"
-            placeholder="再次输入新密码"
-            :maxlength="64"
-            @keyup.enter="submitPassword"
-          />
-        </div>
-        <p v-if="passwordError" class="m-0 text-12px text-red-500">
-          {{ passwordError }}
-        </p>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton
-            quaternary
-            :disabled="passwordBusy"
-            @click="passwordShow = false"
-          >
-            取消
-          </NButton>
-          <NButton
-            type="primary"
-            :loading="passwordBusy"
-            @click="submitPassword"
-          >
-            保存
-          </NButton>
-        </div>
-      </template>
-    </NModal>
+      :mode="passwordMode"
+      :target="passwordTarget"
+    />
 
     <ConfirmModal
       :show="deleteTarget !== null"
