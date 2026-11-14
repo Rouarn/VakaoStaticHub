@@ -48,6 +48,7 @@ const emit = defineEmits<{
   move: [file: FileItem];
   share: [file: FileItem];
   'copy-link': [file: FileItem];
+  'copy-preview-link': [file: FileItem];
   remove: [file: FileItem];
 }>();
 
@@ -99,6 +100,7 @@ const menuOptions = [
   { label: '重命名', key: 'rename' },
   { label: '移动到分类', key: 'move' },
   { label: '复制直链', key: 'copy-link' },
+  { label: '复制预览链接', key: 'copy-preview-link' },
   { label: '删除', key: 'delete' },
 ];
 
@@ -108,6 +110,7 @@ function onAction(key: string) {
   else if (key === 'rename') emit('rename', props.file);
   else if (key === 'move') emit('move', props.file);
   else if (key === 'copy-link') emit('copy-link', props.file);
+  else if (key === 'copy-preview-link') emit('copy-preview-link', props.file);
   else if (key === 'delete') emit('remove', props.file);
 }
 </script>

@@ -38,6 +38,7 @@ import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import CategoryPanel from '@/layouts/components/category-panel.vue';
 import {
+  buildFilePreviewPageUrl,
   buildFileUrl,
   buildSharePageUrl,
   buildThumbUrl,
@@ -341,6 +342,17 @@ async function copyLink(file: FileItem) {
   try {
     await navigator.clipboard.writeText(url);
     message.success('直链已复制');
+  } catch {
+    message.error('复制失败，请检查浏览器剪贴板权限');
+  }
+}
+
+// —— 复制预览链接（带文件名，预览页据此选择播放器） ——
+async function copyPreviewLink(file: FileItem) {
+  const url = buildFilePreviewPageUrl({ code: file.code, name: file.name });
+  try {
+    await navigator.clipboard.writeText(url);
+    message.success('预览链接已复制');
   } catch {
     message.error('复制失败，请检查浏览器剪贴板权限');
   }
@@ -715,6 +727,7 @@ function onShareCreated(link: ShareLink) {
             @move="openMove"
             @share="openShare"
             @copy-link="copyLink"
+            @copy-preview-link="copyPreviewLink"
             @remove="openDelete"
           />
         </div>
@@ -732,6 +745,7 @@ function onShareCreated(link: ShareLink) {
             @move="openMove"
             @share="openShare"
             @copy-link="copyLink"
+            @copy-preview-link="copyPreviewLink"
             @remove="openDelete"
           />
         </div>

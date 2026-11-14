@@ -19,7 +19,11 @@ import {
   resolvePreview,
 } from '@/utils/preview-registry';
 import { buildFileUrl, buildThumbUrl } from '@/utils/file-url';
-import { formatBytes, isImage } from '@/utils/file-types';
+import {
+  extensionFromContentType,
+  formatBytes,
+  isImage,
+} from '@/utils/file-types';
 
 /**
  * 文件预览（内部 / 外部共用一份逻辑与渲染）
@@ -36,6 +40,8 @@ const isInternal = computed(() => route.name === 'local-file-preview');
 
 const url = ref('');
 const target = ref<PreviewTarget | null>(null);
+/** 用于选择预览组件的文件名：可能与展示名不同（如 &name=.mp3） */
+const previewName = ref('');
 const invalid = ref('');
 const component = shallowRef<Component | null>(null);
 const loading = ref(false);
@@ -52,13 +58,49 @@ function filenameOf(raw: string): string {
   }
 }
 
-function setTarget(src: string, downloadSrc: string, filename: string) {
-  target.value = { src, downloadSrc, filename, size: 0 };
-  invalid.value = '';
-  void load();
+/** 链接最后一段是否自带扩展名（如 .mp4） */
+function hasExtension(raw: string): boolean {
+  return filenameOf(raw).includes('.');
 }
 
-function open(raw?: string) {
+function isSameOrigin(raw: string): boolean {
+  try {
+    return new URL(raw, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 同源且最后一段没有扩展名时，用 HEAD 的 content-type 推断扩展名。
+ * 跨域读不到响应头（无 CORS 暴露），直接返回空串由调用方回落默认预览，
+ * 不猜类型、不伪造成功。
+ */
+async function probeExtension(raw: string): Promise<string> {
+  if (!isSameOrigin(raw) || hasExtension(raw)) return '';
+  try {
+    const res = await fetch(raw, { method: 'HEAD' });
+    if (!res.ok) return '';
+    return extensionFromContentType(res.headers.get('content-type'));
+  } catch {
+    return '';
+  }
+}
+
+function setTarget(
+  src: string,
+  downloadSrc: string,
+  filename: string,
+  nameForPreview = filename,
+  autoLoad = true,
+) {
+  target.value = { src, downloadSrc, filename, size: 0 };
+  previewName.value = nameForPreview;
+  invalid.value = '';
+  if (autoLoad) void load();
+}
+
+async function open(raw?: string, name?: string) {
   const value = (raw ?? url.value).trim();
   if (!value) return;
   let absolute: string;
@@ -74,11 +116,41 @@ function open(raw?: string) {
     return;
   }
   if (isInternal.value) url.value = value;
-  setTarget(absolute, absolute, filenameOf(absolute));
+
+  const display = filenameOf(absolute);
+  const nameHint = (name ?? '').trim();
+
+  // name 只写扩展名（.mp4 / .MP3）：只借它选预览器，展示名仍是链接最后一段
+  if (nameHint.startsWith('.')) {
+    const ext = nameHint.slice(1).toLowerCase();
+    if (ext) {
+      setTarget(absolute, absolute, display, `${display}.${ext}`);
+      return;
+    }
+  } else if (nameHint) {
+    // 完整文件名：展示名与类型都按它来
+    setTarget(absolute, absolute, nameHint);
+    return;
+  }
+
+  if (hasExtension(absolute)) {
+    setTarget(absolute, absolute, display);
+    return;
+  }
+
+  // 无扩展名的同源链接：先占位等 HEAD 结果，避免先闪一下默认卡片
+  setTarget(absolute, absolute, display, display, false);
+  loading.value = true;
+  const ext = await probeExtension(absolute);
+  if (target.value?.src !== absolute) return;
+  loading.value = false;
+  if (ext) previewName.value = `${display}.${ext}`;
+  await load();
 }
 
 function clear() {
   target.value = null;
+  previewName.value = '';
   component.value = null;
   failed.value = '';
 }
@@ -90,7 +162,7 @@ async function load() {
   failed.value = '';
   component.value = null;
   try {
-    const loader = resolvePreview(current.filename);
+    const loader = resolvePreview(previewName.value);
     component.value = loader ? await loader() : DefaultPreview;
   } catch (e) {
     failed.value = e instanceof Error ? e.message : '预览组件加载失败';
@@ -105,8 +177,7 @@ function applyQuery() {
   invalid.value = '';
   if (isInternal.value) url.value = '';
 
-  const fileQuery = route.query.file;
-  const urlQuery = route.query.url;
+  const { file: fileQuery, url: urlQuery, code, name } = route.query;
   const raw =
     typeof fileQuery === 'string' && fileQuery.trim()
       ? fileQuery.trim()
@@ -115,11 +186,10 @@ function applyQuery() {
         : '';
   if (raw) {
     if (isInternal.value) url.value = raw;
-    open(raw);
+    void open(raw, typeof name === 'string' ? name : '');
     return;
   }
 
-  const { code, name } = route.query;
   if (typeof code === 'string' && code) {
     const fileName = typeof name === 'string' && name ? name : `file-${code}`;
     // 图片走预览档，其他类型仍需原始内容

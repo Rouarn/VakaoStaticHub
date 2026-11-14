@@ -90,6 +90,78 @@ export function getExtension(filename: string): string {
   return idx >= 0 ? filename.slice(idx + 1).toLowerCase() : '';
 }
 
+/**
+ * Content-Type → 扩展名（无扩展名的同源链接靠 HEAD 探测时使用）
+ *
+ * 只收录确定性的类型：未命中一律返回空串，由调用方回落默认预览，
+ * 不按大类猜扩展名（server 也可能发 octet-stream）。
+ */
+const EXTENSION_BY_MIME: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/svg+xml': 'svg',
+  'image/tiff': 'tiff',
+  'image/x-icon': 'ico',
+  'image/vnd.microsoft.icon': 'ico',
+
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'video/x-matroska': 'mkv',
+  'video/x-msvideo': 'avi',
+  'video/ogg': 'ogv',
+  'video/x-m4v': 'm4v',
+
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/flac': 'flac',
+  'audio/x-flac': 'flac',
+  'audio/aac': 'aac',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/opus': 'opus',
+
+  'application/pdf': 'pdf',
+  'application/json': 'json',
+  'text/plain': 'txt',
+  'text/markdown': 'md',
+  'text/html': 'html',
+  'text/css': 'css',
+  'text/csv': 'csv',
+  'text/xml': 'xml',
+  'application/xml': 'xml',
+
+  'application/zip': 'zip',
+  'application/x-zip-compressed': 'zip',
+  'application/x-rar-compressed': 'rar',
+  'application/vnd.rar': 'rar',
+  'application/x-7z-compressed': '7z',
+  'application/gzip': 'gz',
+  'application/x-tar': 'tar',
+
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+};
+
+/** 由响应头的 Content-Type 推断扩展名；无法确定时返回空串 */
+export function extensionFromContentType(
+  contentType: string | null | undefined,
+): string {
+  if (!contentType) return '';
+  const mime = contentType.split(';')[0].trim().toLowerCase();
+  return EXTENSION_BY_MIME[mime] ?? '';
+}
+
 export function getFileKind(filename: string): FileKind {
   const ext = getExtension(filename);
   if (ext === 'csv') return 'text';
