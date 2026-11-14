@@ -4,8 +4,9 @@ import type { PreviewProps } from './types';
 import { formatBytes } from '@/utils/file-types';
 
 /**
- * Excel 预览：xlsx 解析为二维数组后自行渲染表格
- * 不使用 sheet_to_html，避免把单元格里的 HTML 直接注入页面
+ * 表格预览：xlsx / xls / csv 均由 SheetJS 解析后自行渲染表格
+ * 不使用 sheet_to_html，避免把单元格里的 HTML 直接注入页面。
+ * sheetRows 限制解析行数：界面只展示前 300 行，没必要把整本读进内存。
  */
 const props = defineProps<PreviewProps>();
 
@@ -29,7 +30,15 @@ onMounted(async () => {
     if (!resp.ok) throw new Error(`请求失败（HTTP ${resp.status}）`);
     const buffer = await resp.arrayBuffer();
     const XLSX = await import('xlsx');
-    const wb = XLSX.read(buffer, { type: 'array' });
+    // CSV 是纯文本：按 UTF-8 解码后交给 SheetJS，否则会把中文当成
+    // Latin-1 解析成乱码。xlsx/xls 是二进制，继续按 array 读。
+    const isCsv = /\.csv$/i.test(props.filename);
+    const wb = isCsv
+      ? XLSX.read(new TextDecoder('utf-8').decode(buffer), {
+          type: 'string',
+          sheetRows: MAX_ROWS + 1,
+        })
+      : XLSX.read(buffer, { type: 'array', sheetRows: MAX_ROWS + 1 });
     sheets.value = wb.SheetNames.map((name) => {
       const sheet = wb.Sheets[name];
       const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {

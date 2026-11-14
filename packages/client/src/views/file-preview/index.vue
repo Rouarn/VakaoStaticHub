@@ -26,6 +26,7 @@ import {
   isImage,
 } from '@/utils/file-types';
 import { normalizeNameHint } from '@/utils/preview-name';
+import { previewSrc } from '@/utils/preview-source';
 
 /**
  * 文件预览（内部 / 外部共用一份逻辑与渲染）
@@ -327,7 +328,7 @@ watch(() => route.fullPath, applyQuery);
             :is="component"
             v-else-if="component"
             :key="target.src"
-            :src="target.src"
+            :src="previewSrc(target.filename, target.src)"
             :filename="target.filename"
             :size="target.size"
             :download-src="target.downloadSrc"
@@ -390,7 +391,7 @@ watch(() => route.fullPath, applyQuery);
         :is="component"
         v-else-if="component"
         :key="target.src"
-        :src="target.src"
+        :src="previewSrc(target.filename, target.src)"
         :filename="target.filename"
         :size="target.size"
         :download-src="target.downloadSrc"

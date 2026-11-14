@@ -11,6 +11,7 @@ import (
 	"vakao-static-hub/server/internal/config"
 	"vakao-static-hub/server/internal/indexer"
 	"vakao-static-hub/server/internal/media"
+	"vakao-static-hub/server/internal/office"
 	"vakao-static-hub/server/internal/sharelink"
 	"vakao-static-hub/server/internal/store"
 	"vakao-static-hub/server/internal/upload"
@@ -40,6 +41,7 @@ type Server struct {
 	indexQueue *indexer.Queue
 	thumbnails *media.Thumbnailer
 	uploads    *upload.Manager
+	documents  *office.Converter
 
 	shareTokens   *sharelink.Manager
 	shareLimiter  *rateLimiter
@@ -68,6 +70,20 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 		uploads:       upload.New(cfg.UploadTempDir),
 		hitokotoCache: hitokotoCache{entries: make(map[string]hitokotoEntry)},
 		photos:        newPhotoPools(),
+	}
+	documents, err := office.New(office.Config{
+		CacheDir:      cfg.CacheDir,
+		Concurrency:   cfg.OfficeConcurrency,
+		Timeout:       cfg.OfficeTimeout,
+		MaxInputBytes: cfg.OfficeMaxInput,
+		Retention:     cfg.OfficeCacheRetention,
+		MaxCacheBytes: cfg.OfficeCacheMax,
+		SofficePath:   cfg.SofficePath,
+	}, logger)
+	if err != nil {
+		logger.Error("office converter disabled", "error", err)
+	} else {
+		s.documents = documents
 	}
 	s.routes()
 	s.handler = chain(s.mux,
@@ -347,6 +363,25 @@ func (s *Server) runDailyCleanup(ctx context.Context) {
 	} else if deleted > 0 {
 		s.log.Info("expired shares removed", "count", deleted)
 	}
+
+	if s.documents == nil {
+		return
+	}
+	officeStats, err := s.documents.Cleanup(office.CleanupOptions{
+		Retention: s.cfg.OfficeCacheRetention,
+		MaxBytes:  s.cfg.OfficeCacheMax,
+	})
+	if err != nil {
+		s.log.Error("office cache cleanup failed", "error", err)
+		return
+	}
+	s.log.Info("office cache cleaned",
+		"expired", officeStats.Expired,
+		"temp", officeStats.Temp,
+		"overCap", officeStats.OverCap,
+		"freedBytes", officeStats.FreedBytes,
+		"remainingBytes", officeStats.RemainingBytes,
+	)
 }
 
 func (s *Server) processScheduled(ctx context.Context) {

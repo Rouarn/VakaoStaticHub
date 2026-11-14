@@ -97,6 +97,12 @@ func (s *Server) serveStoredFile(w http.ResponseWriter, r *http.Request, full st
 		}
 	}
 
+	// ?as=pdf：把 pptx/ppt/doc（以及 docx 兜底）转成 PDF 后输出。
+	// 下载请求永远返回原始文件，不经过转换。
+	if !download && query.Get("as") == "pdf" {
+		return s.serveConvertedDocument(w, r, full, info)
+	}
+
 	return serveOriginal(w, r, full, info, download)
 }
 

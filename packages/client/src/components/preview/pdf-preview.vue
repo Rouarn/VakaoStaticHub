@@ -60,21 +60,34 @@ onMounted(async () => {
     const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url'))
       .default;
     pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    // 转换结果（as=pdf）在 CDN 冷缓存下，pdfjs 的并发 Range 请求会触发
+    // ERR_HTTP2_PROTOCOL_ERROR；改为一次性完整下载，避免分片并发。
+    const converted = /[?&]as=pdf(&|$)/.test(props.src);
     loadingTask = pdfjs.getDocument({
       url: props.src,
       cMapUrl: `${import.meta.env.BASE_URL}cmaps/`,
       cMapPacked: true,
+      ...(converted ? { disableRange: true, disableStream: true } : {}),
     });
     const doc = await loadingTask.promise;
     pdfDoc = doc;
     pageCount.value = doc.numPages;
     await renderPage();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'PDF 加载失败';
+    error.value = pdfErrorText(e);
   } finally {
     loading.value = false;
   }
 });
+
+/** pdfjs 对 HTTP 错误只抛英文原文，这里转成可读提示 */
+function pdfErrorText(e: unknown): string {
+  const message = e instanceof Error ? e.message : '';
+  const status = /\((\d{3})\)/.exec(message)?.[1];
+  if (status === '422') return '文件过大或格式不支持，无法在线转换预览';
+  if (status === '503') return '转换任务繁忙，请稍后再试';
+  return message || 'PDF 加载失败';
+}
 
 watch([pageNo, zoom], () => void renderPage());
 

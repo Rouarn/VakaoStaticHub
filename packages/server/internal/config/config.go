@@ -46,6 +46,15 @@ type Config struct {
 	CleanupHour    int
 	CleanupMinute  int
 
+	// Office 文档转 PDF（pptx/ppt/doc 与 docx 兜底）的参数。
+	// SofficePath 为空时退回 PATH 中的 soffice。
+	OfficeConcurrency    int
+	OfficeTimeout        time.Duration
+	OfficeMaxInput       int64
+	OfficeCacheRetention time.Duration
+	OfficeCacheMax       int64
+	SofficePath          string
+
 	JWTSecret  string
 	JWTExpires time.Duration
 	AuthUser   string
@@ -83,36 +92,42 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		BaseDir:           base,
-		Host:              env("HOST", "0.0.0.0"),
-		Port:              envInt("PORT", 9865),
-		WebDir:            resolve(base, env("WEB_DIR", "web")),
-		DBPath:            resolve(base, env("DB_PATH", "data/vakao.db")),
-		FileRoot:          resolve(base, env("FILE_ROOT", "data")),
-		ResourceRootsFile: resolve(base, env("RESOURCE_ROOTS_FILE", "resource-roots.json")),
-		UploadTempDir:     resolve(base, env("UPLOAD_TEMP_DIR", "data/.uploads")),
-		CacheDir:          resolve(base, env("CACHE_DIR", "data/.cache")),
-		MaxUploadCount:    envInt("UPLOAD_MAX_COUNT", 20),
-		ChunkSizeLimit:    envInt64("CHUNK_FILE_SIZE_LIMIT", 100*1024*1024),
-		DefaultCategory:   env("DEFAULT_CATEGORY", "TemporaryFile"),
-		CacheRefresh:      time.Duration(envInt64("CACHE_REFRESH_INTERVAL_MS", 5*60*1000)) * time.Millisecond,
-		MaxImagePixels:    envInt64("MAX_IMAGE_PIXELS", 60_000_000),
-		MaxImageDimension: envInt("MAX_IMAGE_DIMENSION", 4096),
-		ThumbConcurrency:  envInt("THUMB_CONCURRENCY", 2),
-		ThumbRetention:    time.Duration(envInt("THUMB_CACHE_RETENTION_DAYS", 30)) * 24 * time.Hour,
-		ThumbCacheMax:     envInt64("THUMB_CACHE_MAX_MB", 512) * 1024 * 1024,
-		CleanupHour:       cleanupHour,
-		CleanupMinute:     cleanupMinute,
-		JWTSecret:         os.Getenv("JWT_SECRET"),
-		JWTExpires:        envDuration("JWT_EXPIRES_IN", 12*time.Hour),
-		AuthUser:          env("AUTH_USER", "admin"),
-		AuthPass:          env("AUTH_PASS", ""),
-		CORSOrigin:        os.Getenv("CORS_ORIGIN"),
-		TrustProxy:        envBool("TRUST_PROXY", false),
-		LogLevel:          env("LOG_LEVEL", "info"),
-		HitokotoURL:       env("HITOKOTO_API_URL", "https://static.shixian.xyz/static/hitokoto"),
-		AppPublicBase:     strings.TrimRight(os.Getenv("APP_PUBLIC_BASE_URL"), "/"),
-		BrowseWhitelist:   splitList(os.Getenv("ROOT_BROWSE_WHITELIST")),
+		BaseDir:              base,
+		Host:                 env("HOST", "0.0.0.0"),
+		Port:                 envInt("PORT", 9865),
+		WebDir:               resolve(base, env("WEB_DIR", "web")),
+		DBPath:               resolve(base, env("DB_PATH", "data/vakao.db")),
+		FileRoot:             resolve(base, env("FILE_ROOT", "data")),
+		ResourceRootsFile:    resolve(base, env("RESOURCE_ROOTS_FILE", "resource-roots.json")),
+		UploadTempDir:        resolve(base, env("UPLOAD_TEMP_DIR", "data/.uploads")),
+		CacheDir:             resolve(base, env("CACHE_DIR", "data/.cache")),
+		MaxUploadCount:       envInt("UPLOAD_MAX_COUNT", 20),
+		ChunkSizeLimit:       envInt64("CHUNK_FILE_SIZE_LIMIT", 100*1024*1024),
+		DefaultCategory:      env("DEFAULT_CATEGORY", "TemporaryFile"),
+		CacheRefresh:         time.Duration(envInt64("CACHE_REFRESH_INTERVAL_MS", 5*60*1000)) * time.Millisecond,
+		MaxImagePixels:       envInt64("MAX_IMAGE_PIXELS", 60_000_000),
+		MaxImageDimension:    envInt("MAX_IMAGE_DIMENSION", 4096),
+		ThumbConcurrency:     envInt("THUMB_CONCURRENCY", 2),
+		ThumbRetention:       time.Duration(envInt("THUMB_CACHE_RETENTION_DAYS", 30)) * 24 * time.Hour,
+		ThumbCacheMax:        envInt64("THUMB_CACHE_MAX_MB", 512) * 1024 * 1024,
+		CleanupHour:          cleanupHour,
+		CleanupMinute:        cleanupMinute,
+		OfficeConcurrency:    envInt("OFFICE_CONVERT_CONCURRENCY", 2),
+		OfficeTimeout:        envDuration("OFFICE_CONVERT_TIMEOUT", 90*time.Second),
+		OfficeMaxInput:       envInt64("OFFICE_MAX_INPUT_MB", 20) * 1024 * 1024,
+		OfficeCacheRetention: time.Duration(envInt("OFFICE_CACHE_RETENTION_DAYS", 30)) * 24 * time.Hour,
+		OfficeCacheMax:       envInt64("OFFICE_CACHE_MAX_MB", 1024) * 1024 * 1024,
+		SofficePath:          env("SOFFICE_PATH", "soffice"),
+		JWTSecret:            os.Getenv("JWT_SECRET"),
+		JWTExpires:           envDuration("JWT_EXPIRES_IN", 12*time.Hour),
+		AuthUser:             env("AUTH_USER", "admin"),
+		AuthPass:             env("AUTH_PASS", ""),
+		CORSOrigin:           os.Getenv("CORS_ORIGIN"),
+		TrustProxy:           envBool("TRUST_PROXY", false),
+		LogLevel:             env("LOG_LEVEL", "info"),
+		HitokotoURL:          env("HITOKOTO_API_URL", "https://static.shixian.xyz/static/hitokoto"),
+		AppPublicBase:        strings.TrimRight(os.Getenv("APP_PUBLIC_BASE_URL"), "/"),
+		BrowseWhitelist:      splitList(os.Getenv("ROOT_BROWSE_WHITELIST")),
 	}
 	if cfg.JWTSecret == "" || cfg.JWTSecret == "change-me-in-env" {
 		return nil, errors.New("JWT_SECRET must be set to a non-default value")
@@ -134,6 +149,21 @@ func Load() (*Config, error) {
 	}
 	if cfg.ThumbCacheMax < 0 {
 		return nil, errors.New("THUMB_CACHE_MAX_MB must not be negative")
+	}
+	if cfg.OfficeConcurrency < 1 {
+		cfg.OfficeConcurrency = 1
+	}
+	if cfg.OfficeTimeout <= 0 {
+		return nil, errors.New("OFFICE_CONVERT_TIMEOUT must be positive")
+	}
+	if cfg.OfficeMaxInput < 1 {
+		return nil, errors.New("OFFICE_MAX_INPUT_MB must be positive")
+	}
+	if cfg.OfficeCacheRetention < 0 {
+		return nil, errors.New("OFFICE_CACHE_RETENTION_DAYS must not be negative")
+	}
+	if cfg.OfficeCacheMax < 0 {
+		return nil, errors.New("OFFICE_CACHE_MAX_MB must not be negative")
 	}
 	return cfg, nil
 }

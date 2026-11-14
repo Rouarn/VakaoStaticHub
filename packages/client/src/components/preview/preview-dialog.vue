@@ -16,6 +16,7 @@ import {
   registerBuiltinPreviews,
 } from '@/utils/preview-registry';
 import { formatBytes, getFileKind } from '@/utils/file-types';
+import { previewSrc } from '@/utils/preview-source';
 import DefaultPreview from './default-preview.vue';
 
 /**
@@ -258,7 +259,7 @@ function forcePreview() {
               :is="component"
               v-else-if="component && current"
               :key="current.src"
-              :src="current.src"
+              :src="previewSrc(current.filename, current.src)"
               :filename="current.filename"
               :size="current.size"
               :download-src="current.downloadSrc"

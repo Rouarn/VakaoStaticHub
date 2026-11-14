@@ -24,6 +24,7 @@ export type FileKind =
   | 'pdf'
   | 'word'
   | 'excel'
+  | 'slides'
   | 'archive'
   | 'other';
 
@@ -114,7 +115,7 @@ export const EXT_META: Record<string, FormatMeta> = {
   toml: { kind: 'text', mime: 'application/toml', canonical: true },
   ini: { kind: 'text', mime: 'text/plain' },
   conf: { kind: 'text', mime: 'text/plain' },
-  csv: { kind: 'text', mime: 'text/csv', canonical: true },
+  csv: { kind: 'excel', mime: 'text/csv', canonical: true },
   ts: { kind: 'text', mime: 'text/plain' },
   tsx: { kind: 'text', mime: 'text/plain' },
   js: { kind: 'text', mime: 'text/javascript', canonical: true },
@@ -156,6 +157,17 @@ export const EXT_META: Record<string, FormatMeta> = {
   xlsx: {
     kind: 'excel',
     mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    canonical: true,
+  },
+  // 演示文稿前端没有渲染器，统一由服务端转 PDF 后走 PDF 预览
+  ppt: {
+    kind: 'slides',
+    mime: 'application/vnd.ms-powerpoint',
+    canonical: true,
+  },
+  pptx: {
+    kind: 'slides',
+    mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     canonical: true,
   },
 

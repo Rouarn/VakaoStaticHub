@@ -137,11 +137,43 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 | `THUMB_CACHE_RETENTION_DAYS` | 缩略图缓存保留天数，`0` 表示不按时间清理 |
 | `THUMB_CACHE_MAX_MB` | 缩略图缓存总容量上限（MB），`0` 表示不限 |
 | `CLEANUP_AT` | 每日清理时刻（缩略图缓存与过期分享） |
+| `OFFICE_CONVERT_CONCURRENCY` | Office 转 PDF 并发数 |
+| `OFFICE_CONVERT_TIMEOUT` | 单次转换超时（如 `90s`） |
+| `OFFICE_MAX_INPUT_MB` | 单个文件转换上限（MB），超限返回 422 |
+| `OFFICE_CACHE_RETENTION_DAYS` | 转换缓存保留天数，`0` 表示不按时间清理 |
+| `OFFICE_CACHE_MAX_MB` | 转换缓存总容量上限（MB），`0` 表示不限 |
+| `SOFFICE_PATH` | LibreOffice 可执行文件路径 |
 | `CACHE_REFRESH_INTERVAL_MS` | 文件索引刷新间隔（毫秒） |
 | `ROOT_BROWSE_WHITELIST` | 服务器目录浏览额外允许的绝对路径，逗号分隔 |
 | `HITOKOTO_API_URL` | 一言代理目标地址；留空则禁用 |
 | `APP_PUBLIC_BASE_URL` | 安装包下载链接的外部基址；留空按请求头拼接 |
 | `LOG_LEVEL` | 日志级别：`debug` / `info` / `warn` / `error` |
+
+## Office 预览依赖（LibreOffice + 中文字体）
+
+pptx/ppt/doc 与 docx 渲染失败兜底依赖服务器上的 LibreOffice。宝塔软件商店
+只有 Docker 版条目（`dk_libreoffice`），本项目不使用 Docker，因此走系统包管理：
+
+```bash
+# 安装（OpenCloudOS / RHEL 系，事务号 55，共 204 个包）
+dnf install -y --setopt=install_weak_deps=False \
+  libreoffice-impress libreoffice-writer libreoffice-calc \
+  google-noto-sans-cjk-ttc-fonts
+
+# 校验
+soffice --version                 # LibreOffice 24.8.6.2
+fc-list :lang=zh | wc -l          # 31（未安装时为 0，中文会变方块）
+du -sh /usr/lib64/libreoffice     # 357M
+
+# 完整卸载（按事务号回滚，会把依赖一并移除）
+dnf history undo 55 -y
+```
+
+- 安装后磁盘占用约增加 500 MB（`/` 从 15G 到 16G）。
+- 不引入任何常驻进程：转换时临时拉起 `soffice`，结束后自动退出。
+- 转换缓存位于 `<CACHE_DIR>/office/`（默认 `data/.cache/office`），按
+  `OFFICE_CACHE_RETENTION_DAYS` 与 `OFFICE_CACHE_MAX_MB` 每日清理，
+  可随缓存目录一起删除。
 
 ## 常见问题
 

@@ -181,6 +181,12 @@ chmod +x vakao-server
 | `THUMB_CACHE_RETENTION_DAYS` | `30`   | 缩略图缓存保留天数，0 表示不按时间清理 |
 | `THUMB_CACHE_MAX_MB`    | `512`       | 缩略图缓存总容量上限（MB），0 表示不限 |
 | `CLEANUP_AT`            | `03:00`     | 每日清理时刻（缩略图缓存与过期分享） |
+| `OFFICE_CONVERT_CONCURRENCY` | `2`    | Office 转 PDF 并发数                 |
+| `OFFICE_CONVERT_TIMEOUT` | `90s`      | 单次转换超时                         |
+| `OFFICE_MAX_INPUT_MB`   | `20`        | 单个文件转换上限（MB），超限返回 422 |
+| `OFFICE_CACHE_RETENTION_DAYS` | `30`  | 转换缓存保留天数，0 表示不按时间清理 |
+| `OFFICE_CACHE_MAX_MB`   | `1024`      | 转换缓存总容量上限（MB），0 表示不限 |
+| `SOFFICE_PATH`          | `soffice`   | LibreOffice 可执行文件路径           |
 | `CACHE_REFRESH_INTERVAL_MS` | `300000` | 索引刷新间隔（毫秒）                |
 | `ROOT_BROWSE_WHITELIST` | `''`        | 目录浏览额外允许的绝对路径，逗号分隔 |
 

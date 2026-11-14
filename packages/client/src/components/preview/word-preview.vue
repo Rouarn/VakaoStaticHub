@@ -1,23 +1,20 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import PdfPreview from './pdf-preview.vue';
 import type { PreviewProps } from './types';
+import { withPdfConversion } from '@/utils/preview-source';
 
 /**
- * Word 预览：docx-preview 渲染到容器
- * .doc（二进制旧格式）不支持，给出可读回退提示
+ * Word 预览：docx-preview 渲染到容器。
+ * 渲染失败（含旧版 .doc）时自动改用服务端转换的 PDF，
+ * 不再为旧格式单独维护提示分支。
  */
 const props = defineProps<PreviewProps>();
 const container = ref<HTMLDivElement | null>(null);
 const loading = ref(true);
-const error = ref('');
+const fallbackSrc = ref('');
 
 onMounted(async () => {
-  const isLegacyDoc = props.filename.toLowerCase().endsWith('.doc');
-  if (isLegacyDoc) {
-    error.value = '旧版 .doc 格式暂不支持预览，请下载或转换为 .docx';
-    loading.value = false;
-    return;
-  }
   try {
     const resp = await fetch(props.src);
     if (!resp.ok) throw new Error(`请求失败（HTTP ${resp.status}）`);
@@ -29,8 +26,8 @@ onMounted(async () => {
       breakPages: true,
       ignoreLastRenderedPageBreak: false,
     });
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Word 文档加载失败';
+  } catch {
+    fallbackSrc.value = withPdfConversion(props.src);
   } finally {
     loading.value = false;
   }
@@ -38,9 +35,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="w-full h-full overflow-auto">
-    <p v-if="error" class="text-13px text-ink-sub">{{ error }}</p>
-    <p v-else-if="loading" class="text-13px text-ink-sub">文档解析中…</p>
+  <PdfPreview
+    v-if="fallbackSrc"
+    :src="fallbackSrc"
+    :filename="props.filename"
+    :size="props.size"
+    :download-src="props.downloadSrc"
+  />
+  <div v-else class="w-full h-full overflow-auto">
+    <p v-if="loading" class="text-13px text-ink-sub">文档解析中…</p>
     <div ref="container" class="docx-body mx-auto" />
   </div>
 </template>

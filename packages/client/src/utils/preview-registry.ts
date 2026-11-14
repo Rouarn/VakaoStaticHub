@@ -81,6 +81,10 @@ export function registerBuiltinPreviews(): void {
     lazy(() => import('@/components/preview/excel-preview.vue')),
   );
   registerPreview(
+    'slides',
+    lazy(() => import('@/components/preview/pdf-preview.vue')),
+  );
+  registerPreview(
     'archive',
     lazy(() => import('@/components/preview/archive-preview.vue')),
   );
