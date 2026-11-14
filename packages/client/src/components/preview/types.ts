@@ -9,8 +9,8 @@ export interface PreviewProps {
   src: string;
   /** 文件名，用于语言识别与展示 */
   filename: string;
-  /** 字节大小，用于超大文件拦截与元信息展示 */
-  size: number;
+  /** 字节大小；未知时不传（远程直链、无元信息接口），界面显示「大小未知」而不是 0 B */
+  size?: number;
   /** 强制下载地址（可选，媒体错误态用；缺省时不展示下载动作） */
   downloadSrc?: string;
 }
@@ -24,5 +24,6 @@ export interface PreviewTarget {
   src: string;
   /** 强制下载地址 */
   downloadSrc: string;
-  size: number;
+  /** 字节大小；未知时省略，由展示层显示「大小未知」 */
+  size?: number;
 }

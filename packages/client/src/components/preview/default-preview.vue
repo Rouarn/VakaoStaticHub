@@ -2,7 +2,7 @@
 import { NButton, NIcon } from 'naive-ui';
 import { DownloadOutline } from '@vicons/ionicons5';
 import type { PreviewProps } from './types';
-import { formatBytes, formatTime } from '@/utils/file-types';
+import { formatBytes } from '@/utils/file-types';
 
 /**
  * 默认兜底预览：无法解析的格式展示元信息并提供下载
@@ -18,7 +18,7 @@ const props = defineProps<PreviewProps>();
         {{ props.filename }}
       </p>
       <p class="m-0 mt-2 text-12px text-ink-sub">
-        {{ formatBytes(props.size) }} · {{ formatTime(Date.now()) }}
+        {{ props.size === undefined ? '大小未知' : formatBytes(props.size) }}
       </p>
       <p class="m-0 mt-4 text-12px text-ink-sub">
         该格式暂不支持在线预览，可下载后本地打开

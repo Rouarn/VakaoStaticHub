@@ -37,6 +37,15 @@ interface ServerShareLink {
   createdAt: string;
 }
 
+interface ServerShareFile {
+  name: string;
+  path: string;
+  size: number;
+  exists: boolean;
+  extension?: string;
+  mtime?: string;
+}
+
 interface ServerShareInfo {
   token: string;
   remark?: string;
@@ -48,6 +57,7 @@ interface ServerShareInfo {
   maxAccesses?: number;
   accessCount: number;
   enabled: boolean;
+  files?: ServerShareFile[];
 }
 
 interface ServerPage<T> {
@@ -87,6 +97,18 @@ function toShareInfo(info: ServerShareInfo): ShareInfo {
     expiresAt: info.expiresAt ? new Date(info.expiresAt).getTime() : null,
     maxAccesses: info.maxAccesses ?? null,
     hasPassword: info.hasPassword,
+    ...(info.files
+      ? {
+          files: info.files.map((file) => ({
+            name: file.name,
+            path: file.path,
+            size: file.exists ? file.size : null,
+            exists: file.exists,
+            ...(file.extension ? { extension: file.extension } : {}),
+            ...(file.mtime ? { mtime: new Date(file.mtime).getTime() } : {}),
+          })),
+        }
+      : {}),
   };
 }
 

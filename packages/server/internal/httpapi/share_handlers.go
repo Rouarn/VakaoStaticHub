@@ -206,7 +206,15 @@ func (s *Server) handlePublicShareInfo(w http.ResponseWriter, r *http.Request, _
 	if err != nil {
 		return err
 	}
-	writeJSON(w, shareInfo(record))
+	info := shareInfo(record)
+	files, err := s.shareFiles(r, record)
+	if err != nil {
+		// 元信息读取失败不影响分享可用性：前端会退回 /f
+		s.log.Warn("share files metadata failed", "error", err, "token", record.Token)
+	} else {
+		info.Files = files
+	}
+	writeJSON(w, info)
 	return nil
 }
 
@@ -248,9 +256,20 @@ func (s *Server) handleShareFiles(w http.ResponseWriter, r *http.Request, _ *Cur
 	if _, err := s.authorizeShareAccess(r, record); err != nil {
 		return err
 	}
-	root, err := s.rootByID(r.Context(), record.RootID)
+	files, err := s.shareFiles(r, record)
 	if err != nil {
 		return err
+	}
+	writeJSON(w, model.ShareContent{Share: shareInfo(record), Files: files})
+	return nil
+}
+
+// shareFiles 把 filePaths 投影为带元信息的文件项（名称/大小/存在性/扩展名/修改时间）。
+// /s/{token} 与 /s/{token}/f 共用同一份实现，避免两处元信息计算分叉。
+func (s *Server) shareFiles(r *http.Request, record store.ShareRecord) ([]model.ShareFile, error) {
+	root, err := s.rootByID(r.Context(), record.RootID)
+	if err != nil {
+		return nil, err
 	}
 	categoryDir := filepath.Join(root.Path, record.Category)
 	files := make([]model.ShareFile, 0, len(record.FilePaths))
@@ -268,12 +287,13 @@ func (s *Server) handleShareFiles(w http.ResponseWriter, r *http.Request, _ *Cur
 			if info, statErr := os.Stat(full); statErr == nil && !info.IsDir() {
 				item.Size = info.Size()
 				item.Exists = true
+				mtime := info.ModTime().UTC()
+				item.MTime = &mtime
 			}
 		}
 		files = append(files, item)
 	}
-	writeJSON(w, model.ShareContent{Share: shareInfo(record), Files: files})
-	return nil
+	return files, nil
 }
 
 // shareInfo 去除密码哈希，并将记录映射为公开结构。

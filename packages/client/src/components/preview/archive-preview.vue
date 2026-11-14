@@ -74,7 +74,7 @@ onMounted(async () => {
     loading.value = false;
     return;
   }
-  if (props.size > ZIP_MAX_BYTES) {
+  if ((props.size ?? 0) > ZIP_MAX_BYTES) {
     message.value = `压缩包超过 ${formatBytes(ZIP_MAX_BYTES)}，已跳过条目解析`;
     loading.value = false;
     return;

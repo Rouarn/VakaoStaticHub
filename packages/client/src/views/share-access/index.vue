@@ -73,7 +73,7 @@ const { loadingText: bootLoadingText } = useListLoading({
 const { loadingText: unlockLoadingText } = useListLoading({
   text: '正在校验访问密码…',
 });
-/** 单文件分享的真实大小：ShareInfo 不含 size，用 HEAD 读 Content-Length */
+/** 单文件分享的大小与存在性：优先取分享信息里的 files[0]（后端已随 /s/{token} 下发） */
 const singleSize = ref<number | null>(null);
 const singleMissing = ref(false);
 const collectionMissingCount = computed(
@@ -189,8 +189,7 @@ async function unlock() {
     accessToken.value = result.accessToken;
     password.value = '';
     phase.value = 'ready';
-    if (info.value?.shareType === 'collection') await loadCollection();
-    else await loadSingleMeta();
+    await applyUnlockedFiles();
   } catch (e) {
     const { code, message } = errorOf(e);
     const text = joinMessage(message);
@@ -281,25 +280,29 @@ const singleDownloadSrc = computed(() =>
 );
 
 /**
- * 单文件分享没有独立的元信息接口，用 HEAD 读取 Content-Length。
- * 404 才判定「文件已删除」；网络失败保持未知，避免误报。
+ * 解锁后填充文件视图。
+ * 分享信息（/s/{token}）已经携带 files 元信息，单文件与集合都直接使用；
+ * 仅在旧后端未下发 files 时退回一次 /f，保证过渡期兼容。
  */
-async function loadSingleMeta() {
-  singleSize.value = null;
-  singleMissing.value = false;
-  if (!singleFile.value) return;
-  try {
-    const res = await fetch(singleSrc.value, { method: 'HEAD' });
-    if (res.status === 404) {
-      singleMissing.value = true;
-      return;
-    }
-    if (!res.ok) return;
-    const length = Number(res.headers.get('content-length'));
-    singleSize.value = Number.isFinite(length) ? length : null;
-  } catch {
-    /* 保留未知状态 */
+async function applyUnlockedFiles() {
+  if (singleFile.value) {
+    applySingleMeta();
+    return;
   }
+  const embedded = info.value?.files ?? [];
+  if (embedded.length > 0) {
+    collectionFiles.value = embedded;
+    collectionRootId.value = info.value?.rootId ?? '';
+    collectionCategory.value = info.value?.category ?? '';
+    return;
+  }
+  await loadCollection();
+}
+
+function applySingleMeta() {
+  const file = info.value?.files?.[0];
+  singleSize.value = file?.size ?? null;
+  singleMissing.value = file ? !file.exists : false;
 }
 
 function nameOf(path: string) {
@@ -334,7 +337,7 @@ function openSinglePreview() {
         ? singleImageSrc.value
         : singleSrc.value,
       downloadSrc: singleDownloadSrc.value,
-      size: singleSize.value ?? 0,
+      ...(singleSize.value !== null ? { size: singleSize.value } : {}),
     },
   ];
   previewIndex.value = 0;
@@ -353,7 +356,7 @@ function openCollectionPreview(index: number) {
     filename: file.name,
     src: isImage(file.name) ? imageUrl(i) : fileUrl(i),
     downloadSrc: fileUrl(i, true),
-    size: file.size ?? 0,
+    size: file.size ?? undefined,
   }));
   previewIndex.value = position;
   previewShow.value = true;

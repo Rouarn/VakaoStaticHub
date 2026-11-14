@@ -85,6 +85,23 @@ async function probeExtension(raw: string): Promise<string> {
   }
 }
 
+/**
+ * 短链预览的真实大小：同源 HEAD 读 content-length。
+ * 跨域或读取失败保持未知（显示「大小未知」），不伪造 0 B。
+ */
+async function fillSizeFromHead(raw: string, expectSrc = raw) {
+  if (!isSameOrigin(raw)) return;
+  try {
+    const res = await fetch(raw, { method: 'HEAD' });
+    if (!res.ok || target.value?.src !== expectSrc) return;
+    const length = Number(res.headers.get('content-length'));
+    if (!Number.isFinite(length) || length <= 0) return;
+    target.value = { ...target.value, size: length };
+  } catch {
+    /* 保持未知 */
+  }
+}
+
 function setTarget(
   src: string,
   downloadSrc: string,
@@ -92,7 +109,8 @@ function setTarget(
   nameForPreview = filename,
   autoLoad = true,
 ) {
-  target.value = { src, downloadSrc, filename, size: 0 };
+  // 未知大小不写 0：交给展示层显示「大小未知」
+  target.value = { src, downloadSrc, filename };
   previewName.value = nameForPreview;
   invalid.value = '';
   if (autoLoad) void load();
@@ -201,6 +219,8 @@ function applyQuery() {
       hint?.display ?? fallback,
       fileName,
     );
+    // 图片预览走缩略图，大小仍按原始文件读
+    void fillSizeFromHead(buildFileUrl({ code }), src);
   }
 }
 
@@ -260,7 +280,10 @@ watch(() => route.fullPath, applyQuery);
           <p class="m-0 min-w-0 text-13px font-600 text-ink truncate">
             {{ target.filename }}
           </p>
-          <span v-if="target.size > 0" class="text-11px text-ink-sub shrink-0">
+          <span
+            v-if="target.size !== undefined"
+            class="text-11px text-ink-sub shrink-0"
+          >
             {{ formatBytes(target.size) }}
           </span>
           <div class="ml-auto flex items-center gap-1 shrink-0">

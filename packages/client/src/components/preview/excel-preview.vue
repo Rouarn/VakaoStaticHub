@@ -74,7 +74,7 @@ onMounted(async () => {
           {{ sheet.name }}
         </button>
         <span class="ml-auto text-11px text-ink-sub pl-3">
-          {{ formatBytes(props.size) }}
+          {{ props.size === undefined ? '—' : formatBytes(props.size) }}
         </span>
       </div>
       <div

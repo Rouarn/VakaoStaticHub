@@ -237,6 +237,8 @@ export interface ShareInfo {
   expiresAt: number | null;
   maxAccesses: number | null;
   hasPassword: boolean;
+  /** 文件元信息（新版本后端随分享信息一起下发；缺失时前端退回 /f 列表接口） */
+  files?: ShareCollectionFile[];
 }
 
 /** 多文件分享（collection）中的单个文件项（含存在性探测，避免已删除文件静默消失） */
@@ -249,6 +251,10 @@ export interface ShareCollectionFile {
   size: number | null;
   /** 磁盘上是否仍存在 */
   exists: boolean;
+  /** 扩展名（小写、不含点）；后端新版本下发 */
+  extension?: string;
+  /** 磁盘修改时间（毫秒）；文件不存在时缺失 */
+  mtime?: number;
 }
 
 /** 多文件分享文件列表（GET /share/:token?accessToken=...） */
