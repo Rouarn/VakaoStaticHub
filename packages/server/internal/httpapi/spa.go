@@ -65,8 +65,12 @@ func serveSPAFile(w http.ResponseWriter, r *http.Request, dir, name string) {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	case strings.HasSuffix(name, "index.html"):
 		w.Header().Set("Cache-Control", "no-store")
+		// media-src 与 img-src 保持同档：预览页允许通过 ?file= 直接播放
+		// 任意 https 媒体地址。未显式声明时 <video>/<audio> 会回退到
+		// default-src 'self'，跨域视频会被拦成「无法解码」。
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; img-src 'self' data: blob: https:; "+
+				"media-src 'self' https:; "+
 				"style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "+
 				"connect-src 'self' https:; font-src 'self' data: https:; frame-ancestors 'none'")
 	default:
