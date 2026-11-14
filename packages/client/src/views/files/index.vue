@@ -1,55 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useDebounceFn } from '@vueuse/core';
-import {
-  NButton,
-  NEmpty,
-  NIcon,
-  NInput,
-  NModal,
-  NPagination,
-  NSelect,
-  NSpin,
-  useMessage,
-} from 'naive-ui';
-import {
-  CloudUploadOutline,
-  GridOutline,
-  ListOutline,
-  SearchOutline,
-  ServerOutline,
-  SettingsOutline,
-  ShareSocialOutline,
-  SwapHorizontalOutline,
-  TrashOutline,
-} from '@vicons/ionicons5';
-import type { FileItem, ShareLink } from '@vakao/shared';
-import {
-  batchDelete,
-  batchMove,
-  deleteFile,
-  getFileConfig,
-  listFiles,
-  renameFile,
-} from '@/api/files';
+import { NButton, NIcon, NModal, NPagination } from 'naive-ui';
+import { CloudUploadOutline } from '@vicons/ionicons5';
+import type { FileItem } from '@vakao/shared';
+import { getFileConfig, listFiles } from '@/api/files';
 import PageHeader from '@/components/common/page-header.vue';
-import ListLoading from '@/components/common/list-loading.vue';
 import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import CategoryPanel from '@/layouts/components/category-panel.vue';
-import {
-  buildFilePreviewPageUrl,
-  buildFileUrl,
-  buildSharePageUrl,
-  buildThumbUrl,
-} from '@/utils/file-url';
 import { getErrorMessage } from '@/utils/http';
-import { formatBytes, isImage } from '@/utils/file-types';
+import { formatBytes } from '@/utils/file-types';
 import { useAppStore } from '@/stores/modules/app';
 import { useCategoryStore } from '@/stores/modules/category';
 import { useIndexStatusStore } from '@/stores/modules/index-status';
-import { useOverviewStore } from '@/stores/modules/overview';
-import FileCard from './components/file-card.vue';
 import UploadPanel from './components/upload-panel.vue';
 import RenameFileModal from './components/rename-file-modal.vue';
 import MoveFileModal from './components/move-file-modal.vue';
@@ -58,7 +22,9 @@ import RootManagerModal from './components/root-manager-modal.vue';
 import ShareQrModal from '@/views/shares/components/share-qr-modal.vue';
 import ConfirmModal from '@/components/common/confirm-modal.vue';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
-import type { PreviewTarget } from '@/components/preview/types';
+import FilesToolbar from './components/files-toolbar.vue';
+import FileList from './components/file-list.vue';
+import { useFileActions } from './composables/use-file-actions';
 
 /**
  * 文件库：网格 / 列表、搜索、排序、分页、多选批量操作、上传、预览入口
@@ -67,8 +33,6 @@ import type { PreviewTarget } from '@/components/preview/types';
 const appStore = useAppStore();
 const categoryStore = useCategoryStore();
 const indexStatusStore = useIndexStatusStore();
-const overview = useOverviewStore();
-const message = useMessage();
 
 const defaultCategory = ref('TemporaryFile');
 const manageShow = ref(false);
@@ -135,13 +99,7 @@ const {
 const error = ref('');
 const selected = ref<Set<string>>(new Set());
 /** 内容区滚动容器：翻页后回到顶部 */
-const scrollRef = ref<HTMLElement | null>(null);
-
-const sortOptions = [
-  { label: '修改时间', value: 'mtime' },
-  { label: '名称', value: 'name' },
-  { label: '大小', value: 'size' },
-];
+const listRef = ref<InstanceType<typeof FileList> | null>(null);
 
 let loadSeq = 0;
 
@@ -255,7 +213,7 @@ watch([page, pageSize, sort, order], () => {
     selected.value = new Set();
     error.value = '';
   });
-  scrollRef.value?.scrollTo({ top: 0 });
+  listRef.value?.scrollToTop();
   scheduleLoad();
 });
 
@@ -301,216 +259,50 @@ function toggleOrder() {
   order.value = order.value === 'asc' ? 'desc' : 'asc';
 }
 
-// —— 预览 ——
-const previewShow = ref(false);
-const previewIndex = ref(0);
-const previewTargets = ref<PreviewTarget[]>([]);
-
-function toTarget(file: FileItem): PreviewTarget {
-  return {
-    filename: file.name,
-    // 图片走高分辨率档，其余类型仍需原始内容交给各自的预览组件
-    src: isImage(file.name)
-      ? buildThumbUrl({ code: file.code }, 'preview')
-      : buildFileUrl({ code: file.code }),
-    downloadSrc: buildFileUrl({
-      code: file.code,
-      download: true,
-    }),
-    size: file.size,
-  };
-}
-
-function openPreview(file: FileItem) {
-  if (isImage(file.name)) {
-    const images = items.value.filter((i) => isImage(i.name));
-    previewTargets.value = images.map(toTarget);
-    previewIndex.value = Math.max(
-      0,
-      images.findIndex((i) => i.path === file.path),
-    );
-  } else {
-    previewTargets.value = [toTarget(file)];
-    previewIndex.value = 0;
-  }
-  previewShow.value = true;
-}
-
-// —— 复制直链 ——
-async function copyLink(file: FileItem) {
-  const url = buildFileUrl({ code: file.code });
-  try {
-    await navigator.clipboard.writeText(url);
-    message.success('直链已复制');
-  } catch {
-    message.error('复制失败，请检查浏览器剪贴板权限');
-  }
-}
-
-// —— 复制预览链接（带文件名，预览页据此选择播放器） ——
-async function copyPreviewLink(file: FileItem) {
-  const url = buildFilePreviewPageUrl({ code: file.code, name: file.name });
-  try {
-    await navigator.clipboard.writeText(url);
-    message.success('预览链接已复制');
-  } catch {
-    message.error('复制失败，请检查浏览器剪贴板权限');
-  }
-}
-
-// —— 重命名 ——
-const renameShow = ref(false);
-const renameTarget = ref<FileItem | null>(null);
-const renameLoading = ref(false);
-
-function openRename(file: FileItem) {
-  renameTarget.value = file;
-  renameShow.value = true;
-}
-
-async function submitRename(newName: string) {
-  const file = renameTarget.value;
-  if (!file) return;
-  renameLoading.value = true;
-  try {
-    await renameFile(rootId.value, category.value, file.path, newName);
-    message.success('已重命名');
-    renameShow.value = false;
-    await load();
-    void categoryStore.loadCategories(rootId.value, { silent: true });
-  } catch (e) {
-    message.error(getErrorMessage(e, '重命名失败'));
-  } finally {
-    renameLoading.value = false;
-  }
-}
-
-// —— 移动 ——
-const moveShow = ref(false);
-const movePaths = ref<string[]>([]);
-const moveLoading = ref(false);
-
-function openMove(file: FileItem) {
-  movePaths.value = [file.path];
-  moveShow.value = true;
-}
-
-function openBatchMove() {
-  movePaths.value = [...selected.value];
-  moveShow.value = true;
-}
-
-async function submitMove(targetCategory: string) {
-  moveLoading.value = true;
-  try {
-    const result = await batchMove(
-      rootId.value,
-      category.value,
-      movePaths.value,
-      targetCategory,
-    );
-    const failed = result.results.filter((r) => !r.success);
-    if (failed.length > 0) {
-      message.warning(
-        `已移动 ${result.movedCount} 个，${failed.length} 个失败：${failed[0].error ?? '未知原因'}`,
-      );
-    } else {
-      message.success(
-        `已移动 ${result.movedCount} 个文件到「${targetCategory}」`,
-      );
-    }
-    moveShow.value = false;
-    selected.value = new Set();
-    await load();
-    void categoryStore.loadCategories(rootId.value, { silent: true });
-  } catch (e) {
-    message.error(getErrorMessage(e, '移动失败'));
-  } finally {
-    moveLoading.value = false;
-  }
-}
-
-// —— 删除 ——
-const deleteShow = ref(false);
-const deletePaths = ref<string[]>([]);
-const deleteLabel = ref('');
-const deleteLoading = ref(false);
-
-function openDelete(file: FileItem) {
-  deletePaths.value = [file.path];
-  deleteLabel.value = `「${file.name}」`;
-  deleteShow.value = true;
-}
-
-function openBatchDelete() {
-  deletePaths.value = [...selected.value];
-  deleteLabel.value = `${selected.value.size} 个文件`;
-  deleteShow.value = true;
-}
-
-async function confirmDelete() {
-  deleteLoading.value = true;
-  try {
-    if (deletePaths.value.length === 1) {
-      await deleteFile(rootId.value, category.value, deletePaths.value[0]);
-    } else {
-      await batchDelete(rootId.value, category.value, deletePaths.value);
-    }
-    message.success(`${deleteLabel.value}已删除`);
-    deleteShow.value = false;
-    selected.value = new Set();
-    await load();
-    void categoryStore.loadCategories(rootId.value, { silent: true });
-  } catch (e) {
-    message.error(getErrorMessage(e, '删除失败'));
-  } finally {
-    deleteLoading.value = false;
-  }
-}
-
-// —— 上传 ——
-const uploadShow = ref(false);
-
-async function onUploaded() {
-  await load();
-  void categoryStore.loadCategories(rootId.value, { silent: true });
-}
-
-// —— 分享（单文件 / 多选批量） ——
-const shareShow = ref(false);
-const sharePaths = ref<string[]>([]);
-
-function openShare(file: FileItem) {
-  sharePaths.value = [file.path];
-  shareShow.value = true;
-}
-
-function openBatchShare() {
-  if (selected.value.size === 0) {
-    message.warning('请先选择文件');
-    return;
-  }
-  sharePaths.value = [...selected.value];
-  shareShow.value = true;
-}
-
-// —— 创建成功后的二维码（与「分享管理」复用同一组件） ——
-const qrShow = ref(false);
-const qrUrl = ref('');
-const qrFilename = ref('');
-const shareLabel = computed(() =>
-  sharePaths.value.length > 1
-    ? `文件集合-${sharePaths.value.length}个`
-    : (sharePaths.value[0]?.split('/').pop() ?? 'share'),
-);
-
-function onShareCreated(link: ShareLink) {
-  // 单文件与多选批量都走这里：同步侧栏「分享管理」徽标，无需等路由切换
-  void overview.refresh();
-  qrUrl.value = buildSharePageUrl(link.token);
-  qrFilename.value = `${shareLabel.value}-qr.png`;
-  qrShow.value = true;
-}
+// —— 预览 / 复制 / 重命名 / 移动 / 删除 / 上传 / 分享 ——
+const {
+  previewShow,
+  previewIndex,
+  previewTargets,
+  openPreview,
+  copyLink,
+  copyPreviewLink,
+  renameShow,
+  renameTarget,
+  renameLoading,
+  openRename,
+  submitRename,
+  moveShow,
+  movePaths,
+  moveLoading,
+  openMove,
+  openBatchMove,
+  submitMove,
+  deleteShow,
+  deleteLabel,
+  deleteLoading,
+  openDelete,
+  openBatchDelete,
+  confirmDelete,
+  uploadShow,
+  onUploaded,
+  shareShow,
+  sharePaths,
+  openShare,
+  openBatchShare,
+  qrShow,
+  qrUrl,
+  qrFilename,
+  onShareCreated,
+} = useFileActions({
+  rootId,
+  category,
+  items,
+  selected,
+  reload: () => load(),
+  reloadCategories: () =>
+    void categoryStore.loadCategories(rootId.value, { silent: true }),
+});
 </script>
 
 <template>
@@ -532,227 +324,56 @@ function onShareCreated(link: ShareLink) {
       </template>
     </PageHeader>
 
-    <!-- 分类 chips（原分类面板的入口迁移到页内） -->
-    <div
-      class="flex flex-nowrap sm:flex-wrap items-center gap-2 overflow-x-auto scrollbar-hidden pb-1"
-    >
-      <NSelect
-        :value="rootId"
-        :options="rootOptions"
-        size="small"
-        class="w-36 sm:w-40 shrink-0"
-        @update:value="onRootChange"
-      />
-      <button
-        v-for="c in categories"
-        :key="c.name"
-        type="button"
-        class="h-7 px-3 rounded-full border border-solid text-12px cursor-pointer transition-colors shrink-0"
-        :class="
-          category === c.name
-            ? 'bg-brand-600 text-white border-transparent'
-            : 'bg-[var(--mat-chip)] text-ink-sub border-[var(--mat-line)] hover:text-ink'
-        "
-        @click="categoryStore.setActiveCategory(c.name)"
-      >
-        {{ c.name }}
-        <span class="tabular-nums opacity-70">{{ c.fileCount }}</span>
-      </button>
-      <button
-        type="button"
-        class="shrink-0 whitespace-nowrap h-7 px-3 rounded-full border border-dashed border-[var(--mat-line)] bg-transparent text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink"
-        @click="manageShow = true"
-      >
-        + 新建分类
-      </button>
-      <button
-        type="button"
-        class="ml-auto shrink-0 h-7 px-3 rounded-full border border-solid border-[var(--mat-line)] bg-[var(--mat-chip)] text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink flex items-center gap-1.5"
-        @click="manageShow = true"
-      >
-        <NIcon :size="13"><SettingsOutline /></NIcon>
-        管理分类
-      </button>
-      <button
-        type="button"
-        class="shrink-0 h-7 px-3 rounded-full border border-solid border-[var(--mat-line)] bg-[var(--mat-chip)] text-12px text-ink-sub cursor-pointer transition-colors hover:text-ink flex items-center gap-1.5"
-        @click="rootMgrShow = true"
-      >
-        <NIcon :size="13"><ServerOutline /></NIcon>
-        管理根目录
-      </button>
-    </div>
+    <FilesToolbar
+      :root-id="rootId"
+      :root-options="rootOptions"
+      :categories="categories"
+      :category="category"
+      :q="q"
+      :sort="sort"
+      :order="order"
+      :view-mode="viewMode"
+      :selected-count="selected.size"
+      :all-selected="allSelected"
+      @root-change="onRootChange"
+      @select-category="categoryStore.setActiveCategory"
+      @manage-category="manageShow = true"
+      @manage-root="rootMgrShow = true"
+      @update:q="q = $event"
+      @update:sort="sort = $event"
+      @update:view-mode="viewMode = $event"
+      @toggle-order="toggleOrder"
+      @select-all="toggleSelectAll"
+      @batch-move="openBatchMove"
+      @batch-share="openBatchShare"
+      @batch-delete="openBatchDelete"
+      @clear-selection="selected = new Set()"
+    />
 
-    <div class="flex flex-wrap items-center gap-2">
-      <NInput
-        v-model:value="q"
-        size="small"
-        clearable
-        placeholder="搜索文件名 / 路径"
-        class="w-full! sm:w-64!"
-      >
-        <template #prefix>
-          <NIcon :size="15"><SearchOutline /></NIcon>
-        </template>
-      </NInput>
-
-      <NSelect
-        v-model:value="sort"
-        :options="sortOptions"
-        size="small"
-        class="w-32"
-      />
-      <NButton
-        size="small"
-        quaternary
-        circle
-        :title="order === 'asc' ? '升序' : '降序'"
-        @click="toggleOrder"
-      >
-        {{ order === 'asc' ? '↑' : '↓' }}
-      </NButton>
-
-      <div class="ml-auto flex items-center gap-1">
-        <NButton
-          size="small"
-          circle
-          quaternary
-          :type="viewMode === 'grid' ? 'primary' : 'default'"
-          @click="viewMode = 'grid'"
-        >
-          <template #icon
-            ><NIcon><GridOutline /></NIcon>
-          </template>
-        </NButton>
-        <NButton
-          size="small"
-          circle
-          quaternary
-          :type="viewMode === 'list' ? 'primary' : 'default'"
-          @click="viewMode = 'list'"
-        >
-          <template #icon
-            ><NIcon><ListOutline /></NIcon>
-          </template>
-        </NButton>
-      </div>
-    </div>
-
-    <!-- 批量操作条 -->
-    <div
-      v-if="selected.size > 0"
-      class="glass-chip self-start px-3 py-2 flex items-center gap-3"
-    >
-      <span class="text-12px text-ink">已选 {{ selected.size }} 项</span>
-      <NButton size="tiny" quaternary @click="toggleSelectAll">
-        {{ allSelected ? '取消全选' : '全选本页' }}
-      </NButton>
-      <NButton size="tiny" quaternary @click="openBatchMove">
-        <template #icon
-          ><NIcon :size="14"><SwapHorizontalOutline /></NIcon
-        ></template>
-        移动
-      </NButton>
-      <NButton size="tiny" quaternary @click="openBatchShare">
-        <template #icon
-          ><NIcon :size="14"><ShareSocialOutline /></NIcon
-        ></template>
-        创建分享（{{ selected.size }} 个文件）
-      </NButton>
-      <NButton size="tiny" quaternary type="error" @click="openBatchDelete">
-        <template #icon
-          ><NIcon :size="14"><TrashOutline /></NIcon
-        ></template>
-        删除
-      </NButton>
-      <NButton size="tiny" quaternary @click="selected = new Set()"
-        >取消</NButton
-      >
-    </div>
-
-    <!-- 内容区：加载遮罩相对可视区域居中，不随内容高度或滚动位置偏移 -->
-    <div class="relative flex-1 min-h-0">
-      <div ref="scrollRef" class="h-full overflow-y-auto pr-1">
-        <div v-if="error" class="glass-panel px-6 py-10 text-center">
-          <p class="m-0 text-13px text-ink-sub">{{ error }}</p>
-          <NButton class="mt-3" size="small" @click="reload">重试</NButton>
-        </div>
-
-        <div
-          v-else-if="!loading && items.length === 0"
-          class="glass-panel px-6 py-16 flex flex-col items-center gap-3"
-        >
-          <template v-if="scanning && !q">
-            <NSpin size="small" />
-            <p class="m-0 text-13px text-ink-sub">
-              正在扫描 · 已处理
-              <span class="tabular-nums">{{ scannedFiles }}</span> 个文件
-            </p>
-            <p
-              v-if="scanningDir"
-              class="m-0 max-w-full truncate text-11px text-ink-sub font-mono"
-            >
-              {{ scanningDir }}
-            </p>
-          </template>
-          <template v-else>
-            <NEmpty
-              :description="q ? `没有匹配「${q}」的文件` : '当前分类还没有文件'"
-            />
-            <NButton v-if="q" size="small" @click="q = ''">清除搜索</NButton>
-            <NButton
-              v-else
-              size="small"
-              type="primary"
-              @click="uploadShow = true"
-            >
-              上传第一个文件
-            </NButton>
-          </template>
-        </div>
-
-        <div
-          v-else-if="viewMode === 'grid'"
-          class="content-grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(212px,1fr))]"
-        >
-          <FileCard
-            v-for="file in items"
-            :key="file.path"
-            :file="file"
-            :selected="selected.has(file.path)"
-            mode="grid"
-            @toggle-select="toggleSelect"
-            @open="openPreview"
-            @rename="openRename"
-            @move="openMove"
-            @share="openShare"
-            @copy-link="copyLink"
-            @copy-preview-link="copyPreviewLink"
-            @remove="openDelete"
-          />
-        </div>
-
-        <div v-else class="flex flex-col gap-2">
-          <FileCard
-            v-for="file in items"
-            :key="file.path"
-            :file="file"
-            :selected="selected.has(file.path)"
-            mode="list"
-            @toggle-select="toggleSelect"
-            @open="openPreview"
-            @rename="openRename"
-            @move="openMove"
-            @share="openShare"
-            @copy-link="copyLink"
-            @copy-preview-link="copyPreviewLink"
-            @remove="openDelete"
-          />
-        </div>
-      </div>
-
-      <ListLoading :show="loading" :text="loadingText" />
-    </div>
+    <FileList
+      ref="listRef"
+      :error="error"
+      :loading="loading"
+      :loading-text="loadingText"
+      :scanning="scanning"
+      :scanned-files="scannedFiles"
+      :scanning-dir="scanningDir"
+      :q="q"
+      :files="items"
+      :selected="selected"
+      :view-mode="viewMode"
+      @retry="reload"
+      @clear-search="q = ''"
+      @upload="uploadShow = true"
+      @toggle-select="toggleSelect"
+      @open="openPreview"
+      @rename="openRename"
+      @move="openMove"
+      @share="openShare"
+      @copy-link="copyLink"
+      @copy-preview-link="copyPreviewLink"
+      @remove="openDelete"
+    />
 
     <!-- 分页（无数据时隐藏，避免 0 条却显示页码） -->
     <footer
