@@ -2,19 +2,9 @@
 import { computed, onMounted, ref } from 'vue';
 import {
   NButton,
-  NDatePicker,
-  NDrawer,
-  NDrawerContent,
   NIcon,
-  NInput,
-  NInputNumber,
-  NModal,
   NPagination,
-  NRadioButton,
-  NRadioGroup,
   NSelect,
-  NSpin,
-  NSwitch,
   NTag,
   NTooltip,
   useMessage,
@@ -23,8 +13,6 @@ import {
   AddOutline,
   ArrowUndoOutline,
   BanOutline,
-  CheckmarkCircleOutline,
-  CloseCircleOutline,
   CloudUploadOutline,
   CopyOutline,
   CreateOutline,
@@ -33,34 +21,20 @@ import {
   KeyOutline,
   PlayOutline,
   RocketOutline,
-  TimeOutline,
   TrashOutline,
 } from '@vicons/ionicons5';
-import type {
-  GrayIncrementStep,
-  ListVersionsQuery,
-  RollbackCandidate,
-} from '@vakao/shared';
+import type { ListVersionsQuery } from '@vakao/shared';
 import {
   APP_VERSION_STATUS,
   STATUS_META,
-  createApp,
-  createVersion,
   deleteApp,
   deleteVersion,
   getApkDownloadUrl,
-  getVersion,
-  getRollbackCandidates,
   listApps,
   listVersions,
   offlineVersion,
-  publishVersion,
-  renameApp,
-  rollbackVersion,
-  setForceUpdate,
-  updateVersion,
 } from '@/api/app-update';
-import type { AppVersionRecord, PublishBody } from '@/api/app-update';
+import type { AppVersionRecord } from '@/api/app-update';
 import { getErrorMessage } from '@/utils/http';
 import { formatBytes } from '@/utils/file-types';
 import { formatDateTime, truncateMiddle } from '@/utils/format';
@@ -71,6 +45,13 @@ import ConfirmModal from '@/components/common/confirm-modal.vue';
 import ListLoading from '@/components/common/list-loading.vue';
 import RefreshButton from '@/components/common/refresh-button.vue';
 import { useListLoading } from '@/composables/use-list-loading';
+import AppDetailDrawer from './components/app-detail-drawer.vue';
+import AppFormModal from './components/app-form-modal.vue';
+import AppUploadModal from './components/app-upload-modal.vue';
+import AppPublishModal from './components/app-publish-modal.vue';
+import AppForceModal from './components/app-force-modal.vue';
+import AppEditModal from './components/app-edit-modal.vue';
+import AppRollbackModal from './components/app-rollback-modal.vue';
 
 /**
  * APP 版本管理
@@ -102,22 +83,11 @@ const error = ref('');
 
 // 版本详情抽屉
 const detailShow = ref(false);
-const detailLoading = ref(false);
-const detailError = ref('');
-const detail = ref<AppVersionRecord | null>(null);
+const detailTarget = ref<AppVersionRecord | null>(null);
 
-async function openDetail(version: AppVersionRecord) {
+function openDetail(version: AppVersionRecord) {
+  detailTarget.value = version;
   detailShow.value = true;
-  detailLoading.value = true;
-  detailError.value = '';
-  detail.value = version;
-  try {
-    detail.value = await getVersion(version.id);
-  } catch (e) {
-    detailError.value = getErrorMessage(e, '版本详情加载失败');
-  } finally {
-    detailLoading.value = false;
-  }
 }
 
 const appOptions = computed(() => [
@@ -205,11 +175,8 @@ function statusMetaOf(version: AppVersionRecord) {
 
 // ===================== 应用管理 =====================
 const appModal = ref<'create' | 'rename' | null>(null);
-const appForm = ref({ appKey: '' });
-const appSaving = ref(false);
 
 function openCreateApp() {
-  appForm.value = { appKey: '' };
   appModal.value = 'create';
 }
 
@@ -218,39 +185,13 @@ function openRenameApp() {
     message.warning('请先选择一个应用');
     return;
   }
-  appForm.value = { appKey: activeApp.value };
   appModal.value = 'rename';
 }
 
-async function submitApp() {
-  const value = appForm.value.appKey.trim();
-  if (!value) {
-    message.warning('应用标识不能为空');
-    return;
-  }
-  if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-    message.warning('应用标识只能包含字母、数字、下划线与连字符');
-    return;
-  }
-  appSaving.value = true;
-  try {
-    if (appModal.value === 'create') {
-      await createApp(value);
-      message.success(`应用 ${value} 已创建`);
-      activeApp.value = value;
-    } else {
-      await renameApp(activeApp.value, value);
-      message.success(`应用已重命名为 ${value}`);
-      activeApp.value = value;
-    }
-    appModal.value = null;
-    await loadApps();
-    await loadVersions();
-  } catch (e) {
-    message.error(getErrorMessage(e, '应用操作失败'));
-  } finally {
-    appSaving.value = false;
-  }
+async function onAppSaved(value: string) {
+  activeApp.value = value;
+  await loadApps();
+  await loadVersions();
 }
 
 const deleteAppShow = ref(false);
@@ -287,359 +228,41 @@ async function confirmDeleteApp() {
 
 // ===================== APK 上传 =====================
 const uploadShow = ref(false);
-const uploading = ref(false);
-const uploadPercent = ref(0);
-const uploadError = ref('');
-const uploadResult = ref<AppVersionRecord | null>(null);
-const fileInput = ref<HTMLInputElement | null>(null);
-const pickedFile = ref<File | null>(null);
-const pickedError = ref('');
-const uploadForm = ref({
-  appKey: '',
-  versionName: '',
-  versionCode: 1,
-  updateLog: '',
-  remark: '',
-  scheduled: false,
-  scheduledAt: null as number | null,
-  scheduledMode: 'full' as 'full' | 'gray',
-  scheduledGrayPercent: 20,
-});
-const MAX_APK = 500 * 1024 * 1024;
 
 function openUpload() {
-  uploadForm.value = {
-    appKey: activeApp.value || apps.value[0] || '',
-    versionName: '',
-    versionCode: 1,
-    updateLog: '',
-    remark: '',
-    scheduled: false,
-    scheduledAt: null,
-    scheduledMode: 'full',
-    scheduledGrayPercent: 20,
-  };
-  pickedFile.value = null;
-  pickedError.value = '';
-  uploadError.value = '';
-  uploadPercent.value = 0;
-  uploadResult.value = null;
   uploadShow.value = true;
 }
 
-async function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0] ?? null;
-  pickedFile.value = null;
-  pickedError.value = '';
-  uploadResult.value = null;
-  if (!file) return;
-
-  if (!file.name.toLowerCase().endsWith('.apk')) {
-    pickedError.value = '文件扩展名必须为 .apk';
-    input.value = '';
-    return;
-  }
-  if (file.size <= 0) {
-    pickedError.value = '文件为空';
-    input.value = '';
-    return;
-  }
-  if (file.size > MAX_APK) {
-    pickedError.value = `文件超过 500MB 上限（当前 ${formatBytes(file.size)}）`;
-    input.value = '';
-    return;
-  }
-
-  // 客户端 ZIP 魔数校验（PK\x03\x04），与后端一致，提前拦截改名的非 APK 文件
-  try {
-    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-    if (
-      head[0] !== 0x50 ||
-      head[1] !== 0x4b ||
-      head[2] !== 0x03 ||
-      head[3] !== 0x04
-    ) {
-      pickedError.value = '文件内容不是合法的 APK（ZIP）包';
-      input.value = '';
-      return;
-    }
-  } catch {
-    pickedError.value = '读取文件失败';
-    input.value = '';
-    return;
-  }
-
-  pickedFile.value = file;
-  if (!uploadForm.value.versionName) {
-    uploadForm.value.versionName = file.name.replace(/\.apk$/i, '');
-  }
-}
-
-async function submitUpload() {
-  const file = pickedFile.value;
-  if (!file) {
-    message.warning('请选择 APK 文件');
-    return;
-  }
-  if (!uploadForm.value.appKey) {
-    message.warning('请选择应用');
-    return;
-  }
-  if (!uploadForm.value.versionName.trim()) {
-    message.warning('请填写版本名');
-    return;
-  }
-  if (!uploadForm.value.versionCode || uploadForm.value.versionCode <= 0) {
-    message.warning('versionCode 必须大于 0');
-    return;
-  }
-  if (uploadForm.value.scheduled) {
-    if (!uploadForm.value.scheduledAt) {
-      message.warning('请选择定时发布时间');
-      return;
-    }
-    if (uploadForm.value.scheduledAt <= Date.now()) {
-      message.warning('定时发布时间必须晚于当前时间');
-      return;
-    }
-    if (
-      uploadForm.value.scheduledMode === 'gray' &&
-      (uploadForm.value.scheduledGrayPercent < 1 ||
-        uploadForm.value.scheduledGrayPercent > 99)
-    ) {
-      message.warning('定时灰度百分比必须在 1~99');
-      return;
-    }
-  }
-
-  const form = new FormData();
-  form.append('file', file, file.name);
-  form.append('appKey', uploadForm.value.appKey);
-  form.append('versionName', uploadForm.value.versionName.trim());
-  form.append('versionCode', String(uploadForm.value.versionCode));
-  if (uploadForm.value.updateLog.trim())
-    form.append('updateLog', uploadForm.value.updateLog.trim());
-  if (uploadForm.value.remark.trim())
-    form.append('remark', uploadForm.value.remark.trim());
-  if (uploadForm.value.scheduled && uploadForm.value.scheduledAt) {
-    form.append('scheduledPublishAt', String(uploadForm.value.scheduledAt));
-    form.append('scheduledPublishMode', uploadForm.value.scheduledMode);
-    if (uploadForm.value.scheduledMode === 'gray') {
-      form.append(
-        'scheduledGrayPercent',
-        String(uploadForm.value.scheduledGrayPercent),
-      );
-    }
-  }
-
-  uploading.value = true;
-  uploadPercent.value = 0;
-  uploadError.value = '';
-  try {
-    const result = await createVersion(form, (percent) => {
-      uploadPercent.value = percent;
-    });
-    uploadResult.value = result;
-    message.success('APK 上传成功，已创建草稿版本');
-    activeApp.value = result.appKey;
-    await loadVersions();
-  } catch (e) {
-    uploadError.value = getErrorMessage(e, 'APK 上传失败');
-  } finally {
-    uploading.value = false;
-  }
-}
-
-function clearPicked() {
-  pickedFile.value = null;
-  pickedError.value = '';
-  uploadResult.value = null;
-  if (fileInput.value) fileInput.value.value = '';
+async function onUploaded(appKey: string) {
+  activeApp.value = appKey;
+  await loadVersions();
 }
 
 // ===================== 发布 =====================
 const publishShow = ref(false);
-const publishing = ref(false);
 const publishTarget = ref<AppVersionRecord | null>(null);
-const publishForm = ref<{
-  mode: 'full' | 'gray';
-  grayPercent: number;
-  autoIncrement: boolean;
-  schedule: GrayIncrementStep[];
-}>({ mode: 'full', grayPercent: 20, autoIncrement: false, schedule: [] });
 
 function openPublish(version: AppVersionRecord) {
   publishTarget.value = version;
-  publishForm.value = {
-    mode: 'full',
-    grayPercent:
-      version.grayPercent > 0 ? Math.min(99, version.grayPercent) : 20,
-    autoIncrement: false,
-    schedule: [
-      { hours: 24, percent: 50 },
-      { hours: 72, percent: 100 },
-    ],
-  };
   publishShow.value = true;
-}
-
-function addScheduleStep() {
-  publishForm.value.schedule.push({ hours: 24, percent: 50 });
-}
-
-function removeScheduleStep(index: number) {
-  publishForm.value.schedule.splice(index, 1);
-}
-
-async function submitPublish() {
-  const target = publishTarget.value;
-  if (!target) return;
-  const f = publishForm.value;
-  if (f.mode === 'gray') {
-    if (f.grayPercent < 1 || f.grayPercent > 99) {
-      message.warning('灰度百分比必须在 1~99');
-      return;
-    }
-    if (f.autoIncrement && f.schedule.length === 0) {
-      message.warning('开启自动递增时必须提供至少一个递增步骤');
-      return;
-    }
-    if (f.autoIncrement) {
-      for (const step of f.schedule) {
-        if (step.hours <= 0 || step.percent < 1 || step.percent > 100) {
-          message.warning('递增步骤的 hours 需大于 0，percent 需在 1~100');
-          return;
-        }
-      }
-    }
-  }
-  const body: PublishBody = { mode: f.mode };
-  if (f.mode === 'gray') {
-    body.grayPercent = f.grayPercent;
-    body.grayAutoIncrement = f.autoIncrement;
-    if (f.autoIncrement) {
-      body.grayIncrementSchedule = [...f.schedule].sort(
-        (a, b) => a.hours - b.hours,
-      );
-    }
-  }
-  publishing.value = true;
-  try {
-    await publishVersion(target.id, body);
-    message.success(
-      f.mode === 'gray'
-        ? `已灰度发布 v${target.versionName}（${f.grayPercent}%${f.autoIncrement ? '，自动递增' : ''}）`
-        : `已全量发布 v${target.versionName}`,
-    );
-    publishShow.value = false;
-    await loadVersions();
-  } catch (e) {
-    message.error(getErrorMessage(e, '发布失败'));
-  } finally {
-    publishing.value = false;
-  }
 }
 
 // ===================== 强更 =====================
 const forceShow = ref(false);
-const savingForce = ref(false);
 const forceTarget = ref<AppVersionRecord | null>(null);
-const forceForm = ref({ forceUpdate: false, minVersionCode: 0 });
 
 function openForce(version: AppVersionRecord) {
   forceTarget.value = version;
-  forceForm.value = {
-    forceUpdate: version.forceUpdate === 1,
-    minVersionCode: version.minVersionCode,
-  };
   forceShow.value = true;
-}
-
-async function submitForce() {
-  const target = forceTarget.value;
-  if (!target) return;
-  savingForce.value = true;
-  try {
-    await setForceUpdate(target.id, {
-      forceUpdate: forceForm.value.forceUpdate,
-      minVersionCode: forceForm.value.minVersionCode,
-    });
-    message.success('强更配置已更新');
-    forceShow.value = false;
-    await loadVersions();
-  } catch (e) {
-    message.error(getErrorMessage(e, '强更配置更新失败'));
-  } finally {
-    savingForce.value = false;
-  }
 }
 
 // ===================== 编辑 =====================
 const editShow = ref(false);
-const savingEdit = ref(false);
 const editTarget = ref<AppVersionRecord | null>(null);
-const editForm = ref({
-  versionName: '',
-  updateLog: '',
-  remark: '',
-  scheduled: false,
-  scheduledAt: null as number | null,
-  scheduledMode: 'full' as 'full' | 'gray',
-  scheduledGrayPercent: 20,
-});
 
 function openEdit(version: AppVersionRecord) {
   editTarget.value = version;
-  editForm.value = {
-    versionName: version.versionName,
-    updateLog: version.updateLog ?? '',
-    remark: version.remark ?? '',
-    scheduled: version.scheduledPublishAt !== null,
-    scheduledAt: version.scheduledPublishAt,
-    scheduledMode: version.scheduledPublishMode === 'gray' ? 'gray' : 'full',
-    scheduledGrayPercent: version.scheduledGrayPercent || 20,
-  };
   editShow.value = true;
-}
-
-async function submitEdit() {
-  const target = editTarget.value;
-  if (!target) return;
-  if (!editForm.value.versionName.trim()) {
-    message.warning('版本名不能为空');
-    return;
-  }
-  if (editForm.value.scheduled) {
-    if (!editForm.value.scheduledAt) {
-      message.warning('请选择定时发布时间');
-      return;
-    }
-    if (editForm.value.scheduledAt <= Date.now()) {
-      message.warning('定时发布时间必须晚于当前时间');
-      return;
-    }
-  }
-  savingEdit.value = true;
-  try {
-    await updateVersion(target.id, {
-      versionName: editForm.value.versionName.trim(),
-      updateLog: editForm.value.updateLog,
-      remark: editForm.value.remark,
-      scheduledPublishAt: editForm.value.scheduled
-        ? editForm.value.scheduledAt
-        : null,
-      scheduledPublishMode: editForm.value.scheduledMode,
-      scheduledGrayPercent: editForm.value.scheduledGrayPercent,
-    });
-    message.success('版本信息已更新');
-    editShow.value = false;
-    await loadVersions();
-  } catch (e) {
-    message.error(getErrorMessage(e, '保存失败'));
-  } finally {
-    savingEdit.value = false;
-  }
 }
 
 // ===================== 下架 / 回滚 / 删除 =====================
@@ -669,44 +292,11 @@ async function confirmOffline() {
 }
 
 const rollbackShow = ref(false);
-const rollingBack = ref(false);
 const rollbackTarget = ref<AppVersionRecord | null>(null);
-const rollbackCandidates = ref<RollbackCandidate[]>([]);
-const rollbackLoading = ref(false);
-const rollbackError = ref('');
 
-async function openRollback(version: AppVersionRecord) {
+function openRollback(version: AppVersionRecord) {
   rollbackTarget.value = version;
-  rollbackCandidates.value = [];
-  rollbackError.value = '';
   rollbackShow.value = true;
-  rollbackLoading.value = true;
-  try {
-    const result = await getRollbackCandidates(version.id);
-    rollbackCandidates.value = result.candidates;
-  } catch (e) {
-    rollbackError.value = getErrorMessage(e, '回滚候选加载失败');
-  } finally {
-    rollbackLoading.value = false;
-  }
-}
-
-async function confirmRollback() {
-  const target = rollbackTarget.value;
-  if (!target) return;
-  rollingBack.value = true;
-  try {
-    const result = await rollbackVersion(target.id);
-    message.success(
-      `已回滚 v${target.versionName}，恢复 v${result.restored.versionName}（vc ${result.restored.versionCode}）上线`,
-    );
-    rollbackShow.value = false;
-    await loadVersions();
-  } catch (e) {
-    message.error(getErrorMessage(e, '回滚失败'));
-  } finally {
-    rollingBack.value = false;
-  }
 }
 
 const deleteShow = ref(false);
@@ -768,11 +358,6 @@ function offlineReasonLabel(version: AppVersionRecord) {
   if (version.offlineReason === 'auto') return '自动下架';
   if (version.offlineReason === 'manual') return '手动下架';
   return '下架原因未知';
-}
-
-/** 定时发布时间不允许选过去（后端同样拒绝） */
-function isPastDate(timestamp: number) {
-  return timestamp < Date.now() - 86_400_000;
 }
 
 onMounted(async () => {
@@ -1114,643 +699,44 @@ onMounted(async () => {
       <ListLoading :show="loading" :text="loadingText" />
     </div>
 
-    <NDrawer
-      v-model:show="detailShow"
-      width="min(440px, 92vw)"
-      placement="right"
-    >
-      <NDrawerContent title="版本详情" closable>
-        <NSpin :show="detailLoading">
-          <p v-if="detailError" class="m-0 text-12px text-red-500">
-            {{ detailError }}
-          </p>
-          <div v-else-if="detail" class="flex flex-col gap-4">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-14px font-600 text-ink">
-                {{ detail.appKey }} · v{{ detail.versionName }}
-              </span>
-              <NTag
-                size="small"
-                :type="statusMetaOf(detail).tag"
-                :bordered="false"
-              >
-                {{ statusMetaOf(detail).label }}
-              </NTag>
-              <NTag
-                v-if="detail.forceUpdate === 1"
-                size="small"
-                type="error"
-                :bordered="false"
-                >强制更新</NTag
-              >
-            </div>
+    <AppDetailDrawer v-model:show="detailShow" :version="detailTarget" />
 
-            <dl class="m-0 grid grid-cols-[86px_1fr] gap-x-3 gap-y-2 text-12px">
-              <dt class="text-ink-sub">平台</dt>
-              <dd class="m-0 text-ink">{{ detail.platform }}</dd>
-
-              <dt class="text-ink-sub">版本号</dt>
-              <dd class="m-0 text-ink tabular-nums">
-                {{ detail.versionCode }}
-              </dd>
-
-              <dt class="text-ink-sub">包大小</dt>
-              <dd class="m-0 text-ink">
-                {{ formatBytes(detail.packageSize) }}
-              </dd>
-
-              <dt class="text-ink-sub">SHA-256</dt>
-              <dd class="m-0 text-ink font-mono text-11px break-all">
-                {{ detail.checksum }}
-              </dd>
-
-              <dt class="text-ink-sub">存储位置</dt>
-              <dd class="m-0 text-ink break-all">
-                {{ detail.storageRootId }} / {{ detail.category }} /
-                {{ detail.relPath }}
-              </dd>
-
-              <dt class="text-ink-sub">发布时间</dt>
-              <dd class="m-0 text-ink">
-                {{ formatDateTime(detail.publishTime) }}
-              </dd>
-
-              <dt class="text-ink-sub">强制更新</dt>
-              <dd class="m-0 text-ink">
-                {{
-                  detail.forceUpdate === 1
-                    ? `是（最低版本号 ${detail.minVersionCode}）`
-                    : '否'
-                }}
-              </dd>
-
-              <dt class="text-ink-sub">灰度</dt>
-              <dd class="m-0 text-ink">
-                {{
-                  detail.status === APP_VERSION_STATUS.GRAY
-                    ? `${detail.grayPercent}%${detail.grayAutoIncrement === 1 ? ' · 自动递增' : ''}`
-                    : '—'
-                }}
-              </dd>
-
-              <dt class="text-ink-sub">定时发布</dt>
-              <dd class="m-0 text-ink">
-                <template v-if="detail.scheduledPublishAt">
-                  {{ formatDateTime(detail.scheduledPublishAt) }}（{{
-                    detail.scheduledPublishMode === 'gray'
-                      ? `灰度 ${detail.scheduledGrayPercent}%`
-                      : '全量'
-                  }}）
-                </template>
-                <template v-else>—</template>
-              </dd>
-
-              <dt class="text-ink-sub">下架原因</dt>
-              <dd class="m-0 text-ink">
-                {{ offlineReasonLabel(detail) || '—' }}
-              </dd>
-
-              <dt class="text-ink-sub">创建时间</dt>
-              <dd class="m-0 text-ink">
-                {{ formatDateTime(detail.createdAt) }}
-              </dd>
-
-              <dt class="text-ink-sub">更新时间</dt>
-              <dd class="m-0 text-ink">
-                {{ formatDateTime(detail.updatedAt) }}
-              </dd>
-            </dl>
-
-            <div>
-              <p class="m-0 mb-1 text-11px text-ink-sub">更新日志</p>
-              <p class="m-0 text-12px text-ink whitespace-pre-wrap">
-                {{ detail.updateLog || '—' }}
-              </p>
-            </div>
-
-            <div v-if="detail.remark">
-              <p class="m-0 mb-1 text-11px text-ink-sub">备注</p>
-              <p class="m-0 text-12px text-ink whitespace-pre-wrap">
-                {{ detail.remark }}
-              </p>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <NButton
-                tag="a"
-                :href="getApkDownloadUrl(detail.id)"
-                target="_blank"
-                rel="noreferrer"
-                size="small"
-              >
-                <template #icon
-                  ><NIcon><DocumentTextOutline /></NIcon
-                ></template>
-                下载 APK
-              </NButton>
-              <NButton size="small" @click="detailShow = false">关闭</NButton>
-            </div>
-          </div>
-        </NSpin>
-      </NDrawerContent>
-    </NDrawer>
-
-    <!-- 应用创建/重命名 -->
-    <NModal
+    <AppFormModal
       :show="appModal !== null"
-      preset="card"
-      :title="appModal === 'create' ? '新建应用' : '重命名应用'"
-      class="w-460px! max-w-[94vw]"
-      :bordered="false"
+      :mode="appModal"
+      :active-app="activeApp"
       @update:show="
         (value) => {
           if (!value) appModal = null;
         }
       "
-    >
-      <div class="flex flex-col gap-2">
-        <label class="flex flex-col gap-1">
-          <span class="text-12px text-ink-sub">应用标识（appKey）</span>
-          <NInput
-            v-model:value="appForm.appKey"
-            size="small"
-            placeholder="如 xiaolv，仅字母/数字/下划线/连字符"
-          />
-        </label>
-        <p class="m-0 text-11px text-ink-sub">
-          应用标识同时是 software-update
-          根下的目录名；重命名会迁移全部版本与事件记录。
-        </p>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton size="small" @click="appModal = null">取消</NButton>
-          <NButton
-            size="small"
-            type="primary"
-            :loading="appSaving"
-            @click="submitApp"
-            >保存</NButton
-          >
-        </div>
-      </template>
-    </NModal>
+      @saved="onAppSaved"
+    />
 
-    <!-- APK 上传 -->
-    <NModal
+    <AppUploadModal
       v-model:show="uploadShow"
-      preset="card"
-      title="上传 APK"
-      class="w-680px! max-w-[94vw]"
-      :bordered="false"
-    >
-      <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">应用</span>
-            <NSelect
-              v-model:value="uploadForm.appKey"
-              size="small"
-              :options="apps.map((a) => ({ label: a, value: a }))"
-              placeholder="选择应用"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">版本名</span>
-            <NInput
-              v-model:value="uploadForm.versionName"
-              size="small"
-              placeholder="如 1.0.2"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">versionCode</span>
-            <NInputNumber
-              v-model:value="uploadForm.versionCode"
-              size="small"
-              :min="1"
-              :max="2147483647"
-            />
-          </label>
-        </div>
+      :apps="apps"
+      :active-app="activeApp"
+      @uploaded="onUploaded"
+    />
 
-        <!-- 文件选择 -->
-        <div
-          class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-4 flex flex-col gap-2"
-        >
-          <input
-            ref="fileInput"
-            type="file"
-            accept=".apk,application/vnd.android.package-archive"
-            class="hidden"
-            @change="onFileChange"
-          />
-          <div v-if="!pickedFile" class="flex items-center gap-3 flex-wrap">
-            <NButton size="small" @click="fileInput?.click()">
-              <template #icon
-                ><NIcon><CloudUploadOutline /></NIcon
-              ></template>
-              选择 APK 文件
-            </NButton>
-            <span class="text-11px text-ink-sub"
-              >仅 .apk，最大 500MB；本地校验 ZIP 魔数</span
-            >
-          </div>
-          <div v-else class="flex items-center gap-3 flex-wrap">
-            <NIcon :size="18" class="text-brand-600 dark:text-brand-400"
-              ><DocumentTextOutline
-            /></NIcon>
-            <span class="min-w-0 flex-1">
-              <span class="block text-12px text-ink truncate">{{
-                pickedFile.name
-              }}</span>
-              <span class="block text-11px text-ink-sub">{{
-                formatBytes(pickedFile.size)
-              }}</span>
-            </span>
-            <NButton
-              size="tiny"
-              quaternary
-              :disabled="uploading"
-              @click="clearPicked"
-              >重新选择</NButton
-            >
-          </div>
-          <p v-if="pickedError" class="m-0 text-12px text-red-500">
-            {{ pickedError }}
-          </p>
-          <div
-            v-if="uploading"
-            class="h-2 rounded-full bg-ink-sub/10 overflow-hidden"
-          >
-            <div
-              class="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400 transition-all"
-              :style="{ width: `${uploadPercent}%` }"
-            />
-          </div>
-          <p v-if="uploading" class="m-0 text-11px text-ink-sub">
-            上传中 {{ uploadPercent }}%
-          </p>
-          <p v-if="uploadError" class="m-0 text-12px text-red-500 leading-5">
-            {{ uploadError }}
-          </p>
-          <div
-            v-if="uploadResult"
-            class="rounded-lg bg-brand-500/8 px-3 py-2 flex flex-col gap-1"
-          >
-            <span class="text-12px text-ink font-600"
-              >上传成功 · 草稿已创建</span
-            >
-            <span class="text-10px text-ink-sub font-mono break-all"
-              >SHA-256 {{ uploadResult.checksum }}</span
-            >
-            <span class="text-10px text-ink-sub"
-              >大小 {{ formatBytes(uploadResult.packageSize) }}</span
-            >
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">更新说明</span>
-            <NInput
-              v-model:value="uploadForm.updateLog"
-              type="textarea"
-              size="small"
-              :rows="2"
-              placeholder="支持换行"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">内部备注</span>
-            <NInput
-              v-model:value="uploadForm.remark"
-              type="textarea"
-              size="small"
-              :rows="2"
-              placeholder="仅管理端可见"
-            />
-          </label>
-        </div>
-
-        <div class="flex flex-col gap-2">
-          <div class="flex items-center gap-2">
-            <NSwitch v-model:value="uploadForm.scheduled" size="small" />
-            <span class="text-12px text-ink">创建后定时发布</span>
-            <NTooltip :delay="300">
-              <template #trigger>
-                <NIcon :size="14" class="text-ink-sub"
-                  ><InformationCircleOutline
-                /></NIcon>
-              </template>
-              后端每 10 分钟扫描一次到点的草稿；发布失败会清除定时设置
-            </NTooltip>
-          </div>
-          <div
-            v-if="uploadForm.scheduled"
-            class="grid grid-cols-1 sm:grid-cols-3 gap-3"
-          >
-            <label class="flex flex-col gap-1 sm:col-span-2">
-              <span class="text-11px text-ink-sub">发布时间</span>
-              <NDatePicker
-                v-model:value="uploadForm.scheduledAt"
-                type="datetime"
-                size="small"
-                clearable
-                :is-date-disabled="isPastDate"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-11px text-ink-sub">发布模式</span>
-              <NRadioGroup
-                v-model:value="uploadForm.scheduledMode"
-                size="small"
-              >
-                <NRadioButton value="full">全量</NRadioButton>
-                <NRadioButton value="gray">灰度</NRadioButton>
-              </NRadioGroup>
-            </label>
-            <label
-              v-if="uploadForm.scheduledMode === 'gray'"
-              class="flex flex-col gap-1"
-            >
-              <span class="text-11px text-ink-sub">灰度百分比</span>
-              <NInputNumber
-                v-model:value="uploadForm.scheduledGrayPercent"
-                size="small"
-                :min="1"
-                :max="99"
-              />
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-11px text-ink-sub"
-            >仅创建草稿，发布需前往版本操作</span
-          >
-          <div class="flex gap-2">
-            <NButton
-              size="small"
-              :disabled="uploading"
-              @click="uploadShow = false"
-              >关闭</NButton
-            >
-            <NButton
-              size="small"
-              type="primary"
-              :loading="uploading"
-              :disabled="!pickedFile"
-              @click="submitUpload"
-            >
-              上传并创建草稿
-            </NButton>
-          </div>
-        </div>
-      </template>
-    </NModal>
-
-    <!-- 发布 -->
-    <NModal
+    <AppPublishModal
       v-model:show="publishShow"
-      preset="card"
-      :title="`发布 v${publishTarget?.versionName ?? ''}`"
-      class="w-560px! max-w-[94vw]"
-      :bordered="false"
-    >
-      <div class="flex flex-col gap-3">
-        <NRadioGroup v-model:value="publishForm.mode" size="small">
-          <NRadioButton value="full">全量发布</NRadioButton>
-          <NRadioButton value="gray">灰度发布</NRadioButton>
-        </NRadioGroup>
+      :version="publishTarget"
+      @done="loadVersions"
+    />
 
-        <template v-if="publishForm.mode === 'gray'">
-          <label class="flex flex-col gap-1">
-            <span class="text-12px text-ink-sub">灰度百分比（1~99）</span>
-            <NInputNumber
-              v-model:value="publishForm.grayPercent"
-              size="small"
-              :min="1"
-              :max="99"
-            />
-          </label>
-
-          <div class="flex items-center gap-2">
-            <NSwitch v-model:value="publishForm.autoIncrement" size="small" />
-            <span class="text-12px text-ink">灰度自动递增</span>
-            <NTooltip :delay="300">
-              <template #trigger>
-                <NIcon :size="14" class="text-ink-sub"
-                  ><InformationCircleOutline
-                /></NIcon>
-              </template>
-              后端每小时按发布时间匹配递增表；percent 达 100 时自动转全量
-            </NTooltip>
-          </div>
-
-          <div v-if="publishForm.autoIncrement" class="flex flex-col gap-2">
-            <div
-              v-for="(step, index) in publishForm.schedule"
-              :key="index"
-              class="flex items-center gap-2"
-            >
-              <span class="text-11px text-ink-sub shrink-0">发布后</span>
-              <NInputNumber
-                v-model:value="step.hours"
-                size="tiny"
-                :min="1"
-                :max="8760"
-                class="w-24"
-              />
-              <span class="text-11px text-ink-sub shrink-0">小时 →</span>
-              <NInputNumber
-                v-model:value="step.percent"
-                size="tiny"
-                :min="1"
-                :max="100"
-                class="w-24"
-              />
-              <span class="text-11px text-ink-sub shrink-0">%</span>
-              <NButton
-                size="tiny"
-                quaternary
-                type="error"
-                :disabled="publishForm.schedule.length <= 1"
-                @click="removeScheduleStep(index)"
-              >
-                <template #icon
-                  ><NIcon><CloseCircleOutline /></NIcon
-                ></template>
-              </NButton>
-            </div>
-            <NButton
-              size="tiny"
-              quaternary
-              class="self-start"
-              @click="addScheduleStep"
-            >
-              <template #icon
-                ><NIcon><AddOutline /></NIcon
-              ></template>
-              增加递增步骤
-            </NButton>
-          </div>
-        </template>
-
-        <p class="m-0 text-11px text-ink-sub leading-5">
-          发布门禁：versionCode
-          必须大于该应用当前全量最大版本；全量发布会把同应用旧的在线版本
-          自动下架（offlineReason=auto，可被回滚恢复）。手动下架（manual）不会被回滚恢复。
-        </p>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton size="small" @click="publishShow = false">取消</NButton>
-          <NButton
-            size="small"
-            type="primary"
-            :loading="publishing"
-            @click="submitPublish"
-          >
-            确认发布
-          </NButton>
-        </div>
-      </template>
-    </NModal>
-
-    <!-- 强更 -->
-    <NModal
+    <AppForceModal
       v-model:show="forceShow"
-      preset="card"
-      :title="`强更配置 v${forceTarget?.versionName ?? ''}`"
-      class="w-480px! max-w-[94vw]"
-      :bordered="false"
-    >
-      <div class="flex flex-col gap-3">
-        <div class="flex items-center gap-2">
-          <NSwitch v-model:value="forceForm.forceUpdate" size="small" />
-          <span class="text-12px text-ink">强制更新（forceUpdate）</span>
-        </div>
-        <label class="flex flex-col gap-1">
-          <span class="text-12px text-ink-sub"
-            >最低版本号（minVersionCode）</span
-          >
-          <NInputNumber
-            v-model:value="forceForm.minVersionCode"
-            size="small"
-            :min="0"
-            :max="2147483647"
-          />
-        </label>
-        <p class="m-0 text-11px text-ink-sub leading-5">
-          客户端版本号低于 minVersionCode
-          时也视为强制更新；该开关可随时远程修改，无需重新发版。
-        </p>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton size="small" @click="forceShow = false">取消</NButton>
-          <NButton
-            size="small"
-            type="primary"
-            :loading="savingForce"
-            @click="submitForce"
-            >保存</NButton
-          >
-        </div>
-      </template>
-    </NModal>
+      :version="forceTarget"
+      @done="loadVersions"
+    />
 
-    <!-- 编辑 -->
-    <NModal
+    <AppEditModal
       v-model:show="editShow"
-      preset="card"
-      :title="`编辑 v${editTarget?.versionName ?? ''}`"
-      class="w-600px! max-w-[94vw]"
-      :bordered="false"
-    >
-      <div class="flex flex-col gap-3">
-        <label class="flex flex-col gap-1">
-          <span class="text-12px text-ink-sub"
-            >版本名（versionCode 与安装包不可修改）</span
-          >
-          <NInput v-model:value="editForm.versionName" size="small" />
-        </label>
-        <label class="flex flex-col gap-1">
-          <span class="text-12px text-ink-sub">更新说明</span>
-          <NInput
-            v-model:value="editForm.updateLog"
-            type="textarea"
-            size="small"
-            :rows="3"
-          />
-        </label>
-        <label class="flex flex-col gap-1">
-          <span class="text-12px text-ink-sub">内部备注</span>
-          <NInput
-            v-model:value="editForm.remark"
-            type="textarea"
-            size="small"
-            :rows="2"
-          />
-        </label>
-
-        <div class="flex items-center gap-2">
-          <NSwitch v-model:value="editForm.scheduled" size="small" />
-          <span class="text-12px text-ink">定时发布</span>
-        </div>
-        <div
-          v-if="editForm.scheduled"
-          class="grid grid-cols-1 sm:grid-cols-3 gap-3"
-        >
-          <label class="flex flex-col gap-1 sm:col-span-2">
-            <span class="text-11px text-ink-sub">发布时间</span>
-            <NDatePicker
-              v-model:value="editForm.scheduledAt"
-              type="datetime"
-              size="small"
-              clearable
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-11px text-ink-sub">模式</span>
-            <NRadioGroup v-model:value="editForm.scheduledMode" size="small">
-              <NRadioButton value="full">全量</NRadioButton>
-              <NRadioButton value="gray">灰度</NRadioButton>
-            </NRadioGroup>
-          </label>
-          <label
-            v-if="editForm.scheduledMode === 'gray'"
-            class="flex flex-col gap-1"
-          >
-            <span class="text-11px text-ink-sub">灰度百分比</span>
-            <NInputNumber
-              v-model:value="editForm.scheduledGrayPercent"
-              size="small"
-              :min="1"
-              :max="99"
-            />
-          </label>
-        </div>
-        <p class="m-0 text-11px text-ink-sub">
-          仅草稿/已下架版本可编辑，发布中的版本需先下架。
-        </p>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton size="small" @click="editShow = false">取消</NButton>
-          <NButton
-            size="small"
-            type="primary"
-            :loading="savingEdit"
-            @click="submitEdit"
-            >保存</NButton
-          >
-        </div>
-      </template>
-    </NModal>
+      :version="editTarget"
+      @done="loadVersions"
+    />
 
     <!-- 下架 -->
     <ConfirmModal
@@ -1762,102 +748,11 @@ onMounted(async () => {
       @confirm="confirmOffline"
     />
 
-    <!-- 回滚 -->
-    <NModal
+    <AppRollbackModal
       v-model:show="rollbackShow"
-      preset="card"
-      :title="`回滚 v${rollbackTarget?.versionName ?? ''}`"
-      class="w-560px! max-w-[94vw]"
-      :bordered="false"
-    >
-      <NSpin :show="rollbackLoading">
-        <div class="flex flex-col gap-3">
-          <p class="m-0 text-12px text-ink-sub leading-5">
-            回滚会把当前版本手动下架，并恢复该应用历史中可恢复的最高版本上线。
-            候选仅包含「全量在线」与「自动下架（被新全量顶替）」的版本；手动下架的版本不会恢复。
-          </p>
-
-          <div v-if="rollbackError" class="text-12px text-red-500">
-            {{ rollbackError }}
-          </div>
-          <div
-            v-else-if="!rollbackLoading && rollbackCandidates.length === 0"
-            class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-5 text-center"
-          >
-            <NIcon :size="22" class="text-ink-sub"
-              ><InformationCircleOutline
-            /></NIcon>
-            <p class="m-0 mt-2 text-12px text-ink-sub">
-              当前应用不存在可回滚的历史全量版本（后端会拒绝本次回滚）。
-            </p>
-          </div>
-          <div v-else class="flex flex-col gap-1">
-            <div
-              v-for="(candidate, index) in rollbackCandidates"
-              :key="candidate.id"
-              class="flex items-center gap-2 rounded-lg px-3 py-2"
-              :class="
-                index === 0 ? 'bg-brand-500/10' : 'bg-white/40 dark:bg-white/4'
-              "
-            >
-              <NIcon
-                :size="15"
-                :class="
-                  index === 0
-                    ? 'text-brand-600 dark:text-brand-400'
-                    : 'text-ink-sub'
-                "
-              >
-                <CheckmarkCircleOutline v-if="index === 0" />
-                <TimeOutline v-else />
-              </NIcon>
-              <span class="text-12px text-ink flex-1">
-                v{{ candidate.versionName }}
-                <span class="text-11px text-ink-sub"
-                  >vc {{ candidate.versionCode }}</span
-                >
-              </span>
-              <span class="text-11px text-ink-sub">
-                {{
-                  candidate.status === APP_VERSION_STATUS.PUBLISHED
-                    ? '全量在线'
-                    : '自动下架'
-                }}
-              </span>
-              <NTag
-                v-if="index === 0"
-                size="tiny"
-                type="success"
-                :bordered="false"
-                >将恢复</NTag
-              >
-            </div>
-          </div>
-
-          <p class="m-0 text-11px text-ink-sub">
-            注意：回滚后当前版本为「手动下架」状态；若需再次上线，可在版本列表点击「重新发布」。
-          </p>
-        </div>
-      </NSpin>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton size="small" @click="rollbackShow = false">取消</NButton>
-          <NButton
-            size="small"
-            type="error"
-            :loading="rollingBack"
-            :disabled="
-              rollbackLoading ||
-              rollbackCandidates.length === 0 ||
-              Boolean(rollbackError)
-            "
-            @click="confirmRollback"
-          >
-            确认回滚
-          </NButton>
-        </div>
-      </template>
-    </NModal>
+      :version="rollbackTarget"
+      @done="loadVersions"
+    />
 
     <ConfirmModal
       v-model:show="deleteShow"
