@@ -1,119 +1,87 @@
 import type { Component } from 'vue';
-import type {
-  PreviewLoader,
-  PreviewRegistration,
-} from '@/components/preview/types';
+import type { PreviewLoader } from '@/components/preview/types';
+import { getFileKind, type FileKind } from '@/utils/file-types';
 
 /**
- * 预览注册表（preview-registry 机制的唯一配置点）
+ * 预览注册表
  *
- * - 文件卡片弹窗与独立预览页共用 resolvePreview() 分发
- * - 每个格式一个独立组件，全部通过动态 import 懒加载；
- *   vite.config.ts 的 manualChunks 对这些库返回 undefined，走默认分包，
- *   避免 __vitePreload 助手把预览库拖进首屏
- * - 按扩展名注册，未命中返回 null，调用方降级到默认元信息视图
+ * - 只按「类别」注册组件，扩展名清单来自 EXT_META（extensionsOfKind），
+ *   这里不再手写扩展名数组，避免与主表分叉
+ * - 每个类别一个组件，全部动态 import 懒加载；vite.config.ts 的
+ *   manualChunks 对这些库返回 undefined，走默认分包，避免预览库进首屏
+ * - 未命中返回 null，调用方降级到默认元信息视图
  */
 
-const registry: PreviewRegistration[] = [];
+type PreviewKind = Exclude<FileKind, 'other'>;
+
+const loaders = new Map<PreviewKind, PreviewLoader>();
 
 const lazy =
   (load: () => Promise<{ default: Component }>): PreviewLoader =>
   () =>
     load().then((mod) => mod.default);
 
-export function registerPreview(registration: PreviewRegistration): void {
-  registry.push(registration);
+/** 注册某类别的预览组件（重复注册后者覆盖前者） */
+export function registerPreview(
+  kind: PreviewKind,
+  loader: PreviewLoader,
+): void {
+  loaders.set(kind, loader);
 }
 
 /** 按文件名解析预览组件加载器；未命中返回 null（调用方走默认兜底） */
 export function resolvePreview(filename: string): PreviewLoader | null {
-  const idx = filename.lastIndexOf('.');
-  const ext = idx >= 0 ? filename.slice(idx + 1).toLowerCase() : '';
-  const hit = registry.find((item) => item.extensions.includes(ext));
-  return hit?.loader ?? null;
+  const kind = getFileKind(filename);
+  return kind === 'other' ? null : (loaders.get(kind) ?? null);
 }
 
-/** 注册内置格式预览（幂等，重复调用不会重复注册） */
-export function registerBuiltinPreviews(): void {
-  if (registry.length > 0) return;
+/** 已注册的类别（构建前校验用） */
+export function registeredPreviewKinds(): PreviewKind[] {
+  return [...loaders.keys()];
+}
 
-  registerPreview({
-    extensions: [
-      'png',
-      'jpg',
-      'jpeg',
-      'gif',
-      'webp',
-      'avif',
-      'bmp',
-      'svg',
-      'ico',
-      'tiff',
-    ],
-    loader: lazy(() => import('@/components/preview/image-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['mp4', 'mov', 'webm', 'mkv', 'avi', 'ogv', 'm4v'],
-    loader: lazy(() => import('@/components/preview/video-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'opus'],
-    loader: lazy(() => import('@/components/preview/audio-preview.vue')),
-  });
-  registerPreview({
-    extensions: [
-      'txt',
-      'log',
-      'json',
-      'xml',
-      'yaml',
-      'yml',
-      'toml',
-      'ini',
-      'conf',
-      'csv',
-      'ts',
-      'tsx',
-      'js',
-      'jsx',
-      'vue',
-      'css',
-      'scss',
-      'less',
-      'py',
-      'go',
-      'java',
-      'rs',
-      'sql',
-      'sh',
-      'bash',
-      'env',
-      'gitignore',
-    ],
-    loader: lazy(() => import('@/components/preview/text-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['md', 'markdown'],
-    loader: lazy(() => import('@/components/preview/markdown-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['html', 'htm'],
-    loader: lazy(() => import('@/components/preview/html-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['pdf'],
-    loader: lazy(() => import('@/components/preview/pdf-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['doc', 'docx'],
-    loader: lazy(() => import('@/components/preview/word-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['xls', 'xlsx'],
-    loader: lazy(() => import('@/components/preview/excel-preview.vue')),
-  });
-  registerPreview({
-    extensions: ['zip', 'rar', '7z', 'tar', 'gz', 'tgz'],
-    loader: lazy(() => import('@/components/preview/archive-preview.vue')),
-  });
+/** 注册内置类别预览（幂等） */
+export function registerBuiltinPreviews(): void {
+  if (loaders.size > 0) return;
+
+  registerPreview(
+    'image',
+    lazy(() => import('@/components/preview/image-preview.vue')),
+  );
+  registerPreview(
+    'video',
+    lazy(() => import('@/components/preview/video-preview.vue')),
+  );
+  registerPreview(
+    'audio',
+    lazy(() => import('@/components/preview/audio-preview.vue')),
+  );
+  registerPreview(
+    'text',
+    lazy(() => import('@/components/preview/text-preview.vue')),
+  );
+  registerPreview(
+    'markdown',
+    lazy(() => import('@/components/preview/markdown-preview.vue')),
+  );
+  registerPreview(
+    'html',
+    lazy(() => import('@/components/preview/html-preview.vue')),
+  );
+  registerPreview(
+    'pdf',
+    lazy(() => import('@/components/preview/pdf-preview.vue')),
+  );
+  registerPreview(
+    'word',
+    lazy(() => import('@/components/preview/word-preview.vue')),
+  );
+  registerPreview(
+    'excel',
+    lazy(() => import('@/components/preview/excel-preview.vue')),
+  );
+  registerPreview(
+    'archive',
+    lazy(() => import('@/components/preview/archive-preview.vue')),
+  );
 }

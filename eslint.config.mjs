@@ -11,6 +11,8 @@ export default [
       'eslint.config.mjs',
       'public/**/*',
       'script/**/*',
+      // 构建期校验脚本由 Node 直接执行（非应用代码，不在 tsconfig 项目内）
+      '**/scripts/**',
       '**/dist/**',
       '**/deploy/**',
     ],

@@ -2,7 +2,7 @@ import type { Component } from 'vue';
 
 /**
  * 预览组件统一契约：所有预览组件接收同一组 props，
- * 由 preview-registry 按扩展名解析后由预览弹窗动态挂载。
+ * 由 preview-registry 按文件类别解析后由预览弹窗动态挂载。
  */
 export interface PreviewProps {
   /** 文件访问地址（后端 /static/files/... 或任意远程 URL） */
@@ -25,11 +25,4 @@ export interface PreviewTarget {
   /** 强制下载地址 */
   downloadSrc: string;
   size: number;
-}
-
-export interface PreviewRegistration {
-  /** 匹配的扩展名（小写、不含点） */
-  extensions: string[];
-  /** 懒加载器：必须动态 import，保证预览库不进首屏 */
-  loader: PreviewLoader;
 }

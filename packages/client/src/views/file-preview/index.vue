@@ -22,8 +22,10 @@ import { buildFileUrl, buildThumbUrl } from '@/utils/file-url';
 import {
   extensionFromContentType,
   formatBytes,
+  hasExtension,
   isImage,
 } from '@/utils/file-types';
+import { normalizeNameHint } from '@/utils/preview-name';
 
 /**
  * 文件预览（内部 / 外部共用一份逻辑与渲染）
@@ -32,7 +34,8 @@ import {
  *   输入框只在内部壳里渲染；
  * - /file-preview（公开，独立整页）：不渲染页头/输入，只认 URL 参数，
  *   无参数时只显示图标提示，有参数时整页内联渲染。
- * 两者共用 ?file= / ?url= / id+name 的解析与预览组件分发。
+ * 两者共用 ?file= / ?url= / ?code=+name 的解析与预览组件分发；
+ * name 的三种形态由 normalizeNameHint 统一处理，两条入口语义一致。
  */
 const route = useRoute();
 /** 内部还是外部：由路由名区分，决定是否显示输入工具栏 */
@@ -58,11 +61,6 @@ function filenameOf(raw: string): string {
   }
 }
 
-/** 链接最后一段是否自带扩展名（如 .mp4） */
-function hasExtension(raw: string): boolean {
-  return filenameOf(raw).includes('.');
-}
-
 function isSameOrigin(raw: string): boolean {
   try {
     return new URL(raw, window.location.href).origin === window.location.origin;
@@ -74,10 +72,10 @@ function isSameOrigin(raw: string): boolean {
 /**
  * 同源且最后一段没有扩展名时，用 HEAD 的 content-type 推断扩展名。
  * 跨域读不到响应头（无 CORS 暴露），直接返回空串由调用方回落默认预览，
- * 不猜类型、不伪造成功。
+ * 不猜类型、不伪造成功。调用方已确认该 URL 无扩展名。
  */
 async function probeExtension(raw: string): Promise<string> {
-  if (!isSameOrigin(raw) || hasExtension(raw)) return '';
+  if (!isSameOrigin(raw)) return '';
   try {
     const res = await fetch(raw, { method: 'HEAD' });
     if (!res.ok) return '';
@@ -117,34 +115,25 @@ async function open(raw?: string, name?: string) {
   }
   if (isInternal.value) url.value = value;
 
-  const display = filenameOf(absolute);
-  const nameHint = (name ?? '').trim();
-
-  // name 只写扩展名（.mp4 / .MP3）：只借它选预览器，展示名仍是链接最后一段
-  if (nameHint.startsWith('.')) {
-    const ext = nameHint.slice(1).toLowerCase();
-    if (ext) {
-      setTarget(absolute, absolute, display, `${display}.${ext}`);
-      return;
-    }
-  } else if (nameHint) {
-    // 完整文件名：展示名与类型都按它来
-    setTarget(absolute, absolute, nameHint);
+  const fallback = filenameOf(absolute);
+  const hint = normalizeNameHint(name, fallback);
+  if (hint) {
+    setTarget(absolute, absolute, hint.display, hint.previewName);
     return;
   }
 
-  if (hasExtension(absolute)) {
-    setTarget(absolute, absolute, display);
+  if (hasExtension(fallback)) {
+    setTarget(absolute, absolute, fallback);
     return;
   }
 
   // 无扩展名的同源链接：先占位等 HEAD 结果，避免先闪一下默认卡片
-  setTarget(absolute, absolute, display, display, false);
+  setTarget(absolute, absolute, fallback, fallback, false);
   loading.value = true;
   const ext = await probeExtension(absolute);
   if (target.value?.src !== absolute) return;
   loading.value = false;
-  if (ext) previewName.value = `${display}.${ext}`;
+  if (ext) previewName.value = `${fallback}.${ext}`;
   await load();
 }
 
@@ -171,6 +160,13 @@ async function load() {
   }
 }
 
+/** query 值可能是数组或 null，统一取第一个字符串 */
+function firstQueryValue(value: unknown): string {
+  const list: unknown[] = Array.isArray(value) ? (value as unknown[]) : [value];
+  const first: unknown = list[0];
+  return typeof first === 'string' ? first : '';
+}
+
 /** 解析 URL 参数；进入页面和路由切换时都重新应用 */
 function applyQuery() {
   clear();
@@ -186,18 +182,25 @@ function applyQuery() {
         : '';
   if (raw) {
     if (isInternal.value) url.value = raw;
-    void open(raw, typeof name === 'string' ? name : '');
+    void open(raw, firstQueryValue(name));
     return;
   }
 
   if (typeof code === 'string' && code) {
-    const fileName = typeof name === 'string' && name ? name : `file-${code}`;
+    const fallback = `file-${code}`;
+    const hint = normalizeNameHint(name, fallback);
+    const fileName = hint?.previewName ?? fallback;
     // 图片走预览档，其他类型仍需原始内容
     const src = isImage(fileName)
       ? buildThumbUrl({ code }, 'preview')
       : buildFileUrl({ code });
     if (isInternal.value) url.value = src;
-    setTarget(src, buildFileUrl({ code, download: true }), fileName);
+    setTarget(
+      src,
+      buildFileUrl({ code, download: true }),
+      hint?.display ?? fallback,
+      fileName,
+    );
   }
 }
 
