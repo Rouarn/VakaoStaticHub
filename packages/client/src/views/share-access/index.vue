@@ -1,18 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { NButton, NIcon, NInput, useMessage } from 'naive-ui';
+import { NButton, NIcon, useMessage } from 'naive-ui';
 import {
-  ArrowBackOutline,
-  BanOutline,
-  DocumentTextOutline,
-  DownloadOutline,
-  EyeOutline,
   InformationCircleOutline,
-  LockClosedOutline,
-  RefreshOutline,
   ShieldCheckmarkOutline,
-  TimeOutline,
 } from '@vicons/ionicons5';
 import { RequestError } from '@vakao/axios';
 import type { ShareInfo } from '@vakao/shared';
@@ -24,19 +16,17 @@ import {
 } from '@/api/shares';
 import type { ShareCollectionFile } from '@/api/shares';
 import { buildShareFileUrl } from '@/utils/file-url';
-import {
-  formatBytes,
-  getFileKind,
-  isImage,
-  isPreviewable,
-} from '@/utils/file-types';
+import { isImage, isPreviewable } from '@/utils/file-types';
 import { formatDateTime } from '@/utils/format';
 import PublicPage from '@/components/common/public-page.vue';
-import EmptyState from '@/components/common/empty-state.vue';
-import ListLoading from '@/components/common/list-loading.vue';
 import { useListLoading } from '@/composables/use-list-loading';
 import PreviewDialog from '@/components/preview/preview-dialog.vue';
 import type { PreviewTarget } from '@/components/preview/types';
+import ShareGatePanel from './components/share-gate-panel.vue';
+import ShareSingleFile from './components/share-single-file.vue';
+import ShareCollectionPanel from './components/share-collection-panel.vue';
+import ShareStatusEmpty from './components/share-status-empty.vue';
+import type { ShareAccessPhase } from './components/types';
 
 /**
  * 公开分享访问页
@@ -55,15 +45,7 @@ const message = useMessage();
 const token = computed(() => String(route.params.token ?? ''));
 const tokenValid = computed(() => SHARE_TOKEN_RE.test(token.value));
 
-type Phase =
-  | 'loading'
-  | 'error'
-  | 'notfound'
-  | 'disabled'
-  | 'gate'
-  | 'expired'
-  | 'exhausted'
-  | 'ready';
+type Phase = ShareAccessPhase;
 const phase = ref<Phase>('loading');
 const errorText = ref('');
 const info = ref<ShareInfo | null>(null);
@@ -138,6 +120,17 @@ function unavailablePhase(text: string): Phase | null {
   if (text.includes('次数已达上限')) return 'exhausted';
   if (text.includes('已过期')) return 'expired';
   return null;
+}
+
+/** 这些状态统一渲染为不可用空态 */
+function isStatusPhase(value: Phase) {
+  return (
+    value === 'notfound' ||
+    value === 'error' ||
+    value === 'disabled' ||
+    value === 'expired' ||
+    value === 'exhausted'
+  );
 }
 
 async function init() {
@@ -417,347 +410,54 @@ onBeforeUnmount(() => {
             <ListLoading show :text="bootLoadingText" />
           </div>
 
-          <!-- 链接不存在 -->
-          <EmptyState
-            v-else-if="phase === 'notfound'"
-            :icon="DocumentTextOutline"
-            title="分享链接不存在或已被撤销"
-            description="请确认链接是否完整（token 为 32 位十六进制字符），或联系分享者重新生成。"
-          >
-            <NButton size="small" @click="router.push('/files')">
-              <template #icon
-                ><NIcon><ArrowBackOutline /></NIcon
-              ></template>
-              返回首页
-            </NButton>
-          </EmptyState>
-
-          <!-- 加载失败 -->
-          <EmptyState
-            v-else-if="phase === 'error'"
-            :icon="RefreshOutline"
-            title="分享信息加载失败"
-            :description="errorText"
-          >
-            <NButton size="small" type="primary" @click="init">
-              <template #icon
-                ><NIcon><RefreshOutline /></NIcon
-              ></template>
-              重试
-            </NButton>
-          </EmptyState>
-
-          <!-- 已停用 -->
-          <EmptyState
-            v-else-if="phase === 'disabled'"
-            :icon="BanOutline"
-            title="分享链接已停用"
-            description="分享者已停用该链接，无法继续访问。请联系分享者重新启用或重新创建链接。"
-          />
-
-          <!-- 已过期 -->
-          <EmptyState
-            v-else-if="phase === 'expired'"
-            :icon="TimeOutline"
-            title="分享链接已过期"
-            description="该链接的有效期已结束，无法继续访问。请联系分享者重新创建并获取新链接。"
-          />
-
-          <!-- 次数用尽 -->
-          <EmptyState
-            v-else-if="phase === 'exhausted'"
-            :icon="LockClosedOutline"
-            title="分享链接打开次数已达上限"
-            description="分享者设置了最大打开次数，当前次数已用尽。请联系分享者调整或重新创建链接。"
+          <ShareStatusEmpty
+            v-else-if="isStatusPhase(phase)"
+            :phase="phase"
+            :error-text="errorText"
+            @retry="init"
+            @back="router.push('/files')"
           />
 
           <!-- 密码 / 打开：校验密码时遮罩在本区域内居中 -->
-          <div
+          <ShareGatePanel
             v-else-if="phase === 'gate' && info"
-            class="relative flex flex-1 min-h-0 flex-col"
-          >
-            <section class="glass-panel px-5 py-6 flex flex-col gap-4">
-              <div class="flex flex-col gap-1">
-                <p class="m-0 text-14px font-600 text-ink">
-                  {{
-                    info.shareType === 'collection'
-                      ? `文件集合（${info.filePaths.length} 个文件）`
-                      : nameOf(info.filePaths[0])
-                  }}
-                </p>
-                <p class="m-0 text-11px text-ink-sub">
-                  {{ info.category }} · {{ expiresLabel }}
-                  <template v-if="info.maxAccesses !== null">
-                    · 最多打开 {{ info.maxAccesses }} 次</template
-                  >
-                </p>
-              </div>
-
-              <p
-                v-if="passwordError"
-                class="m-0 text-12px text-red-500 leading-5"
-              >
-                {{ passwordError }}
-              </p>
-
-              <form
-                v-if="info.hasPassword"
-                class="flex flex-col gap-2"
-                @submit.prevent="unlock"
-              >
-                <label class="flex flex-col gap-1">
-                  <span class="text-12px text-ink-sub">访问密码</span>
-                  <NInput
-                    v-model:value="password"
-                    type="password"
-                    show-password-on="click"
-                    placeholder="请输入分享者设置的访问密码"
-                    size="large"
-                    :disabled="unlocking"
-                    @keyup.enter="unlock"
-                  />
-                </label>
-                <NButton
-                  type="primary"
-                  size="large"
-                  attr-type="submit"
-                  :loading="unlocking"
-                  :disabled="rateLimited"
-                >
-                  <template #icon
-                    ><NIcon><LockClosedOutline /></NIcon
-                  ></template>
-                  验证并打开
-                </NButton>
-              </form>
-
-              <div v-else class="flex flex-col gap-2">
-                <p class="m-0 text-12px text-ink-sub">
-                  该分享未设置密码。打开会消耗 1
-                  次打开次数（若分享者设置过上限）。
-                </p>
-                <NButton
-                  type="primary"
-                  size="large"
-                  :loading="unlocking"
-                  :disabled="rateLimited"
-                  @click="unlock"
-                >
-                  <template #icon
-                    ><NIcon><EyeOutline /></NIcon
-                  ></template>
-                  打开分享
-                </NButton>
-              </div>
-            </section>
-            <ListLoading :show="unlocking" :text="unlockLoadingText" />
-          </div>
+            v-model:password="password"
+            :info="info"
+            :password-error="passwordError"
+            :expires-label="expiresLabel"
+            :unlocking="unlocking"
+            :rate-limited="rateLimited"
+            :loading-text="unlockLoadingText"
+            @unlock="unlock"
+          />
 
           <!-- 已解锁：单文件 -->
-          <section
+          <ShareSingleFile
             v-else-if="phase === 'ready' && singleFile && info"
-            class="glass-panel px-5 py-5 flex flex-col gap-4"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="glass-chip w-11 h-11 flex items-center justify-center shrink-0"
-              >
-                <NIcon :size="22" class="text-brand-600 dark:text-brand-400">
-                  <DocumentTextOutline />
-                </NIcon>
-              </div>
-              <div class="min-w-0 flex-1">
-                <p
-                  class="m-0 text-14px font-600 text-ink truncate"
-                  :title="singleFile.name"
-                >
-                  {{ singleFile.name }}
-                </p>
-                <p class="m-0 mt-0.5 text-11px text-ink-sub">
-                  单文件分享 · {{ info.category }}
-                  <template v-if="singleMissing">
-                    ·
-                    <span class="text-amber-600 dark:text-amber-400"
-                      >文件已删除</span
-                    >
-                  </template>
-                  <template v-else-if="singleSize !== null">
-                    · {{ formatBytes(singleSize) }}
-                  </template>
-                </p>
-              </div>
-            </div>
-
-            <img
-              v-if="isImage(singleFile.name) && !singleMissing"
-              :src="singleImageSrc"
-              :alt="singleFile.name"
-              class="max-h-64 w-auto mx-auto rounded-xl object-contain"
-            />
-
-            <div v-if="singleMissing" class="flex items-center gap-2">
-              <span class="text-12px text-amber-600 dark:text-amber-400">
-                文件已被删除，请联系分享者重新创建分享。
-              </span>
-            </div>
-
-            <div v-else class="flex items-center gap-2 flex-wrap">
-              <NButton
-                v-if="isPreviewable(singleFile.name)"
-                type="primary"
-                size="small"
-                @click="openSinglePreview"
-              >
-                <template #icon
-                  ><NIcon><EyeOutline /></NIcon
-                ></template>
-                在线预览
-              </NButton>
-              <NButton
-                tag="a"
-                :href="singleDownloadSrc"
-                size="small"
-                :type="isPreviewable(singleFile.name) ? 'default' : 'primary'"
-              >
-                <template #icon
-                  ><NIcon><DownloadOutline /></NIcon
-                ></template>
-                下载文件
-              </NButton>
-            </div>
-          </section>
+            :info="info"
+            :file="singleFile"
+            :single-size="singleSize"
+            :single-missing="singleMissing"
+            :src="singleSrc"
+            :image-src="singleImageSrc"
+            :download-src="singleDownloadSrc"
+            @preview="openSinglePreview"
+          />
 
           <!-- 已解锁：文件集合（卡片头尾固定，仅文件列表滚动） -->
-          <section
+          <ShareCollectionPanel
             v-else-if="phase === 'ready' && info"
-            class="glass-panel px-5 py-5 flex flex-1 min-h-0 flex-col gap-3"
-          >
-            <div class="flex items-center gap-2 flex-wrap shrink-0">
-              <p class="m-0 text-14px font-600 text-ink">
-                文件集合
-                <span class="text-11px text-ink-sub"
-                  >（{{ collectionFiles.length }} 个）</span
-                >
-              </p>
-              <NButton
-                size="tiny"
-                quaternary
-                class="ml-auto"
-                @click="loadCollection"
-              >
-                <template #icon
-                  ><NIcon><RefreshOutline /></NIcon
-                ></template>
-                刷新列表
-              </NButton>
-            </div>
-
-            <p
-              v-if="collectionCategory"
-              class="m-0 shrink-0 text-11px text-ink-sub truncate"
-            >
-              {{ collectionRootId }} / {{ collectionCategory }}
-            </p>
-
-            <div class="relative flex flex-1 min-h-0 flex-col">
-              <div class="share-scroll flex flex-1 min-h-0 flex-col">
-                <p
-                  v-if="collectionError"
-                  class="m-0 text-12px text-red-500 leading-5"
-                >
-                  {{ collectionError }}
-                </p>
-                <div
-                  v-else-if="!collectionLoading && collectionFiles.length === 0"
-                  class="rounded-xl border border-dashed border-glass-border dark:border-glass-border-dark px-4 py-8 text-center text-12px text-ink-sub"
-                >
-                  文件集合为空：分享创建后文件可能已被全部删除，请联系分享者重新创建。
-                </div>
-                <div v-else class="flex flex-col gap-2">
-                  <p
-                    v-if="collectionMissingCount > 0"
-                    class="m-0 text-11px text-amber-600 dark:text-amber-400"
-                  >
-                    有
-                    {{ collectionMissingCount }}
-                    个文件已被删除，已标记为不可预览/下载。
-                  </p>
-                  <ul class="m-0 p-0 list-none flex flex-col gap-2">
-                    <li
-                      v-for="(file, index) in collectionFiles"
-                      :key="file.path"
-                      class="rounded-xl border border-glass-border dark:border-glass-border-dark bg-white/45 dark:bg-white/4 px-3 py-2.5 flex items-center gap-3"
-                      :class="!file.exists ? 'opacity-60' : ''"
-                    >
-                      <div
-                        class="glass-chip w-8 h-8 flex items-center justify-center shrink-0"
-                      >
-                        <NIcon
-                          :size="16"
-                          class="text-brand-600 dark:text-brand-400"
-                        >
-                          <DocumentTextOutline />
-                        </NIcon>
-                      </div>
-                      <span class="min-w-0 flex-1">
-                        <span
-                          class="block text-12px text-ink truncate"
-                          :title="file.path"
-                        >
-                          {{ file.name }}
-                        </span>
-                        <span
-                          class="block text-11px text-ink-sub truncate"
-                          :title="file.path"
-                        >
-                          {{ file.path }}
-                          <template v-if="file.exists">
-                            · {{ formatBytes(file.size ?? 0) }}</template
-                          >
-                        </span>
-                      </span>
-                      <span
-                        v-if="!file.exists"
-                        class="text-10px text-amber-600 dark:text-amber-400 shrink-0"
-                      >
-                        文件已删除
-                      </span>
-                      <span v-else class="text-10px text-ink-sub shrink-0">
-                        {{ getFileKind(file.name) }}
-                      </span>
-                      <NButton
-                        v-if="file.exists && isPreviewable(file.name)"
-                        size="tiny"
-                        quaternary
-                        @click="openCollectionPreview(index)"
-                      >
-                        <template #icon
-                          ><NIcon><EyeOutline /></NIcon
-                        ></template>
-                        预览
-                      </NButton>
-                      <NButton
-                        v-if="file.exists"
-                        tag="a"
-                        :href="fileUrl(index, true)"
-                        size="tiny"
-                        quaternary
-                      >
-                        <template #icon
-                          ><NIcon><DownloadOutline /></NIcon
-                        ></template>
-                        下载
-                      </NButton>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <ListLoading
-                :show="collectionLoading"
-                :text="collectionLoadingText"
-              />
-            </div>
-          </section>
+            :files="collectionFiles"
+            :root-id="collectionRootId"
+            :category="collectionCategory"
+            :loading="collectionLoading"
+            :loading-text="collectionLoadingText"
+            :error="collectionError"
+            :missing-count="collectionMissingCount"
+            :file-url="fileUrl"
+            @refresh="loadCollection"
+            @preview="openCollectionPreview"
+          />
         </main>
 
         <div
