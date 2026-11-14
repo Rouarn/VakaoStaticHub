@@ -105,6 +105,16 @@ export default defineConfig({
       'w-full h-full object-cover transition-opacity duration-300 dark:opacity-85 hover:opacity-100 dark:hover:opacity-100',
     'media-frame':
       'relative overflow-hidden bg-gradient-to-br from-brand-100 to-brand-200/50 dark:from-brand-900/40 dark:to-brand-800/25',
+    // —— 媒体播放器（audio-preview / video-preview 共用，见 media-controls.vue） ——
+    // 键盘焦点统一用品牌色内环，避免各组件各写一套 ring 值
+    'focus-ring':
+      'outline-none focus-visible:ring-2 focus-visible:ring-brand-500/55',
+    'media-btn':
+      'w-11 h-11 shrink-0 flex items-center justify-center rounded-full border-none cursor-pointer text-ink-sub dark:text-ink-dark-sub transition-colors duration-200 hover:bg-[var(--mat-hover)] focus-ring',
+    'media-btn-primary':
+      'w-11 h-11 shrink-0 flex items-center justify-center rounded-full border-none cursor-pointer bg-brand-600 text-white transition-colors duration-200 hover:bg-brand-700 focus-ring',
+    'media-track':
+      'relative w-full h-1.5 rounded-full overflow-hidden bg-white/40 dark:bg-white/10',
     // —— 图标按钮（系统侧边栏） ——
     'rail-icon':
       'w-11 h-11 flex items-center justify-center rounded-xl text-ink-sub dark:text-ink-dark-sub transition-colors duration-200 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-[var(--mat-hover)]',

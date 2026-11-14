@@ -261,6 +261,7 @@ function forcePreview() {
               :src="current.src"
               :filename="current.filename"
               :size="current.size"
+              :download-src="current.downloadSrc"
             />
           </div>
         </div>

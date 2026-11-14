@@ -26,6 +26,7 @@ declare module 'vue' {
     ImagePreview: typeof import('./../components/preview/image-preview.vue')['default']
     ListLoading: typeof import('./../components/common/list-loading.vue')['default']
     MarkdownPreview: typeof import('./../components/preview/markdown-preview.vue')['default']
+    MediaControls: typeof import('./../components/preview/media-controls.vue')['default']
     NDropdown: typeof import('naive-ui')['NDropdown']
     PageHeader: typeof import('./../components/common/page-header.vue')['default']
     PdfPreview: typeof import('./../components/preview/pdf-preview.vue')['default']

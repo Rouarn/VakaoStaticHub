@@ -11,6 +11,8 @@ export interface PreviewProps {
   filename: string;
   /** 字节大小，用于超大文件拦截与元信息展示 */
   size: number;
+  /** 强制下载地址（可选，媒体错误态用；缺省时不展示下载动作） */
+  downloadSrc?: string;
 }
 
 export type PreviewLoader = () => Promise<Component>;

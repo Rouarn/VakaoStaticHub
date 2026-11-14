@@ -234,6 +234,7 @@ watch(() => route.fullPath, applyQuery);
             :src="target.src"
             :filename="target.filename"
             :size="target.size"
+            :download-src="target.downloadSrc"
           />
         </div>
       </template>
@@ -296,6 +297,7 @@ watch(() => route.fullPath, applyQuery);
         :src="target.src"
         :filename="target.filename"
         :size="target.size"
+        :download-src="target.downloadSrc"
       />
     </div>
   </div>
