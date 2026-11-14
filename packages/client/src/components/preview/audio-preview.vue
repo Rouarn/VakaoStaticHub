@@ -118,7 +118,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="w-full h-full flex items-center justify-center p-2 sm:p-3 box-border">
+  <div
+    class="w-full h-full flex items-center justify-center p-2 sm:p-3 box-border"
+  >
     <div class="w-full max-w-140">
       <div
         v-if="failed"
