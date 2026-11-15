@@ -119,6 +119,10 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
   该分享的全部文件与变体；
 - 三项任意留空则不刷新、不外呼，靠缓存自然过期兜底。
 
+分享内文件的响应头是 `public, max-age=604800`（7 天，不带 `immutable`），
+其余资源（`/v1/i`、缩略图、转换 PDF）仍是 `max-age=31536000, immutable`。
+因此最坏情况下（刷新未配置或失败）边缘副本最多再存活 7 天。
+
 刷新失败只写日志，不影响删除/停用本身，也不会重试。
 
 ## `.env` 键名说明

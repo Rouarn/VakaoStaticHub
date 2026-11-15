@@ -380,7 +380,7 @@ func (s *Server) handleShareFileContent(w http.ResponseWriter, r *http.Request, 
 	} else if _, err := s.authorizeShareAccess(r, record); err != nil {
 		return err
 	}
-	return s.serveStoredFile(w, r, full, info, "share:"+record.Token+"/"+rel)
+	return s.serveStoredFile(w, r, full, info, "share:"+record.Token+"/"+rel, cacheShare)
 }
 
 // availableShare 加载分享并拒绝已无法打开的链接。

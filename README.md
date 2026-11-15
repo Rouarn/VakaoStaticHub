@@ -162,6 +162,10 @@ chmod +x vakao-server
 | `TENCENTCLOUD_SECRET_KEY` | -       | 同上，SecretKey；三项齐全才启用刷新                         |
 | `EDGEONE_ZONE_ID` | -                 | EdgeOne 站点 ID；三项齐全才启用刷新                          |
 
+分享内文件按 `public, max-age=604800`（7 天，不带 `immutable`）缓存；
+其余资源（`/v1/i`、缩略图、转换 PDF）仍是 `max-age=31536000, immutable`。
+撤销分享时可配置 EdgeOne 凭据按目录前缀即时刷新，未配置则等缓存自然过期。
+
 ### 存储与数据库
 
 | 变量                  | 默认值                    | 说明                                     |

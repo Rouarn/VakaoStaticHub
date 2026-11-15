@@ -16,7 +16,7 @@ import (
 // 转换结果按「源路径 + 大小 + 修改时间」落盘缓存，同一文件只转一次；
 // 前端拼地址时会把同一份「大小 + 修改时间」作为版本参数带上，文件一变
 // 地址就变，因此这里的响应可以按内容不可变长期缓存。
-func (s *Server) serveConvertedDocument(w http.ResponseWriter, r *http.Request, full string, info os.FileInfo) error {
+func (s *Server) serveConvertedDocument(w http.ResponseWriter, r *http.Request, full string, info os.FileInfo, cache cachePolicy) error {
 	if s.documents == nil {
 		return &APIError{Status: http.StatusServiceUnavailable, Code: "office_unavailable", Message: "文档转换服务不可用"}
 	}
@@ -56,7 +56,7 @@ func (s *Server) serveConvertedDocument(w http.ResponseWriter, r *http.Request, 
 	header.Set("ETag", result.ETag)
 	// 地址里带文件版本，内容变化即换地址：按内容不可变长期缓存，
 	// 不再需要靠缩短 max-age 兜陈旧，也不会每次回源触发重新下载。
-	header.Set("Cache-Control", immutableCacheControl)
+	header.Set("Cache-Control", cache.header())
 	header.Set("Content-Disposition", contentDisposition(strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))+".pdf", false))
 	http.ServeContent(w, r, pdfInfo.Name(), pdfInfo.ModTime(), f)
 	return nil
