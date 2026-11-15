@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import PdfPreview from './pdf-preview.vue';
+import PreviewOverlay from './preview-overlay.vue';
 import type { PreviewProps } from './types';
 import { withPdfConversion } from '@/utils/preview-source';
 
@@ -43,9 +44,16 @@ onMounted(async () => {
     :version="props.version"
     :download-src="props.downloadSrc"
   />
-  <div v-else class="w-full h-full overflow-auto">
-    <p v-if="loading" class="text-13px text-ink-sub">文档解析中…</p>
-    <div ref="container" class="docx-body mx-auto" />
+  <div v-else class="w-full h-full relative">
+    <div class="w-full h-full overflow-auto">
+      <div ref="container" class="docx-body mx-auto" />
+    </div>
+    <PreviewOverlay
+      v-if="loading"
+      state="loading"
+      title="正在解析文档…"
+      hint="按原排版在浏览器内渲染，长文档需要一点时间"
+    />
   </div>
 </template>
 

@@ -32,6 +32,7 @@ declare module 'vue' {
     PdfPreview: typeof import('./../components/preview/pdf-preview.vue')['default']
     PlaceholderView: typeof import('./../components/common/placeholder-view.vue')['default']
     PreviewDialog: typeof import('./../components/preview/preview-dialog.vue')['default']
+    PreviewOverlay: typeof import('./../components/preview/preview-overlay.vue')['default']
     PublicPage: typeof import('./../components/common/public-page.vue')['default']
     RefreshButton: typeof import('./../components/common/refresh-button.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

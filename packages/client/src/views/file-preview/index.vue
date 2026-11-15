@@ -14,6 +14,7 @@ import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import type { PreviewTarget } from '@/components/preview/types';
 import DefaultPreview from '@/components/preview/default-preview.vue';
+import PreviewOverlay from '@/components/preview/preview-overlay.vue';
 import {
   registerBuiltinPreviews,
   resolvePreview,
@@ -326,13 +327,8 @@ watch(() => route.fullPath, applyQuery);
             </NButton>
           </div>
         </header>
-        <div class="flex-1 min-h-0 bg-[var(--mat-panel-strong)]">
-          <div
-            v-if="loading"
-            class="h-full flex items-center justify-center text-13px text-ink-sub"
-          >
-            加载中…
-          </div>
+        <div class="flex-1 min-h-0 relative bg-[var(--mat-panel-strong)]">
+          <PreviewOverlay v-if="loading" state="loading" title="预览加载中…" />
           <div
             v-else-if="failed"
             class="h-full flex items-center justify-center text-13px text-ink-sub"
@@ -390,13 +386,8 @@ watch(() => route.fullPath, applyQuery);
       </p>
     </div>
 
-    <div v-else class="h-full w-full">
-      <div
-        v-if="loading"
-        class="h-full w-full flex items-center justify-center text-13px text-white/50"
-      >
-        加载中…
-      </div>
+    <div v-else class="h-full w-full relative">
+      <PreviewOverlay v-if="loading" state="loading" title="预览加载中…" />
       <div
         v-else-if="failed"
         class="h-full w-full flex items-center justify-center text-13px text-white/50"

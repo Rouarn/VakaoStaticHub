@@ -18,6 +18,7 @@ import {
 import { formatBytes, getFileKind } from '@/utils/file-types';
 import { previewSrc } from '@/utils/preview-source';
 import DefaultPreview from './default-preview.vue';
+import PreviewOverlay from './preview-overlay.vue';
 
 /**
  * 预览弹窗：注册表分发 + 懒加载 + 上一张/下一张（图片集）+ 全屏
@@ -239,7 +240,7 @@ function forcePreview() {
           </header>
 
           <!-- 内容区 -->
-          <div class="flex-1 min-h-0 p-4">
+          <div class="flex-1 min-h-0 relative p-4">
             <div
               v-if="tooLarge"
               class="h-full flex flex-col items-center justify-center gap-3"
@@ -259,12 +260,11 @@ function forcePreview() {
             >
               {{ failed }}
             </div>
-            <div
+            <PreviewOverlay
               v-else-if="loading"
-              class="h-full flex items-center justify-center text-13px text-ink-sub"
-            >
-              加载中…
-            </div>
+              state="loading"
+              title="预览加载中…"
+            />
             <component
               :is="component"
               v-else-if="component && current"
