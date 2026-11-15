@@ -124,8 +124,18 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 因此最坏情况下（刷新未配置或失败）边缘副本最多再存活 7 天。
 
 > 部署提示：宝塔反向代理默认开启 nginx `proxy_cache`（`/www/server/nginx/conf/proxy.conf`），
-> 它会在 CDN 之下再缓一层，导致撤销后 CDN 回源仍拿到旧的 200。站点配置里需对 `/v1/`
-> 加 `proxy_cache_bypass` / `proxy_no_cache`，把缓存只留给 CDN 一层。
+> 它会在 CDN 之下再缓一层，导致撤销后 CDN 回源仍拿到旧的 200，刷新等于失效。
+> 在站点配置 `/www/server/panel/vhost/nginx/<站点>.conf` 的 `location /` 中、`proxy_pass` 之前加上：
+>
+> ```nginx
+> set $skip_cache 0;
+> if ($request_uri ~ ^/v1/) { set $skip_cache 1; }
+> proxy_cache_bypass $skip_cache;
+> proxy_no_cache $skip_cache;
+> ```
+>
+> 然后 `nginx -t && nginx -s reload`。验证：删除分享后请求原地址，Go 端日志应出现该请求；
+> 若 nginx 访问日志有 200/206 而应用日志无记录，说明仍在吃 nginx 缓存。
 
 刷新失败只写日志，不影响删除/停用本身，也不会重试。
 

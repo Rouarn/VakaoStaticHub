@@ -137,6 +137,23 @@ chmod +x vakao-server
 
 升级时只替换 `vakao-server` 与 `web/`，默认不要覆盖线上已有的 `.env`：重新打包会生成新的 `JWT_SECRET`，覆盖会让所有已登录会话失效；`AUTH_PASS` 变化也不会修改已存在管理员的密码（播种只在首次启动执行一次）。包内 `README.md` 含完整部署、升级与配置说明。
 
+### Nginx 反向代理：`/v1` 必须绕过 proxy_cache
+
+宝塔「反向代理」模板默认在 `/www/server/nginx/conf/proxy.conf` 开启 `proxy_cache cache_one`，会在 CDN 之下再缓一层。分享文件带 `public, max-age=604800`，一旦被 nginx 缓存，撤销分享后 CDN 刷新回源仍会拿到旧的 `200`，刷新等于没生效。
+
+在站点配置 `/www/server/panel/vhost/nginx/<站点>.conf` 的 `location /` 里加上这四行（放在 `proxy_pass` 之前）：
+
+```nginx
+set $skip_cache 0;
+if ($request_uri ~ ^/v1/) { set $skip_cache 1; }
+proxy_cache_bypass $skip_cache;
+proxy_no_cache $skip_cache;
+```
+
+然后 `nginx -t && nginx -s reload`。
+
+验证：删除一个已访问过的分享（确保它进过 CDN 缓存），再请求原地址。若 Go 端日志出现该请求，说明确实回源了；若 nginx 访问日志有 `200/206` 而应用日志没有任何记录，说明仍在吃 nginx 缓存，检查上面四行是否生效。
+
 ---
 
 ## 环境变量
