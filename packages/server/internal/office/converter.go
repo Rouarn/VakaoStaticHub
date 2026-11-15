@@ -48,12 +48,12 @@ const queueWait = 60 * time.Second
 
 // Config 是转换器运行参数。
 type Config struct {
+	// CacheDir 是转换缓存根目录（同时存放转换任务目录与 soffice 用户配置）。
+	// 它落在系统临时目录，系统可随时回收，回收后按需重新转换。
 	CacheDir      string
 	Concurrency   int
 	Timeout       time.Duration
 	MaxInputBytes int64
-	Retention     time.Duration
-	MaxCacheBytes int64
 	SofficePath   string
 }
 
@@ -82,7 +82,8 @@ type Converter struct {
 	inflight map[string]*flight
 }
 
-// New 创建转换器并准备缓存目录。
+// New 创建转换器并准备缓存目录。缓存目录与 LibreOffice 用户配置都在
+// 系统临时目录下，进程重启或系统回收后按需重建。
 func New(cfg Config, log *slog.Logger) (*Converter, error) {
 	if cfg.Concurrency < 1 {
 		cfg.Concurrency = 1
@@ -93,7 +94,7 @@ func New(cfg Config, log *slog.Logger) (*Converter, error) {
 	if cfg.SofficePath == "" {
 		cfg.SofficePath = "soffice"
 	}
-	root := filepath.Join(cfg.CacheDir, "office")
+	root := cfg.CacheDir
 	if err := os.MkdirAll(filepath.Join(root, "tmp"), 0o755); err != nil {
 		return nil, fmt.Errorf("create office cache dir: %w", err)
 	}
@@ -256,7 +257,7 @@ func findPDF(dir string) (string, error) {
 }
 
 // cacheKey 由源文件绝对路径、大小与修改时间共同决定：
-// 文件内容一变键就变，旧缓存按保留期淘汰。
+// 文件内容一变键就变，不会命中旧缓存。
 func cacheKey(src string, info os.FileInfo) string {
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%d|%d",
 		converterVersion, src, info.Size(), info.ModTime().UnixNano())))

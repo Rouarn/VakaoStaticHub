@@ -19,6 +19,7 @@
 - **存储用量统计**：按根目录 / 分类聚合占用空间与文件数
 - **文件索引**：SQLite 持久化索引，启动时全量扫描，之后按 `CACHE_REFRESH_INTERVAL_MS` 定时刷新
 - **图片处理**：生成缩略图（默认 JPEG，可显式请求 WebP），限制最大像素数与边长，磁盘缓存
+- **Office 预览**：pptx / ppt / doc 与 docx 渲染失败兜底时，由服务端 LibreOffice 转成 PDF 复用 PDF 预览；转换结果按「文件版本」缓存在系统临时目录，随时可能被系统回收
 - **随机图片服务**：按根目录 / 分类 / 尺寸组合查询
 - **占位图生成**：SVG 占位图动态生成，支持尺寸、颜色、文字、字体、字重自定义，带 ETag 协商缓存
 - **一言代理**：反向代理 `hitokoto` 服务，响应原样转发
@@ -184,11 +185,16 @@ chmod +x vakao-server
 | `OFFICE_CONVERT_CONCURRENCY` | `2`    | Office 转 PDF 并发数                 |
 | `OFFICE_CONVERT_TIMEOUT` | `90s`      | 单次转换超时                         |
 | `OFFICE_MAX_INPUT_MB`   | `20`        | 单个文件转换上限（MB），超限返回 422 |
-| `OFFICE_CACHE_RETENTION_DAYS` | `30`  | 转换缓存保留天数，0 表示不按时间清理 |
-| `OFFICE_CACHE_MAX_MB`   | `1024`      | 转换缓存总容量上限（MB），0 表示不限 |
+| `OFFICE_CACHE_DIR`      | 系统临时目录下的 `vakao-static-hub-office` | 转换缓存目录（见下方说明） |
 | `SOFFICE_PATH`          | `soffice`   | LibreOffice 可执行文件路径           |
 | `CACHE_REFRESH_INTERVAL_MS` | `300000` | 索引刷新间隔（毫秒）                |
 | `ROOT_BROWSE_WHITELIST` | `''`        | 目录浏览额外允许的绝对路径，逗号分隔 |
+
+Office 转换缓存的目录由 `OFFICE_CACHE_DIR` 指定，默认是系统临时目录下的
+`vakao-static-hub-office`。它不属于站点数据：系统或定时任务随时可能整目录清掉
+（tmpfiles / 重启 / 手动清理），代价只是下一次预览重新转换一次；进程启动时会
+自动重建目录与 LibreOffice 用户配置，不需要预置。因此这里没有保留天数、容量上限
+和独立的清理任务。
 
 ### 外部服务
 

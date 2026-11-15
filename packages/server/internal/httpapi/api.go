@@ -72,12 +72,10 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 		photos:        newPhotoPools(),
 	}
 	documents, err := office.New(office.Config{
-		CacheDir:      cfg.CacheDir,
+		CacheDir:      cfg.OfficeCacheDir,
 		Concurrency:   cfg.OfficeConcurrency,
 		Timeout:       cfg.OfficeTimeout,
 		MaxInputBytes: cfg.OfficeMaxInput,
-		Retention:     cfg.OfficeCacheRetention,
-		MaxCacheBytes: cfg.OfficeCacheMax,
 		SofficePath:   cfg.SofficePath,
 	}, logger)
 	if err != nil {
@@ -333,7 +331,8 @@ func (s *Server) runDailyCleanupIfDue(ctx context.Context, lastDay string) strin
 }
 
 // runDailyCleanup 清理缩略图缓存与过期分享。两类任务相互独立，
-// 任一失败只记录日志，不影响后续执行。
+// 任一失败只记录日志，不影响后续执行。Office 转换缓存落在系统临时
+// 目录、由系统回收，不参与这里的清理。
 func (s *Server) runDailyCleanup(ctx context.Context) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
@@ -363,25 +362,6 @@ func (s *Server) runDailyCleanup(ctx context.Context) {
 	} else if deleted > 0 {
 		s.log.Info("expired shares removed", "count", deleted)
 	}
-
-	if s.documents == nil {
-		return
-	}
-	officeStats, err := s.documents.Cleanup(office.CleanupOptions{
-		Retention: s.cfg.OfficeCacheRetention,
-		MaxBytes:  s.cfg.OfficeCacheMax,
-	})
-	if err != nil {
-		s.log.Error("office cache cleanup failed", "error", err)
-		return
-	}
-	s.log.Info("office cache cleaned",
-		"expired", officeStats.Expired,
-		"temp", officeStats.Temp,
-		"overCap", officeStats.OverCap,
-		"freedBytes", officeStats.FreedBytes,
-		"remainingBytes", officeStats.RemainingBytes,
-	)
 }
 
 func (s *Server) processScheduled(ctx context.Context) {
