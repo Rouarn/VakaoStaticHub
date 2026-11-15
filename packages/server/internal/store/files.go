@@ -19,6 +19,9 @@ type FileMeta struct {
 	ContentHash string
 }
 
+// FileFilter 是文件列表查询条件。Query 同时匹配名称与相对路径；
+// Sort 取 name/size/mtime/created，未识别时按修改时间倒序；
+// Page/PageSize 非正数时分别回落到 1/20。
 type FileFilter struct {
 	RootID   string
 	Category string
@@ -53,6 +56,8 @@ var fileSortColumns = map[string]string{
 	"created": "created_at",
 }
 
+// ListFiles 返回一页文件记录与过滤后的总数。默认根目录下的
+// software-update 分类会被隐藏，它作为独立根目录展示。
 func (s *Store) ListFiles(ctx context.Context, filter FileFilter) ([]model.FileEntry, int, error) {
 	where := []string{"root_id = ?"}
 	args := []any{filter.RootID}
@@ -116,6 +121,8 @@ func (s *Store) ListFiles(ctx context.Context, filter FileFilter) ([]model.FileE
 	return items, total, rows.Err()
 }
 
+// FileByPath 按根目录 + 分类 + 相对路径读取单条记录；
+// 不存在时返回 ErrNotFound。
 func (s *Store) FileByPath(ctx context.Context, rootID, category, relPath string) (*model.FileEntry, error) {
 	row := s.Reader.QueryRowContext(ctx,
 		`SELECT id, root_id, category, rel_path, name, extension, size, mtime_ms,
@@ -150,6 +157,8 @@ func scanFileEntry(row rowScanner) (model.FileEntry, error) {
 	return entry, nil
 }
 
+// FileMetas 返回某根目录下全部文件的轻量元数据，键为「分类/相对路径」。
+// 索引扫描用它判断哪些文件可以跳过哈希计算。
 func (s *Store) FileMetas(ctx context.Context, rootID string) (map[string]FileMeta, error) {
 	rows, err := s.Reader.QueryContext(ctx,
 		`SELECT category, rel_path, size, mtime_ms, COALESCE(content_hash, '')
@@ -170,6 +179,7 @@ func (s *Store) FileMetas(ctx context.Context, rootID string) (map[string]FileMe
 	return metas, rows.Err()
 }
 
+// CountFiles 返回全部索引记录数（含各个根目录）。
 func (s *Store) CountFiles(ctx context.Context) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx, "SELECT COUNT(1) FROM file_entries").Scan(&n)

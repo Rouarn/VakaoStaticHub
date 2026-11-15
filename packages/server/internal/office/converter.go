@@ -63,6 +63,8 @@ type Result struct {
 	ETag string
 }
 
+// flight 代表一次进行中的转换：后来者等待 done 而不重复启动 soffice。
+// res/err 在关闭 done 之前写入，因此等待方读取时无需额外加锁。
 type flight struct {
 	done chan struct{}
 	res  Result
@@ -154,6 +156,8 @@ func (c *Converter) Convert(ctx context.Context, src string, info os.FileInfo) (
 	return f.res, f.err
 }
 
+// lookup 命中已存在的缓存文件时直接返回；空文件视为未命中，
+// 以便上次转换中断后能重试。
 func (c *Converter) lookup(key string) (Result, bool) {
 	path := c.cachePath(key)
 	info, err := os.Stat(path)
@@ -163,10 +167,13 @@ func (c *Converter) lookup(key string) (Result, bool) {
 	return Result{Path: path, ETag: `"` + key + `"`}, true
 }
 
+// cachePath 用缓存键前两位做子目录，避免单目录堆积过多文件。
 func (c *Converter) cachePath(key string) string {
 	return filepath.Join(c.root, key[:2], key+".pdf")
 }
 
+// run 执行一次真实转换：排队等待空闲 worker，超时返回 ErrBusy。
+// 调用方已保证同一缓存键只有一个 run 在跑。
 func (c *Converter) run(ctx context.Context, src, key string) (Result, error) {
 	waitCtx, cancelWait := context.WithTimeout(ctx, queueWait)
 	defer cancelWait()
@@ -264,6 +271,7 @@ func cacheKey(src string, info os.FileInfo) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// fileSize 返回文件字节数；不可读时返回 0（用于日志与上限判断）。
 func fileSize(path string) int64 {
 	info, err := os.Stat(path)
 	if err != nil {

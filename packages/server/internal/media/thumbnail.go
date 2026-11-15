@@ -1,3 +1,9 @@
+// 包 media 负责图片缩略图的参数解析、生成与缓存回收。
+//
+// 缓存键由「源路径 + 大小 + 修改时间 + 输出参数」组成，源文件或
+// 参数一变即换键，因此已生成的缩略图可以视为不可变文件。生成过程
+// 受像素数与边长上限保护，超限返回 ErrTooLarge；解码失败返回
+// ErrUnsupported，由调用方决定是否回退原图。
 package media
 
 import (
@@ -45,6 +51,9 @@ type Thumbnailer struct {
 	sem       chan struct{}
 }
 
+// NewThumbnailer 构造缩略图生成器。concurrency 决定同时解码的
+// 上限，小于 1 时按 1 处理；maxPixels/maxDim 是防御性上限，
+// 防止超大图耗尽内存。
 func NewThumbnailer(cacheDir string, maxPixels int64, maxDim, concurrency int) *Thumbnailer {
 	if concurrency < 1 {
 		concurrency = 1
@@ -76,6 +85,10 @@ type Result struct {
 	ETag        string
 }
 
+// Get 返回缩略图的缓存路径；未命中时同步生成。
+// 缓存键包含源文件大小与修改时间、尺寸、画质与格式，源文件一变即换键。
+// 超过像素上限返回 ErrTooLarge，无法解码返回 ErrUnsupported，
+// 其他错误（含 ctx 取消）原样返回。
 func (t *Thumbnailer) Get(ctx context.Context, req Request) (Result, error) {
 	info, err := os.Stat(req.SourcePath)
 	if err != nil {

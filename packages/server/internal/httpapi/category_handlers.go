@@ -13,6 +13,8 @@ import (
 	"vakao-static-hub/server/internal/store"
 )
 
+// handleListCategories 合并磁盘目录与索引统计：磁盘上新建但尚未扫描
+// 的分类也会返回（计数为 0），保证列表与文件系统一致。
 func (s *Server) handleListCategories(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	rootID, err := requireQuery(r, "rootId")
 	if err != nil {
@@ -63,6 +65,7 @@ func (s *Server) handleListCategories(w http.ResponseWriter, r *http.Request, _ 
 	return nil
 }
 
+// handleCreateCategory 在根目录下创建分类目录；同名分类已存在时返回冲突。
 func (s *Server) handleCreateCategory(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.CreateCategoryRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -90,6 +93,8 @@ func (s *Server) handleCreateCategory(w http.ResponseWriter, r *http.Request, us
 	return nil
 }
 
+// handleRenameCategory 重命名分类目录并同步重算索引短码。
+// 索引更新失败只记日志：目录已改名，下次扫描会自行修正。
 func (s *Server) handleRenameCategory(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.RenameCategoryRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -135,6 +140,8 @@ func (s *Server) handleRenameCategory(w http.ResponseWriter, r *http.Request, us
 	return nil
 }
 
+// handleDeleteCategory 删除分类目录。非空分类必须显式传 recursive=1，
+// 以免误删整目录文件。
 func (s *Server) handleDeleteCategory(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	rootID, err := requireQuery(r, "rootId")
 	if err != nil {

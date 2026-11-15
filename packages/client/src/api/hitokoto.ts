@@ -4,6 +4,7 @@ import { getApiBaseUrl } from '@/utils/file-url';
 export type HitokotoErrorKind =
   'proxy-disabled' | 'upstream' | 'network' | 'format' | 'http';
 
+/** 一言请求失败，kind 用于区分「代理未启用」与真实网络故障 */
 export class HitokotoError extends Error {
   readonly kind: HitokotoErrorKind;
 
@@ -14,6 +15,7 @@ export class HitokotoError extends Error {
   }
 }
 
+/** 一言接口返回结构（字段均来自上游，可能缺省） */
 export interface HitokotoResult {
   id?: number;
   hitokoto: string;

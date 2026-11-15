@@ -1,3 +1,10 @@
+/**
+ * 系统指标接口。
+ *
+ * 服务端直接返回 Go 运行时数据；这里把字段改写成界面模型：
+ * 无索引文件的根目录 totalSize 归一为 null（界面显示「—」而不是 0 B），
+ * QPS 由「每秒平均值」换算成 60 秒窗口的请求数。
+ */
 import type { SidebarCounts, SystemMetrics } from '@vakao/shared';
 import { http } from '@/utils/http';
 
@@ -59,6 +66,7 @@ const UPGRADE_EVENTS = [
   'new_version_launch',
 ] as const;
 
+/** 完整系统指标（系统状态页与存储统计页共用） */
 export async function getSystemMetrics() {
   const metrics = await http.get<ServerMetrics>('/metrics');
   const perSecond = Math.round(metrics.qps * 100) / 100;

@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// contextKey 是私有类型，避免与其他包的 context 键冲突。
 type contextKey int
 
 const (
@@ -20,8 +21,10 @@ const (
 	ctxKeyUser
 )
 
+// middleware 是标准的 Handler 装饰器签名。
 type middleware func(http.Handler) http.Handler
 
+// chain 按声明顺序从外到内包装：第一个 middleware 最先收到请求。
 func chain(h http.Handler, mws ...middleware) http.Handler {
 	for i := len(mws) - 1; i >= 0; i-- {
 		h = mws[i](h)
@@ -29,6 +32,7 @@ func chain(h http.Handler, mws ...middleware) http.Handler {
 	return h
 }
 
+// requestIDFrom 读取当前请求的追踪 id；不存在时返回空串。
 func requestIDFrom(ctx context.Context) string {
 	if v, ok := ctx.Value(ctxKeyRequestID).(string); ok {
 		return v
@@ -36,6 +40,8 @@ func requestIDFrom(ctx context.Context) string {
 	return ""
 }
 
+// withRequestID 复用调用方传入的 X-Request-Id（长度 1-64），否则生成
+// 8 字节随机 id；该值同时写入响应头与 context，供日志串联。
 func withRequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-Id")
@@ -49,6 +55,8 @@ func withRequestID(next http.Handler) http.Handler {
 	})
 }
 
+// statusWriter 记录首个状态码与写出字节数，供访问日志使用。
+// 多次 WriteHeader 只记第一次，与 net/http 的实际行为一致。
 type statusWriter struct {
 	http.ResponseWriter
 	status int
@@ -123,6 +131,8 @@ func (w *apiErrorShape) Flush() {
 
 func (w *apiErrorShape) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
+// loggingMiddleware 输出结构化访问日志，5xx 记 error、4xx 记 warn，
+// 并附带 requestId 与解析后的客户端 IP。
 type loggingMiddleware struct {
 	log        *slog.Logger
 	trustProxy bool
@@ -156,6 +166,8 @@ func (m loggingMiddleware) handle(next http.Handler) http.Handler {
 	})
 }
 
+// recoverMiddleware 兜住处理函数里的 panic：记录堆栈后返回不泄露
+// 细节的 500，保证单个请求异常不会带崩进程。
 func recoverMiddleware(log *slog.Logger) middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +187,8 @@ func recoverMiddleware(log *slog.Logger) middleware {
 	}
 }
 
+// securityHeadersMiddleware 统一加上基础安全响应头；
+// 文件预览另由响应处按扩展名追加 sandbox CSP。
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -185,6 +199,8 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// corsMiddleware 只对配置的单一来源放开凭据跨域；origin 为空时
+// 完全跳过，不做通配。OPTIONS 预检直接返回 204。
 func corsMiddleware(origin string) middleware {
 	return func(next http.Handler) http.Handler {
 		if origin == "" {
@@ -231,6 +247,7 @@ func clientIP(r *http.Request, trustProxy bool) string {
 	return host
 }
 
+// bucket 是限流器里单个键的固定窗口计数。
 type bucket struct {
 	start time.Time
 	count int
@@ -245,10 +262,13 @@ type rateLimiter struct {
 	items  map[string]*bucket
 }
 
+// newRateLimiter 构造固定窗口限流器；limit 为窗口内允许次数。
 func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 	return &rateLimiter{limit: limit, window: window, items: make(map[string]*bucket)}
 }
 
+// allow 判断键是否仍有配额。条目超过 8192 时先清理过期项，
+// 因此内存占用与活跃客户端数成正比，而不是与请求总数成正比。
 func (l *rateLimiter) allow(key string) bool {
 	now := time.Now()
 	l.mu.Lock()

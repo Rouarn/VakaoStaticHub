@@ -105,6 +105,8 @@ func (s *Store) ReplaceRootIndex(ctx context.Context, rootID string, entries []m
 	return indexed, removed, nil
 }
 
+// UpsertFile 写入或更新单条文件记录，并返回库中的最终状态。
+// 短码会按新内容与路径重新解析；已有记录的 created_at 保持不变。
 func (s *Store) UpsertFile(ctx context.Context, entry model.FileEntry) (model.FileEntry, error) {
 	now := NowMS()
 	tx, err := s.Writer.BeginTx(ctx, nil)
@@ -144,6 +146,7 @@ func (s *Store) UpsertFile(ctx context.Context, entry model.FileEntry) (model.Fi
 	return *saved, nil
 }
 
+// DeleteFileEntry 删除单条索引记录；记录不存在不视为错误。
 func (s *Store) DeleteFileEntry(ctx context.Context, rootID, category, relPath string) error {
 	_, err := s.Writer.ExecContext(ctx,
 		"DELETE FROM file_entries WHERE root_id = ? AND category = ? AND rel_path = ?",
@@ -239,12 +242,14 @@ func (s *Store) RenameCategory(ctx context.Context, rootID, name, newName string
 	return tx.Commit()
 }
 
+// DeleteCategoryEntries 删除某分类下的全部索引记录，不触碰磁盘文件。
 func (s *Store) DeleteCategoryEntries(ctx context.Context, rootID, name string) error {
 	_, err := s.Writer.ExecContext(ctx,
 		"DELETE FROM file_entries WHERE root_id = ? AND category = ?", rootID, name)
 	return err
 }
 
+// DeleteRootEntries 删除某根目录下的全部索引记录，不触碰磁盘文件。
 func (s *Store) DeleteRootEntries(ctx context.Context, rootID string) error {
 	_, err := s.Writer.ExecContext(ctx, "DELETE FROM file_entries WHERE root_id = ?", rootID)
 	return err

@@ -13,10 +13,13 @@ import (
 
 const defaultJSONLimit = 1 << 20 // 1 MiB 足以覆盖所有 JSON 端点
 
+// writeJSON 以统一信封（code=200, message=ok）写出成功响应。
 func writeJSON(w http.ResponseWriter, payload any) {
 	writeEnvelope(w, http.StatusOK, "ok", payload)
 }
 
+// writeEnvelope 是所有 JSON 响应的唯一出口：设置 Content-Type、
+// 禁止类型嗅探，并关闭 HTML 转义（前端按纯文本渲染）。
 func writeEnvelope(w http.ResponseWriter, status int, message string, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -26,6 +29,8 @@ func writeEnvelope(w http.ResponseWriter, status int, message string, data any) 
 	_ = enc.Encode(model.Envelope{Code: status, Message: message, Data: data})
 }
 
+// writeError 把任意错误转成 APIError 后写出；非 APIError 一律按 500
+// 处理，避免内部细节泄露。
 func writeError(w http.ResponseWriter, err error) {
 	apiErr := asAPIError(err)
 	writeEnvelope(w, apiErr.Status, apiErr.Message, nil)

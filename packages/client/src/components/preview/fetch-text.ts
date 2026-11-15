@@ -4,6 +4,10 @@
  */
 export const TEXT_PREVIEW_LIMIT = 5 * 1024 * 1024;
 
+/**
+ * 拉取文本用于预览。优先用 content-length 提前拒绝超大文件；
+ * 服务端未给长度时读完后按字节截断，并标记 truncated。
+ */
 export async function fetchText(
   url: string,
   maxBytes = TEXT_PREVIEW_LIMIT,

@@ -50,6 +50,8 @@ func (s *Server) handlePlaceholder(w http.ResponseWriter, r *http.Request, _ *Cu
 	return nil
 }
 
+// firstInt 返回第一个能解析为正整数的值；全部无效时返回 0，
+// 由调用方决定默认值。
 func firstInt(values ...string) int {
 	for _, value := range values {
 		if n, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && n > 0 {
@@ -59,6 +61,7 @@ func firstInt(values ...string) int {
 	return 0
 }
 
+// clamp 把 value 限制在 [min, max] 区间内。
 func clamp(value, min, max int) int {
 	if value < min {
 		return min
@@ -69,6 +72,8 @@ func clamp(value, min, max int) int {
 	return value
 }
 
+// sanitizeColor 只放行十六进制色值与少量具名颜色，其余回退到默认值。
+// 白名单是为了防止把任意字符串拼进 SVG 属性造成注入。
 func sanitizeColor(value, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -89,6 +94,8 @@ func sanitizeColor(value, fallback string) string {
 	return fallback
 }
 
+// sanitizeFontFamily 只允许字母、连字符、空格、逗号与下划线，
+// 且长度不超过 64，避免字体名里夹带 CSS 注入。
 func sanitizeFontFamily(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -105,6 +112,7 @@ func sanitizeFontFamily(value string) string {
 	return value
 }
 
+// sanitizeFontWeight 只接受标准字重值与关键字，默认 600。
 func sanitizeFontWeight(value string) string {
 	switch strings.TrimSpace(value) {
 	case "100", "200", "300", "400", "500", "600", "700", "800", "900", "normal", "bold", "bolder", "lighter":

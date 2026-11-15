@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// handleAppFunnel 返回升级漏斗统计。时间窗默认最近 30 天，
+// 起止均可通过 RFC 3339 参数覆盖，闭区间统计。
 func (s *Server) handleAppFunnel(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	appKey := pathValue(r, "appKey")
 	query := r.URL.Query()

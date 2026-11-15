@@ -21,6 +21,7 @@ import (
 
 const maxSharePaths = 500
 
+// handleListShares 返回一页分享链接，并附带不受分页影响的状态计数。
 func (s *Server) handleListShares(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	page, pageSize := pagination(r)
 	records, total, err := s.store.ListShares(r.Context(), store.ShareFilter{
@@ -46,6 +47,8 @@ func (s *Server) handleListShares(w http.ResponseWriter, r *http.Request, _ *Cur
 	return nil
 }
 
+// handleCreateShare 创建分享链接：先确认每个文件都存在，再落库；
+// 密码只保存哈希，响应里只回传 Password 布尔值。
 func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.CreateShareRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -116,6 +119,7 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request, user 
 	return nil
 }
 
+// handleUpdateShare 更新分享的部分字段；停用后立即刷新 CDN 前缀缓存。
 func (s *Server) handleUpdateShare(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	token := pathValue(r, "token")
 	var req model.UpdateShareRequest
@@ -171,6 +175,7 @@ func (s *Server) handleUpdateShare(w http.ResponseWriter, r *http.Request, user 
 	return nil
 }
 
+// handleDeleteShare 撤销分享并异步刷新其文件缓存。
 func (s *Server) handleDeleteShare(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	token := pathValue(r, "token")
 	if err := s.store.DeleteShare(r.Context(), token); err != nil {
@@ -204,6 +209,7 @@ func (s *Server) purgeShareCache(r *http.Request, token string) {
 	go s.cdn.PurgePrefix(context.WithoutCancel(r.Context()), s.publicOrigin(r), "/v1/s/"+token+"/f/")
 }
 
+// handleShareAccessLogs 返回某分享的一页访问日志。
 func (s *Server) handleShareAccessLogs(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	record, err := s.store.ShareByToken(r.Context(), pathValue(r, "token"))
 	if err != nil {
@@ -242,6 +248,8 @@ func (s *Server) handlePublicShareInfo(w http.ResponseWriter, r *http.Request, _
 	return nil
 }
 
+// handleUnlockShare 校验访问密码并签发短期会话令牌。公开分享
+// 不签发令牌，返回空 token；成功与失败都会写访问日志。
 func (s *Server) handleUnlockShare(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	if !s.shareLimiter.allow(clientIP(r, s.cfg.TrustProxy)) {
 		return tooManyRequests("解锁尝试过于频繁，请稍后再试")
@@ -280,6 +288,7 @@ func (s *Server) handleUnlockShare(w http.ResponseWriter, r *http.Request, _ *Cu
 	return nil
 }
 
+// handleShareFiles 返回分享元信息与文件列表，密码分享需要有效令牌。
 func (s *Server) handleShareFiles(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	record, err := s.availableShare(r, pathValue(r, "token"), true)
 	if err != nil {
@@ -355,6 +364,8 @@ func shareInfo(record store.ShareRecord) model.ShareInfo {
 	}
 }
 
+// handleShareFileContent 读取分享内单个文件。公开分享校验地址签名；
+// 密码分享只认会话令牌，因为稳定签名等于绕过密码。
 func (s *Server) handleShareFileContent(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	record, err := s.availableShare(r, pathValue(r, "token"), true)
 	if err != nil {
@@ -447,6 +458,8 @@ func (s *Server) authorizeShareAccess(r *http.Request, record store.ShareRecord)
 	return claims, nil
 }
 
+// parseShareExpiry 解析 RFC 3339 的过期时间：空串表示不过期，
+// 过去时间直接拒绝，避免创建出「一出生就失效」的分享。
 func parseShareExpiry(value string) (*time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -462,6 +475,8 @@ func parseShareExpiry(value string) (*time.Time, error) {
 	return &parsed, nil
 }
 
+// normalizedMaxAccesses 把非正的次数上限归一为 0（表示不限次数），
+// nil 保持 nil（表示不修改）。
 func normalizedMaxAccesses(value *int) *int {
 	if value == nil {
 		return nil
@@ -473,6 +488,8 @@ func normalizedMaxAccesses(value *int) *int {
 	return value
 }
 
+// newShareToken 生成 16 字节随机 token（base64url 无填充）。
+// 随机源不可用时退回时间戳，保证不会返回空 token。
 func newShareToken() string {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {

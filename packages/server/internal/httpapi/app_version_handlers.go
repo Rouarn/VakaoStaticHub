@@ -18,6 +18,7 @@ import (
 	"vakao-static-hub/server/internal/store"
 )
 
+// handleListVersions 返回某应用的一页版本，附带各状态计数。
 func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	appKey := pathValue(r, "appKey")
 	page, pageSize := pagination(r)
@@ -41,8 +42,8 @@ func (s *Server) handleListVersions(w http.ResponseWriter, r *http.Request, _ *C
 	return nil
 }
 
-// handleCreateVersion 接收包含元数据字段和一个安装包的
-// multipart 表单。文件边写入磁盘边计算校验和。
+// handleCreateVersion 接收包含元数据字段和一个安装包的 multipart 表单，
+// 创建草稿版本：文件边写盘边算校验和，写库失败会删除刚上传的文件。
 func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	appKey := pathValue(r, "appKey")
 	reader, err := r.MultipartReader()
@@ -218,9 +219,9 @@ func (s *Server) handleCreateVersion(w http.ResponseWriter, r *http.Request, use
 	return nil
 }
 
-// savePackageTemp 将上传的安装包流式写入上传临时目录，
-// 并返回临时路径、大小、原始文件名与 SHA-256。先完整解析
-// multipart 请求体，因此字段在报文中的顺序无关紧要。
+// savePackageTemp 将安装包流式写入上传临时目录，返回临时路径、大小、
+// 原始文件名与 SHA-256。超过 maxPackageSize 返回 400 并清理临时文件；
+// 调用方负责删除返回的路径。
 func (s *Server) savePackageTemp(part *multipart.Part) (string, int64, string, string, error) {
 	dir := s.cfg.UploadTempDir
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -252,9 +253,8 @@ func (s *Server) savePackageTemp(part *multipart.Part) (string, int64, string, s
 	return tmp.Name(), size, name, hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// resolvePackageRoot 选择存放 APP 安装包的资源根目录。显式指定的
-// 字段优先；否则使用约定的「software-update」根目录，
-// 仅有一个根目录的部署则回退到该唯一根目录。
+// resolvePackageRoot 选择存放 APP 安装包的资源根目录：请求显式指定的
+// 优先；否则使用约定的 software-update 根；仅有一个根目录时回退到它。
 func (s *Server) resolvePackageRoot(ctx context.Context, requested string) (*model.ResourceRoot, error) {
 	if id := strings.TrimSpace(requested); id != "" {
 		return s.rootByID(ctx, id)
@@ -274,6 +274,7 @@ func (s *Server) resolvePackageRoot(ctx context.Context, requested string) (*mod
 	return &roots[0], nil
 }
 
+// handleVersionDetail 返回单个版本的完整信息（含下载地址）。
 func (s *Server) handleVersionDetail(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {
@@ -283,6 +284,7 @@ func (s *Server) handleVersionDetail(w http.ResponseWriter, r *http.Request, _ *
 	return nil
 }
 
+// handleUpdateVersion 修改版本信息；状态字段不在此接口，发布/下架走专门端点。
 func (s *Server) handleUpdateVersion(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {
@@ -348,6 +350,8 @@ func (s *Server) handleUpdateVersion(w http.ResponseWriter, r *http.Request, use
 	return nil
 }
 
+// handleDeleteVersion 删除版本记录与安装包。删除失败的文件只记日志，
+// 数据库记录仍会被删除，后续扫描会清理遗留文件。
 func (s *Server) handleDeleteVersion(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {

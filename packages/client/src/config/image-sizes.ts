@@ -15,6 +15,7 @@ export const IMAGE_SIZES = {
   share: 1280,
 } as const;
 
+/** 图片档位名；组件只能传档位，不能传裸数字 */
 export type ImageTier = keyof typeof IMAGE_SIZES;
 
 /** 缩略图质量，与后端允许的 30–95 区间对齐 */

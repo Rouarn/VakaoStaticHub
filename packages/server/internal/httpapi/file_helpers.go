@@ -13,6 +13,8 @@ import (
 
 const maxBatchPaths = 500
 
+// resolveRequestLocation 解析并校验上传/写入目标：根目录必须存在，
+// 分类名必须通过白名单校验；返回空分类时由调用方补默认分类。
 func (s *Server) resolveRequestLocation(ctx context.Context, rootID, category string) (*model.ResourceRoot, string, error) {
 	root, err := s.rootByID(ctx, strings.TrimSpace(rootID))
 	if err != nil {
@@ -25,6 +27,7 @@ func (s *Server) resolveRequestLocation(ctx context.Context, rootID, category st
 	return root, name, nil
 }
 
+// rootByID 读取资源根目录，并把不存在映射为 404、其他错误映射为 500。
 func (s *Server) rootByID(ctx context.Context, id string) (*model.ResourceRoot, error) {
 	if strings.TrimSpace(id) == "" {
 		return nil, badRequest("rootId 不能为空")
@@ -39,6 +42,8 @@ func (s *Server) rootByID(ctx context.Context, id string) (*model.ResourceRoot, 
 	return root, nil
 }
 
+// validateCategoryName 校验分类名：非空、非 `.`/`..`、不以点开头、
+// 不含斜杠、长度不超过 128，避免分类逃逸出根目录。
 func validateCategoryName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	switch {
@@ -56,6 +61,8 @@ func validateCategoryName(name string) (string, error) {
 	return name, nil
 }
 
+// validateFileName 校验文件或目录名：非空、非 `.`/`..`、不含斜杠、
+// 不超过 255 字节。错误字段固定为 newName，便于前端定位重命名表单。
 func validateFileName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	switch {
@@ -71,6 +78,8 @@ func validateFileName(name string) (string, error) {
 	return name, nil
 }
 
+// normalizeBatchPaths 清洗批量操作的相对路径：逐个经过 storage.CleanRel，
+// 去重并保持原顺序；单次上限 maxBatchPaths，防止一次请求放大成海量 IO。
 func normalizeBatchPaths(paths []string) ([]string, error) {
 	if len(paths) == 0 {
 		return nil, badRequest("paths 不能为空")
@@ -94,6 +103,8 @@ func normalizeBatchPaths(paths []string) ([]string, error) {
 	return cleaned, nil
 }
 
+// isEmptyDir 判断目录是否为空；隐藏文件不算内容，与列表口径一致。
+// 目录不可读时返回 false（按「非空」处理，避免误删）。
 func isEmptyDir(path string) bool {
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -107,6 +118,7 @@ func isEmptyDir(path string) bool {
 	return true
 }
 
+// fileContentURL 组装按内容短码访问的稳定地址。
 func fileContentURL(code string) string {
 	return "/v1/i/" + code
 }

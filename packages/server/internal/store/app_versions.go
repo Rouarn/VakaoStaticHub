@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+// CreateVersion 以草稿状态插入版本（灰度 0、未强更），返回完整记录。
+// 版本号唯一性由数据库约束保证。
 func (s *Store) CreateVersion(ctx context.Context, record VersionRecord) (VersionRecord, error) {
 	schedule, err := json.Marshal(record.GrayIncrementSchedule)
 	if err != nil {
@@ -36,6 +38,8 @@ func (s *Store) CreateVersion(ctx context.Context, record VersionRecord) (Versio
 	return s.VersionByID(ctx, id)
 }
 
+// VersionByID 按主键读取版本（含所属应用的 key 与平台）；
+// 不存在返回 ErrNotFound。
 func (s *Store) VersionByID(ctx context.Context, id int64) (VersionRecord, error) {
 	row := s.Reader.QueryRowContext(ctx, versionSelect+` WHERE v.id = ?`, id)
 	record, err := scanVersion(row)
@@ -88,6 +92,7 @@ func scanVersion(row rowScanner) (VersionRecord, error) {
 	return record, nil
 }
 
+// ListVersions 返回某应用的一页版本，按版本号倒序。
 func (s *Store) ListVersions(ctx context.Context, filter VersionFilter) ([]VersionRecord, int, error) {
 	where := []string{"a.app_key = ?"}
 	args := []any{filter.AppKey}
@@ -138,6 +143,8 @@ func (s *Store) ListVersions(ctx context.Context, filter VersionFilter) ([]Versi
 	return items, total, rows.Err()
 }
 
+// UpdateVersion 应用部分更新；灰度比例会被夹紧到 0-100。
+// 版本不存在返回 ErrNotFound。
 func (s *Store) UpdateVersion(ctx context.Context, id int64, update VersionUpdate) error {
 	sets := []string{"updated_at = ?"}
 	args := []any{NowMS()}
@@ -209,6 +216,8 @@ func (s *Store) UpdateVersion(ctx context.Context, id int64, update VersionUpdat
 	return nil
 }
 
+// DeleteVersion 删除版本记录，不删除磁盘安装包；
+// 不存在返回 ErrNotFound。
 func (s *Store) DeleteVersion(ctx context.Context, id int64) error {
 	result, err := s.Writer.ExecContext(ctx, "DELETE FROM app_versions WHERE id = ?", id)
 	if err != nil {

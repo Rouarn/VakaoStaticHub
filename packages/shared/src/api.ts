@@ -10,6 +10,7 @@ export interface ApiResponse<T = unknown> {
   data: T | null;
 }
 
+/** 服务端统一的分页结果；页码从 1 开始 */
 export interface PagedResult<T> {
   items: T[];
   total: number;

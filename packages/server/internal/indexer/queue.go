@@ -48,6 +48,8 @@ type Queue struct {
 	wake     chan struct{}
 }
 
+// NewQueue 构造索引队列。状态与待办都只在内存中，因此进程重启后
+// 需要重新入队一次全量扫描。
 func NewQueue(ix *Indexer, st *store.Store, logger *slog.Logger) *Queue {
 	return &Queue{
 		indexer:  ix,
@@ -118,6 +120,8 @@ func (q *Queue) Snapshot(rootIDs []string) []RootStatus {
 	return out
 }
 
+// loop 是唯一的 worker：被唤醒后把当前积压的根目录逐个扫描完，
+// 同一时刻只有一个扫描在跑，避免并发 IO 互相拖慢。
 func (q *Queue) loop() {
 	for {
 		select {
@@ -135,6 +139,7 @@ func (q *Queue) loop() {
 	}
 }
 
+// take 取出队首根目录并解除去重标记；队列为空时返回 false。
 func (q *Queue) take() (string, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -147,6 +152,8 @@ func (q *Queue) take() (string, bool) {
 	return rootID, true
 }
 
+// run 执行一次根目录扫描并维护实时进度。进度回调里 IndexedFiles
+// 只增不减，因为扫描过程中索引数可能被删除操作短暂拉低。
 func (q *Queue) run(rootID string) {
 	started := time.Now()
 	root, err := q.store.RootByID(q.ctx, rootID)

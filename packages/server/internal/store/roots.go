@@ -8,6 +8,8 @@ import (
 	"vakao-static-hub/server/internal/model"
 )
 
+// ListRoots 按展示顺序返回全部资源根目录：默认根固定在前，
+// 其余按创建时间升序。
 func (s *Store) ListRoots(ctx context.Context) ([]model.ResourceRoot, error) {
 	rows, err := s.Reader.QueryContext(ctx,
 		`SELECT id, name, path, description, sort_order, created_at, updated_at
@@ -35,6 +37,7 @@ func (s *Store) ListRoots(ctx context.Context) ([]model.ResourceRoot, error) {
 	return roots, rows.Err()
 }
 
+// RootByID 按主键读取根目录；不存在时返回 ErrNotFound。
 func (s *Store) RootByID(ctx context.Context, id string) (*model.ResourceRoot, error) {
 	var (
 		r         model.ResourceRoot
@@ -56,6 +59,7 @@ func (s *Store) RootByID(ctx context.Context, id string) (*model.ResourceRoot, e
 	return &r, nil
 }
 
+// RootByPath 按绝对路径读取根目录；路径唯一，不存在时返回 ErrNotFound。
 func (s *Store) RootByPath(ctx context.Context, path string) (*model.ResourceRoot, error) {
 	var (
 		r         model.ResourceRoot
@@ -77,6 +81,7 @@ func (s *Store) RootByPath(ctx context.Context, path string) (*model.ResourceRoo
 	return &r, nil
 }
 
+// CreateRoot 插入根目录；id 或路径冲突时返回 ErrConflict。
 func (s *Store) CreateRoot(ctx context.Context, r model.ResourceRoot) error {
 	now := NowMS()
 	_, err := s.Writer.ExecContext(ctx,
@@ -89,12 +94,15 @@ func (s *Store) CreateRoot(ctx context.Context, r model.ResourceRoot) error {
 	return err
 }
 
+// RootUpdate 是根目录的部分更新：nil 字段保持原值。
 type RootUpdate struct {
 	Name        *string
 	Path        *string
 	Description *string
 }
 
+// UpdateRoot 在事务内读取当前值、应用非 nil 字段并写回，返回更新后的
+// 完整记录。路径冲突返回 ErrConflict，记录不存在返回 ErrNotFound。
 func (s *Store) UpdateRoot(ctx context.Context, id string, update RootUpdate) (model.ResourceRoot, error) {
 	tx, err := s.Writer.BeginTx(ctx, nil)
 	if err != nil {
@@ -143,6 +151,7 @@ func (s *Store) UpdateRoot(ctx context.Context, id string, update RootUpdate) (m
 	return r, nil
 }
 
+// DeleteRoot 删除根目录记录，不删除磁盘内容；不存在返回 ErrNotFound。
 func (s *Store) DeleteRoot(ctx context.Context, id string) error {
 	res, err := s.Writer.ExecContext(ctx, "DELETE FROM resource_roots WHERE id = ?", id)
 	if err != nil {
@@ -158,6 +167,7 @@ func (s *Store) DeleteRoot(ctx context.Context, id string) error {
 	return nil
 }
 
+// CountFileEntriesByRoot 返回某根目录下的索引记录数，用于删除前的占用检查。
 func (s *Store) CountFileEntriesByRoot(ctx context.Context, rootID string) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx,

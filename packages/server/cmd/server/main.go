@@ -1,3 +1,5 @@
+// 服务端入口：加载配置、打开数据库、播种初始数据，然后启动
+// HTTP 服务、索引 worker 与定时任务，收到信号后优雅退出。
 package main
 
 import (
@@ -33,6 +35,9 @@ func main() {
 	}
 }
 
+// run 承载完整启动流程，返回错误时由 main 打印并退出。
+// 后台任务复用同一个 ctx：进程收到 SIGINT/SIGTERM 后，
+// HTTP 先优雅关闭，worker 随 ctx 取消停止。
 func run() error {
 	cfg, err := config.Load()
 	if err != nil {

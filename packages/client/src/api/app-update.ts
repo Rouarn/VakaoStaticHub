@@ -1,3 +1,14 @@
+/**
+ * APP 在线更新的管理端接口封装。
+ *
+ * 服务端只存 draft/published/offline 三种状态，灰度由 grayPercent
+ * 派生；前端统一映射为数字 AppVersionStatus。灰度百分比与发布时间
+ * 在这里做一次转换，组件只消费本文件导出的模型，不要直接解析
+ * 服务端原始字段。
+ *
+ * 应用标识 appKey 同时是安装包所在目录名，因此所有路径参数都要
+ * encodeURIComponent。
+ */
 import type {
   AppVersion,
   AppVersionStatus,
@@ -142,16 +153,19 @@ function toAppVersion(version: ServerAppVersion): AppVersionRecord {
   };
 }
 
+/** 应用列表，仅返回 appKey（名称在版本列表里按需展示） */
 export async function listApps() {
   const apps = await http.get<ServerApp[]>('/apps');
   return apps.map((app) => app.appKey);
 }
 
+/** 创建应用；appKey 由调用方生成并作为存储目录名 */
 export async function createApp(appKey: string) {
   const created = await http.post<ServerApp>('/apps', { appKey });
   return { appKey: created.appKey };
 }
 
+/** 重命名应用，服务端会迁移该应用全部安装包目录 */
 export async function renameApp(appKey: string, newAppKey: string) {
   const updated = await http.patch<ServerApp>(
     `/apps/${encodeURIComponent(appKey)}`,
@@ -160,6 +174,10 @@ export async function renameApp(appKey: string, newAppKey: string) {
   return { appKey: updated.appKey };
 }
 
+/**
+ * 删除应用。服务端会级联删除版本、事件与安装包；
+ * 返回的 versionCount 即被删除的安装包文件数。
+ */
 export async function deleteApp(appKey: string) {
   const result = await http.delete<{
     versionCount: number;
@@ -193,6 +211,11 @@ function statusQuery(status?: number): string | undefined {
   }
 }
 
+/**
+ * 版本列表（GET /v1/apps/:appKey/versions）。
+ * appKey 为空时直接返回空页，不发起请求；status 用聚合值 gray/full
+ * 区分「灰度中」与「已全量」。
+ */
 export async function listVersions(params: ListVersionsQuery) {
   if (!params.appKey) {
     return { items: [], total: 0, page: 1, pageSize: params.pageSize ?? 20 };
@@ -216,6 +239,7 @@ export async function listVersions(params: ListVersionsQuery) {
   } satisfies PagedResult<AppVersionRecord>;
 }
 
+/** 修改版本可编辑字段；versionCode 与安装包不可改，状态走发布/下架接口 */
 export async function updateVersion(
   id: number,
   body: {
@@ -234,6 +258,10 @@ export async function updateVersion(
   return toAppVersion(version);
 }
 
+/**
+ * 发布参数：mode=full 直接全量，mode=gray 需要 grayPercent；
+ * 开启 grayAutoIncrement 后服务端按 grayIncrementSchedule 定时递增灰度。
+ */
 export interface PublishBody {
   mode: 'full' | 'gray';
   grayPercent?: number;
@@ -241,6 +269,7 @@ export interface PublishBody {
   grayIncrementSchedule?: GrayIncrementStep[];
 }
 
+/** 发布版本（POST /v1/app-versions/:id/publish） */
 export async function publishVersion(id: number, body: PublishBody) {
   const version = await http.post<ServerAppVersion>(
     `/app-versions/${id}/publish`,
@@ -249,6 +278,10 @@ export async function publishVersion(id: number, body: PublishBody) {
   return toAppVersion(version);
 }
 
+/**
+ * 设置强制更新。minVersionCode 是「低于该版本的客户端必须升级」的阈值，
+ * 传 0 表示只依赖 forceUpdate 开关。
+ */
 export async function setForceUpdate(
   id: number,
   body: { forceUpdate: boolean; minVersionCode?: number },
@@ -263,6 +296,7 @@ export async function setForceUpdate(
   return toAppVersion(version);
 }
 
+/** 手动下架版本；下架只影响检查更新，已下载的安装包仍可访问 */
 export async function offlineVersion(id: number) {
   const version = await http.post<ServerAppVersion>(
     `/app-versions/${id}/offline`,
@@ -312,6 +346,7 @@ export async function getRollbackCandidates(id: number) {
   return { candidates } satisfies RollbackCandidatesResult;
 }
 
+/** 删除版本及其安装包；事件记录随版本级联删除 */
 export async function deleteVersion(id: number) {
   await http.delete(`/app-versions/${id}`);
   return { eventCount: 0, fileCount: 1 };
@@ -322,6 +357,11 @@ function percent(dividend: number, divisor: number): string {
   return `${(Math.round((dividend / divisor) * 1000) / 10).toFixed(1)}%`;
 }
 
+/**
+ * 升级漏斗统计（GET /v1/apps/:appKey/funnel）。
+ * 时间参数以毫秒时间戳传入，转成 RFC 3339 查询；转化率由前端按
+ * 「下载/安装/提示展示」口径计算，服务端只返回原始事件计数。
+ */
 export async function getFunnelStats(
   appKey: string,
   startTime?: number,
@@ -395,6 +435,7 @@ export async function createVersion(
   return toAppVersion(version);
 }
 
+/** 安装包永久下载地址（公开端点，不经过请求库） */
 export function getApkDownloadUrl(id: number) {
   return `${getApiBaseUrl()}/a/versions/${id}/download`;
 }

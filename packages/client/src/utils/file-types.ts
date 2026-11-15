@@ -246,6 +246,7 @@ export function isPreviewable(filename: string): boolean {
   return getFileKind(filename) !== 'other';
 }
 
+/** 是否为图片格式（依据 EXT_META，不看文件内容） */
 export function isImage(filename: string): boolean {
   return getFileKind(filename) === 'image';
 }
@@ -262,6 +263,7 @@ export function formatBytes(bytes: number): string {
   return `${value >= 100 || exp === 0 ? Math.round(value) : value.toFixed(1)} ${units[exp]}`;
 }
 
+/** 毫秒时间戳 → YYYY-MM-DD HH:mm，用于文件列表的修改时间列 */
 export function formatTime(ms: number): string {
   return dayjs(ms).format('YYYY-MM-DD HH:mm');
 }

@@ -64,6 +64,8 @@ func (s *Server) handleCheckUpdate(w http.ResponseWriter, r *http.Request, _ *Cu
 	return nil
 }
 
+// handleDownloadPackage 流式下发安装包，只允许已发布或已下架版本；
+// 响应带 Content-Disposition 与 X-Checksum-Sha256 供客户端校验。
 func (s *Server) handleDownloadPackage(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	id, err := parseInt64(pathValue(r, "id"), "版本 id")
 	if err != nil || id <= 0 {
@@ -103,6 +105,8 @@ func (s *Server) handleDownloadPackage(w http.ResponseWriter, r *http.Request, _
 	return nil
 }
 
+// handleReportEvents 接收客户端升级埋点。事件类型是白名单，
+// 未知类型直接拒绝；写入失败不影响客户端继续升级。
 func (s *Server) handleReportEvents(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	var req model.ReportEventRequest
 	if err := decodeJSON(w, r, &req); err != nil {

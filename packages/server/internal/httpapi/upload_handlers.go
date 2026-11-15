@@ -78,6 +78,9 @@ func (s *Server) handleMultipartUpload(w http.ResponseWriter, r *http.Request, u
 	return nil
 }
 
+// storeUploadedPart 把一个上传分片落盘并登记索引。先写临时文件再
+// rename 到最终名，避免半截文件被索引；同名冲突时追加序号，
+// 因此响应里的 Name 才是实际保存名。
 func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot, category, dir string, part *multipart.Part) (model.FileEntry, error) {
 	name := safeUploadName(part.FileName())
 	if name == "" {
@@ -131,7 +134,9 @@ func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot
 	return entry, nil
 }
 
-// handleInitChunk 创建分片上传会话。
+// handleInitChunk 创建分片上传会话。分片大小缺省 5 MiB，需在
+// 256 KiB-64 MiB 之间；分片总数上限 maxChunkCount，防止建出
+// 海量临时文件。
 func (s *Server) handleInitChunk(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	var req model.ChunkInitRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -292,6 +297,7 @@ func (s *Server) handleCompleteChunk(w http.ResponseWriter, r *http.Request, use
 	return nil
 }
 
+// handleCancelChunk 丢弃分片上传会话及其临时文件；会话不存在返回 404。
 func (s *Server) handleCancelChunk(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	if err := s.uploads.Remove(pathValue(r, "id")); err != nil {
 		return notFound("上传会话不存在")
@@ -300,6 +306,8 @@ func (s *Server) handleCancelChunk(w http.ResponseWriter, r *http.Request, _ *Cu
 	return nil
 }
 
+// newUploadID 生成 12 字节随机会话 id；随机源异常时退回纳秒时间戳，
+// 只用于临时目录命名，不参与安全判定。
 func newUploadID() string {
 	buf := make([]byte, 12)
 	if _, err := rand.Read(buf); err != nil {
@@ -308,6 +316,8 @@ func newUploadID() string {
 	return hex.EncodeToString(buf)
 }
 
+// safeUploadName 去掉浏览器可能携带的路径部分，并拒绝空名、`.`、`..`
+// 与超长文件名；返回空串表示名称不可用。
 func safeUploadName(raw string) string {
 	name := strings.ReplaceAll(raw, "\\", "/")
 	if idx := strings.LastIndex(name, "/"); idx >= 0 {
@@ -336,6 +346,7 @@ func availableName(dir, name string) string {
 	return fmt.Sprintf("%s-%d%s", base, time.Now().UnixNano(), ext)
 }
 
+// firstNonEmpty 返回第一个非空白值（已 trim）；全空时返回空串。
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

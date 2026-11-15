@@ -4,6 +4,7 @@
  * 这些类型同时被 backend 的 controller/service 与 frontend 的 api/store 使用，
  * 通过 @vakao/shared 统一导出，避免前后端各自维护造成类型漂移。
  */
+/** 资源根目录：id 稳定不变，path 是服务器绝对路径 */
 export interface ResourceRoot {
   id: string;
   name: string;
@@ -13,6 +14,7 @@ export interface ResourceRoot {
 /** 根目录索引任务状态（GET /roots/index-status，仅内存态） */
 export type RootIndexState = 'idle' | 'running' | 'done' | 'failed';
 
+/** 根目录索引任务状态；仅存在于服务端内存，进程重启后回到 idle */
 export interface RootIndexStatus {
   rootId: string;
   state: RootIndexState;
@@ -117,6 +119,10 @@ export interface BrowseShortcut {
   rootId: string;
 }
 
+/**
+ * 一条文件记录。path 是相对所属根目录的路径（不含分类段），
+ * 对外的内容地址由 code 拼接，不要用 path 直接拼 URL。
+ */
 export interface FileItem {
   /** 文件索引 id，仅用于内部标识，不再出现在对外地址里 */
   id: number;
@@ -134,6 +140,10 @@ export interface FileConfig {
   defaultCategory: string;
 }
 
+/**
+ * 分享链接（管理端视图）。服务端不返回密码本身，只用 hasPassword
+ * 表示是否设密；状态由 enabled/expiresAt/计数派生，见 ShareLinkStatus。
+ */
 export interface ShareLink {
   id: number;
   token: string;
@@ -279,6 +289,12 @@ export const SHARE_ACCESS_TOKEN_QUERY = 'accessToken';
  */
 export type ShareUnavailableReason = 'expired' | 'exhausted' | 'disabled';
 
+/**
+ * 创建分享的请求参数。
+ *
+ * expiresInMs 与 maxAccesses 都是可选约束，同时为空表示长期有效且不限次数；
+ * 服务端会把 expiresInMs 换算成绝对过期时间并做「不能早于当前」的校验。
+ */
 export interface CreateShareLinkParams {
   rootId: string;
   category: string;
@@ -319,6 +335,10 @@ export interface RegisterParams {
   password: string;
 }
 
+/**
+ * 登录响应。expiresIn 是「剩余秒数 + s」的展示串（如 604800s），
+ * 不是绝对时间；需要精确过期时刻时用 accessToken 的本地解析结果。
+ */
 export interface LoginResponse {
   accessToken: string;
   tokenType: 'Bearer';
@@ -326,13 +346,20 @@ export interface LoginResponse {
   user: UserInfo;
 }
 
+/** 文件视图模式 */
 export type ViewMode = 'grid' | 'list';
+/** 文件列表排序字段，与后端 sort 参数取值一致 */
 export type SortField = 'name' | 'size' | 'mtime';
+/** 排序方向 */
 export type SortOrder = 'asc' | 'desc';
 
 /** APP 版本状态：0 草稿 / 1 灰度 / 2 全量 / 3 已下架 */
 export type AppVersionStatus = 0 | 1 | 2 | 3;
 
+/**
+ * APP 版本。status 是派生后的数字状态；grayPercent 只对灰度版本有意义，
+ * 全量发布后固定为 100。storageRootId + category + relPath 指向安装包。
+ */
 export interface AppVersion {
   id: number;
   platform: string;
@@ -369,6 +396,11 @@ export interface AppVersion {
   updatedAt: number;
 }
 
+/**
+ * 客户端升级埋点事件名。顺序即漏斗阶段：
+ * 检查 → 提示 → 下载 → 校验 → 安装 → 新版本启动；
+ * *_fail 事件通过 failCode 区分失败原因。
+ */
 export type UpgradeEventName =
   | 'check_no_update'
   | 'prompt_show'
@@ -380,6 +412,10 @@ export type UpgradeEventName =
   | 'install_fail'
   | 'new_version_launch';
 
+/**
+ * 一条客户端升级事件。from/toVersionCode 允许为空（首次安装或
+ * 客户端尚不知道目标版本），统计时按「未命中对应阶段」处理。
+ */
 export interface AppUpgradeEvent {
   id: number;
   deviceId: string;

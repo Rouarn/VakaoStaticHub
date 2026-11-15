@@ -21,12 +21,14 @@ type UserRecord struct {
 	UpdatedAtMS  int64
 }
 
+// CountUsers 返回用户总数。
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx, "SELECT COUNT(1) FROM users").Scan(&n)
 	return n, err
 }
 
+// CountAdmins 返回管理员数量，用于阻止删除最后一个管理员。
 func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx,
@@ -34,6 +36,7 @@ func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 	return n, err
 }
 
+// CreateUser 插入用户并返回不含密码哈希的记录；用户名冲突返回 ErrConflict。
 func (s *Store) CreateUser(ctx context.Context, username, passwordHash, role string) (model.User, error) {
 	now := NowMS()
 	res, err := s.Writer.ExecContext(ctx,
@@ -59,6 +62,8 @@ func (s *Store) CreateUser(ctx context.Context, username, passwordHash, role str
 	}, nil
 }
 
+// UserByUsername 读取含密码哈希的记录，供登录校验使用；
+// 不存在返回 ErrNotFound。
 func (s *Store) UserByUsername(ctx context.Context, username string) (*UserRecord, error) {
 	row := s.Reader.QueryRowContext(ctx,
 		`SELECT id, username, password_hash, role, created_at, updated_at
@@ -66,6 +71,8 @@ func (s *Store) UserByUsername(ctx context.Context, username string) (*UserRecor
 	return scanUserRecord(row)
 }
 
+// UserByID 按主键读取用户（含密码哈希与 updatedAt 毫秒值，
+// 后者用于令牌失效判断）；不存在返回 ErrNotFound。
 func (s *Store) UserByID(ctx context.Context, id int64) (*UserRecord, error) {
 	row := s.Reader.QueryRowContext(ctx,
 		`SELECT id, username, password_hash, role, created_at, updated_at
@@ -93,6 +100,7 @@ func scanUserRecord(row rowScanner) (*UserRecord, error) {
 	return &rec, nil
 }
 
+// ListUsers 返回一页用户（不含密码哈希），query 对用户名做模糊匹配。
 func (s *Store) ListUsers(ctx context.Context, page, pageSize int, query string) ([]model.User, int, error) {
 	where := ""
 	args := make([]any, 0, 2)
@@ -130,6 +138,8 @@ func (s *Store) ListUsers(ctx context.Context, page, pageSize int, query string)
 	return items, total, rows.Err()
 }
 
+// UpdatePassword 写入新的密码哈希并推进 updated_at，
+// 从而让该用户此前签发的令牌全部失效；用户不存在返回 ErrNotFound。
 func (s *Store) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
 	res, err := s.Writer.ExecContext(ctx,
 		"UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?",
@@ -147,6 +157,8 @@ func (s *Store) UpdatePassword(ctx context.Context, id int64, passwordHash strin
 	return nil
 }
 
+// DeleteUser 删除用户；不存在返回 ErrNotFound。是否允许删除
+// （例如最后一个管理员）由调用方判断。
 func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 	res, err := s.Writer.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
 	if err != nil {

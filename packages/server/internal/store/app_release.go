@@ -2,8 +2,8 @@ package store
 
 import "context"
 
-// PublishVersion 将版本标记为已发布。scheduledAt 为 nil 时
-// 版本立即上线。
+// PublishVersion 将版本置为已发布并记录发布时间，同时清空定时发布
+// 与下架原因。grayPercent 会被夹紧到 0-100。
 func (s *Store) PublishVersion(ctx context.Context, id int64, grayPercent int, publishAt int64) error {
 	result, err := s.Writer.ExecContext(ctx,
 		`UPDATE app_versions SET status = 'published', gray_percent = ?, publish_time = ?,
@@ -31,6 +31,8 @@ func (s *Store) SchedulePublish(ctx context.Context, id int64, publishAt int64, 
 	return err
 }
 
+// SetVersionStatus 直接改写状态与下架原因，供下架与回滚标记使用；
+// 不校验状态迁移是否合法，由调用方保证。
 func (s *Store) SetVersionStatus(ctx context.Context, id int64, status, reason string) error {
 	result, err := s.Writer.ExecContext(ctx,
 		`UPDATE app_versions SET status = ?, offline_reason = ?, updated_at = ? WHERE id = ?`,
@@ -137,6 +139,8 @@ func (s *Store) GrayAutoVersions(ctx context.Context) ([]VersionRecord, error) {
 	return items, rows.Err()
 }
 
+// SetGrayPercent 推进灰度比例（夹紧到 0-100）。用于定时递增，
+// 不校验版本当前状态。
 func (s *Store) SetGrayPercent(ctx context.Context, id int64, percent int) error {
 	_, err := s.Writer.ExecContext(ctx,
 		`UPDATE app_versions SET gray_percent = ?, updated_at = ? WHERE id = ?`,

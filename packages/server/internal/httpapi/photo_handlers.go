@@ -104,6 +104,8 @@ func (s *Server) handleRandomPhoto(w http.ResponseWriter, r *http.Request, _ *Cu
 	}
 }
 
+// randomImageMissingMessage 生成 404 文案，把实际生效的过滤条件
+// 回显给调用方，便于排查图池为空的原因。
 func randomImageMissingMessage(rootID, category string) string {
 	conditions := make([]string, 0, 2)
 	if rootID != "" {
@@ -125,6 +127,7 @@ func setNoStore(header http.Header) {
 	header.Set("Expires", "0")
 }
 
+// serveRandomFile 输出原图。随机图必须每次回源，因此强制 no-store。
 func serveRandomFile(w http.ResponseWriter, r *http.Request, path string, info os.FileInfo) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -138,6 +141,8 @@ func serveRandomFile(w http.ResponseWriter, r *http.Request, path string, info o
 	return nil
 }
 
+// serveRandomThumbnail 输出生成的缩略图；缓存头同样是 no-store，
+// 避免代理把「随机」结果固定成同一张。
 func serveRandomThumbnail(w http.ResponseWriter, r *http.Request, result media.Result) error {
 	f, err := os.Open(result.Path)
 	if err != nil {

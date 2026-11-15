@@ -16,6 +16,8 @@ type APIError struct {
 	Err     error
 }
 
+// Error 实现 error 接口，仅用于日志；Message 之外的内部错误
+// 不会随响应体返回。
 func (e *APIError) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v", e.Message, e.Err)
@@ -23,8 +25,11 @@ func (e *APIError) Error() string {
 	return e.Message
 }
 
+// Unwrap 暴露底层错误，使 errors.Is/As 能穿透到原始原因。
 func (e *APIError) Unwrap() error { return e.Err }
 
+// WithField 追加一个字段级错误信息并返回自身，便于链式构造。
+// 注意它会修改 e，因此不要复用同一个 *APIError 实例。
 func (e *APIError) WithField(name, message string) *APIError {
 	if e.Fields == nil {
 		e.Fields = make(map[string]string, 1)
@@ -81,8 +86,8 @@ func unavailable(err error) *APIError {
 	return &APIError{Status: http.StatusServiceUnavailable, Code: "unavailable", Message: "服务暂时不可用", Err: err}
 }
 
-// asAPIError 让处理函数保持线性写法，同时把意外错误保留给
-// 日志。
+// asAPIError 把任意错误归一为 *APIError：已经是 APIError 的原样返回，
+// 其余包装成 500 并保留原始错误供日志记录。
 func asAPIError(err error) *APIError {
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {

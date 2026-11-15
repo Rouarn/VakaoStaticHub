@@ -24,6 +24,8 @@ type photoPools struct {
 	pools map[string]*photoPool
 }
 
+// photoPool 是单个范围（根目录 + 分类）的轮转状态。
+// all 用于判断索引成员是否变化，变了就重建队列而不是逐条修补。
 type photoPool struct {
 	all    []int64 // 最近一次看到的池成员，按 id 升序
 	queue  []int64 // 尚未发出的 id，顺序已打乱
@@ -31,6 +33,7 @@ type photoPool struct {
 	used   uint64  // 最近一次访问的序号，用于淘汰
 }
 
+// newPhotoPools 创建空池集合；池按需建立。
 func newPhotoPools() *photoPools {
 	return &photoPools{pools: make(map[string]*photoPool)}
 }
@@ -118,6 +121,7 @@ func (p *photoPools) evictLRULocked() {
 	}
 }
 
+// sameIDs 判断两个升序 id 切片是否完全一致。
 func sameIDs(left, right []int64) bool {
 	if len(left) != len(right) {
 		return false

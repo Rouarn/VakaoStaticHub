@@ -18,6 +18,8 @@ type ShareRecord struct {
 	UpdatedAt    time.Time
 }
 
+// ShareFilter 是分享列表条件：Query 匹配 token/备注/分类，
+// Status 取 active/disabled/expired/exhausted，空值表示全部。
 type ShareFilter struct {
 	Query    string
 	Status   string
@@ -25,6 +27,8 @@ type ShareFilter struct {
 	PageSize int
 }
 
+// ShareUpdate 是分享的部分更新。ExpiresAt/MaxAccesses 为 0 表示清除限制，
+// PasswordHash 指向空串表示去掉访问密码。
 type ShareUpdate struct {
 	Remark       *string
 	Enabled      *bool
@@ -33,6 +37,8 @@ type ShareUpdate struct {
 	PasswordHash *string
 }
 
+// CreateShare 插入分享记录的初始状态（访问计数为 0），
+// 并返回带派生状态的完整记录。
 func (s *Store) CreateShare(ctx context.Context, share ShareRecord) (ShareRecord, error) {
 	paths, err := json.Marshal(share.FilePaths)
 	if err != nil {
@@ -67,6 +73,7 @@ func (s *Store) CreateShare(ctx context.Context, share ShareRecord) (ShareRecord
 	return s.ShareByToken(ctx, share.Token)
 }
 
+// ShareByToken 按公开 token 读取分享；不存在返回 ErrNotFound。
 func (s *Store) ShareByToken(ctx context.Context, token string) (ShareRecord, error) {
 	row := s.Reader.QueryRowContext(ctx,
 		`SELECT id, token, root_id, category, file_paths, remark, enabled, expires_at, max_accesses,
@@ -79,6 +86,7 @@ func (s *Store) ShareByToken(ctx context.Context, token string) (ShareRecord, er
 	return record, err
 }
 
+// ShareByID 按主键读取分享；不存在返回 ErrNotFound。
 func (s *Store) ShareByID(ctx context.Context, id int64) (ShareRecord, error) {
 	row := s.Reader.QueryRowContext(ctx,
 		`SELECT id, token, root_id, category, file_paths, remark, enabled, expires_at, max_accesses,
@@ -141,6 +149,7 @@ func ShareStatus(link model.ShareLink, now time.Time) string {
 	}
 }
 
+// ListShares 返回一页分享记录与总数，按创建时间倒序。
 func (s *Store) ListShares(ctx context.Context, filter ShareFilter) ([]ShareRecord, int, error) {
 	where := []string{"1 = 1"}
 	args := []any{}
@@ -196,6 +205,7 @@ func (s *Store) ListShares(ctx context.Context, filter ShareFilter) ([]ShareReco
 	return items, total, rows.Err()
 }
 
+// UpdateShare 按 token 应用部分更新；记录不存在返回 ErrNotFound。
 func (s *Store) UpdateShare(ctx context.Context, token string, update ShareUpdate) error {
 	sets := []string{"updated_at = ?"}
 	args := []any{NowMS()}
@@ -251,6 +261,7 @@ func (s *Store) UpdateShare(ctx context.Context, token string, update ShareUpdat
 	return nil
 }
 
+// DeleteShare 按 token 删除分享；不存在返回 ErrNotFound。
 func (s *Store) DeleteShare(ctx context.Context, token string) error {
 	result, err := s.Writer.ExecContext(ctx, "DELETE FROM share_links WHERE token = ?", token)
 	if err != nil {
@@ -282,6 +293,8 @@ func (s *Store) DeleteExpiredShares(ctx context.Context, nowMS int64) (int64, er
 	return result.RowsAffected()
 }
 
+// IncrementShareAccess 原子递增访问计数；计数用于「次数用尽」判定，
+// 因此与插入访问日志分开，即使日志写入失败也要保留计数。
 func (s *Store) IncrementShareAccess(ctx context.Context, id int64) error {
 	_, err := s.Writer.ExecContext(ctx,
 		"UPDATE share_links SET access_count = access_count + 1, updated_at = ? WHERE id = ?",
@@ -289,6 +302,7 @@ func (s *Store) IncrementShareAccess(ctx context.Context, id int64) error {
 	return err
 }
 
+// InsertShareAccessLog 记录一次分享访问（成功与否）；IP 与 UA 会截断。
 func (s *Store) InsertShareAccessLog(ctx context.Context, shareID int64, ip, userAgent string, success bool) error {
 	value := 0
 	if success {
@@ -300,6 +314,8 @@ func (s *Store) InsertShareAccessLog(ctx context.Context, shareID int64, ip, use
 	return err
 }
 
+// ListShareAccessLogs 返回某分享的一页访问日志（时间倒序）与总数。
+// 分页参数由调用方保证有效。
 func (s *Store) ListShareAccessLogs(ctx context.Context, shareID int64, page, pageSize int) ([]model.ShareAccessLog, int, error) {
 	var total int
 	if err := s.Reader.QueryRowContext(ctx,
@@ -332,6 +348,7 @@ func (s *Store) ListShareAccessLogs(ctx context.Context, shareID int64, page, pa
 	return items, total, rows.Err()
 }
 
+// CountShares 返回分享链接总数（含已失效）。
 func (s *Store) CountShares(ctx context.Context) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx, "SELECT COUNT(1) FROM share_links").Scan(&n)

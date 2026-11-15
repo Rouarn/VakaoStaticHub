@@ -1,3 +1,8 @@
+// 包 storage 收敛所有跨根目录的路径计算。
+//
+// 资源根目录的路径来自配置或用户输入，任何拼接都必须经过
+// CleanRel/Join：它们拒绝 `..`，并保证结果仍位于根目录之下，
+// 防止通过分享或文件操作逃逸到根目录之外。
 package storage
 
 import (
@@ -6,6 +11,7 @@ import (
 	"strings"
 )
 
+// ErrInvalidPath 表示路径包含 `..` 或解析后逃逸出根目录。
 var ErrInvalidPath = errors.New("invalid path")
 
 // Resolve 将配置的根目录路径转换为绝对文件系统路径。

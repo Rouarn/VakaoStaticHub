@@ -20,6 +20,7 @@ package httpapi
 //   - 文件内容端点有意设计为公开：面板需要直接使用 <img>
 //     标签，而分享链接由各自的 Token 保护。
 
+// AuthLevel 是路由的鉴权级别，取值只有 Public/User/Admin 三种。
 type AuthLevel string
 
 const (

@@ -1,3 +1,8 @@
+/**
+ * 前端入口。初始化顺序是硬约束：先迁移旧 localStorage key，
+ * 再创建 Pinia 与路由，最后挂载；迁移提前能保证持久化插件首次
+ * 读取时拿到的已经是新 key。
+ */
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';

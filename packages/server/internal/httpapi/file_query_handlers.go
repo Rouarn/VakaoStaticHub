@@ -10,6 +10,7 @@ import (
 	"vakao-static-hub/server/internal/store"
 )
 
+// handleFileConfig 返回上传与图片限制，前端据此决定分片大小和提示。
 func (s *Server) handleFileConfig(w http.ResponseWriter, _ *http.Request, _ *CurrentUser) error {
 	writeJSON(w, model.FileConfig{
 		MaxUploadCount:    s.cfg.MaxUploadCount,
@@ -22,6 +23,7 @@ func (s *Server) handleFileConfig(w http.ResponseWriter, _ *http.Request, _ *Cur
 	return nil
 }
 
+// handleListFiles 返回一页文件，并为每条记录补上内容地址 URL。
 func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	query := r.URL.Query()
 	rootID := strings.TrimSpace(query.Get("rootId"))
@@ -58,6 +60,7 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request, _ *Curr
 	return nil
 }
 
+// handleFileStats 返回按根目录 + 分类汇总的存储用量。
 func (s *Server) handleFileStats(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	stats, err := s.store.StorageStats(r.Context())
 	if err != nil {
@@ -67,6 +70,7 @@ func (s *Server) handleFileStats(w http.ResponseWriter, r *http.Request, _ *Curr
 	return nil
 }
 
+// handleDuplicates 返回重复文件分组；rootId 可选，空表示跨根目录。
 func (s *Server) handleDuplicates(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	rootID := strings.TrimSpace(r.URL.Query().Get("rootId"))
 	if rootID != "" {
@@ -88,6 +92,8 @@ func (s *Server) handleDuplicates(w http.ResponseWriter, r *http.Request, _ *Cur
 	return nil
 }
 
+// handleReindex 把根目录加入扫描队列并立即返回。响应里的 status 是
+// 入队前的基线，调用方据此判断本次扫描是否已经结束。
 func (s *Server) handleReindex(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	var req struct {
 		RootID string `json:"rootId"`

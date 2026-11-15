@@ -7,6 +7,8 @@ import (
 	"vakao-static-hub/server/internal/model"
 )
 
+// CategoryStats 按分类汇总某根目录的文件数与总大小，
+// 默认根下的 software-update 与其他列表保持一致地隐藏。
 func (s *Store) CategoryStats(ctx context.Context, rootID string) ([]model.CategoryInfo, error) {
 	query := `SELECT category, COUNT(1), COALESCE(SUM(size), 0)
 		 FROM file_entries WHERE root_id = ?`
@@ -33,6 +35,8 @@ func (s *Store) CategoryStats(ctx context.Context, rootID string) ([]model.Categ
 	return stats, rows.Err()
 }
 
+// StorageStats 按根目录 + 分类汇总全部索引记录；
+// 与列表统计口径一致，software-update 只计一次。
 func (s *Store) StorageStats(ctx context.Context) ([]model.StorageStat, error) {
 	rows, err := s.Reader.QueryContext(ctx,
 		`SELECT f.root_id, COALESCE(r.name, f.root_id), f.category, COUNT(1), COALESCE(SUM(f.size), 0)
@@ -56,6 +60,9 @@ func (s *Store) StorageStats(ctx context.Context) ([]model.StorageStat, error) {
 	return stats, rows.Err()
 }
 
+// DuplicateGroups 按「内容哈希 + 大小」分组返回重复文件。
+// 空哈希（无法读取的文件）不参与；rootID 为空表示跨全部根目录。
+// 分组按总大小降序，组内文件另行查询填充。
 func (s *Store) DuplicateGroups(ctx context.Context, rootID string, page, pageSize int) ([]model.DuplicateGroup, int, error) {
 	where := "content_hash <> '' AND NOT (root_id = ? AND category = ?)"
 	args := []any{DefaultRootID, PackageCategoryName}

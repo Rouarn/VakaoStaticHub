@@ -8,6 +8,8 @@ import (
 	"vakao-static-hub/server/internal/model"
 )
 
+// InsertUpgradeEvent 记录一条客户端升级事件，versionID 可为 nil
+// （客户端尚未确定目标版本时）。文本字段按列宽截断。
 func (s *Store) InsertUpgradeEvent(ctx context.Context, req model.ReportEventRequest, versionID *int64) error {
 	_, err := s.Writer.ExecContext(ctx,
 		`INSERT INTO app_upgrade_events
@@ -106,12 +108,14 @@ func (s *Store) CountUpgradeEventsByApp(ctx context.Context, appKey string) (int
 	return n, err
 }
 
+// CountVersions 返回全部应用版本数。
 func (s *Store) CountVersions(ctx context.Context) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx, "SELECT COUNT(1) FROM app_versions").Scan(&n)
 	return n, err
 }
 
+// CountUpgradeEvents 返回全部升级事件数。
 func (s *Store) CountUpgradeEvents(ctx context.Context) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx, "SELECT COUNT(1) FROM app_upgrade_events").Scan(&n)

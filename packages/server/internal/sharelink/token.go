@@ -17,23 +17,30 @@ import (
 	"time"
 )
 
+// ErrInvalidToken 是会话令牌校验失败的统一错误。
 var ErrInvalidToken = errors.New("invalid share access token")
 
+// Claims 是会话令牌载荷：绑定分享记录 id 与公开 token，并自带过期时间。
 type Claims struct {
 	ShareID int64  `json:"sid"`
 	Token   string `json:"tok"`
 	Exp     int64  `json:"exp"`
 }
 
+// Manager 签发与校验会话令牌；密钥由 config 保证长度。
 type Manager struct {
 	secret []byte
 	ttl    time.Duration
 }
 
+// NewManager 构造会话令牌管理器。ttl 决定解锁后地址的有效时长，
+// 目前由调用方设为 30 分钟。
 func NewManager(secret string, ttl time.Duration) *Manager {
 	return &Manager{secret: []byte(secret), ttl: ttl}
 }
 
+// Issue 为某条分享签发短期访问令牌，返回令牌与过期时间。
+// 令牌只承载分享 id 与 token，不包含用户身份。
 func (m *Manager) Issue(shareID int64, token string) (string, time.Time, error) {
 	expires := time.Now().Add(m.ttl)
 	payload, err := json.Marshal(Claims{ShareID: shareID, Token: token, Exp: expires.Unix()})
@@ -47,6 +54,8 @@ func (m *Manager) Issue(shareID int64, token string) (string, time.Time, error) 
 	return body + "." + signature, expires, nil
 }
 
+// Parse 校验签名与过期时间；任何失败都返回 ErrInvalidToken，
+// 调用方只需按「令牌无效或已过期」处理。
 func (m *Manager) Parse(value string) (Claims, error) {
 	var claims Claims
 	body, signature, ok := cutToken(value)
@@ -72,6 +81,7 @@ func (m *Manager) Parse(value string) (Claims, error) {
 	return claims, nil
 }
 
+// cutToken 在第一个点处切分「载荷.签名」；任一侧为空都视为无效。
 func cutToken(value string) (body, signature string, ok bool) {
 	for i := 0; i < len(value); i++ {
 		if value[i] == '.' {

@@ -11,6 +11,8 @@ import (
 	"vakao-static-hub/server/internal/storage"
 )
 
+// handleBatchDelete 逐条删除文件；单个文件失败会中止并返回 400，
+// 已删除的部分不会回滚。不存在的路径会被跳过。
 func (s *Server) handleBatchDelete(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.BatchDeleteRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -48,6 +50,8 @@ func (s *Server) handleBatchDelete(w http.ResponseWriter, r *http.Request, user 
 	return nil
 }
 
+// handleBatchMove 先把所有目标冲突查完再执行移动，避免批量操作
+// 中途留下半完成状态。保留文件在分类内的相对路径。
 func (s *Server) handleBatchMove(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.BatchMoveRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -113,6 +117,8 @@ func (s *Server) handleBatchMove(w http.ResponseWriter, r *http.Request, user *C
 	return nil
 }
 
+// handleRenameFile 重命名分类内文件（保持所在子目录），并同步索引。
+// 新名与原名相同时只回查记录，不做磁盘操作。
 func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.RenameFileRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -177,6 +183,7 @@ func (s *Server) handleRenameFile(w http.ResponseWriter, r *http.Request, user *
 	return nil
 }
 
+// handleDeleteFile 删除单个文件并清理索引；不支持目录。
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	query := r.URL.Query()
 	root, category, err := s.resolveRequestLocation(r.Context(), query.Get("rootId"), query.Get("category"))

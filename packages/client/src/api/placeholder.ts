@@ -1,5 +1,12 @@
+/**
+ * 占位图 URL 构造。
+ *
+ * 服务端只输出 SVG：字体、颜色等参数都走查询串并由后端白名单清洗，
+ * 前端不做转义，因此这里必须用 URLSearchParams 编码，不要手工拼串。
+ */
 import { getApiBaseUrl } from '@/utils/file-url';
 
+/** 占位图参数；颜色/字体最终由服务端白名单校验，非法值会回退默认 */
 export interface PlaceholderParams {
   width: number;
   height: number;

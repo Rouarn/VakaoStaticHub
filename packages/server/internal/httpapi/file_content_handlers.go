@@ -29,6 +29,7 @@ const (
 	cacheShare
 )
 
+// header 返回对应策略的 Cache-Control 值。
 func (p cachePolicy) header() string {
 	if p == cacheShare {
 		return "public, max-age=604800"
@@ -36,6 +37,9 @@ func (p cachePolicy) header() string {
 	return "public, max-age=31536000, immutable"
 }
 
+// handleFileContent 按内容短码输出文件。短码由内容哈希派生，
+// 因此同一地址的内容不会变化，可以长期缓存；路径每一段都重新校验，
+// 索引里即使混入异常路径也不会越界。
 func (s *Server) handleFileContent(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	code := strings.ToLower(strings.TrimSpace(pathValue(r, "code")))
 	if !shortCodePattern.MatchString(code) {
@@ -124,6 +128,8 @@ func (s *Server) serveStoredFile(w http.ResponseWriter, r *http.Request, full st
 	return serveOriginal(w, r, full, info, download, cache)
 }
 
+// serveOriginal 输出原始文件。ETag 由大小与修改时间构成；HTML/SVG
+// 额外加 sandbox CSP，避免同源脚本在预览域名下执行。
 func serveOriginal(w http.ResponseWriter, r *http.Request, path string, info os.FileInfo, download bool, cache cachePolicy) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -144,6 +150,7 @@ func serveOriginal(w http.ResponseWriter, r *http.Request, path string, info os.
 	return nil
 }
 
+// serveThumbnail 输出生成的缩略图；缩略图由缓存键寻址，可长期缓存。
 func serveThumbnail(w http.ResponseWriter, r *http.Request, result media.Result, cache cachePolicy) {
 	f, err := os.Open(result.Path)
 	if err != nil {
@@ -165,6 +172,8 @@ func serveThumbnail(w http.ResponseWriter, r *http.Request, result media.Result,
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }
 
+// contentDisposition 同时输出 ASCII 兜底名与 RFC 5987 的 UTF-8 名，
+// 保证中文文件名在各浏览器都能正确落盘。
 func contentDisposition(name string, attachment bool) string {
 	kind := "inline"
 	if attachment {
@@ -179,6 +188,7 @@ func contentDisposition(name string, attachment bool) string {
 	return kind + `; filename="` + ascii + `"; filename*=UTF-8''` + encodeRFC5987(name)
 }
 
+// encodeRFC5987 按 RFC 5987 规则百分号编码，仅保留 unreserved 字符。
 func encodeRFC5987(value string) string {
 	const digits = "0123456789ABCDEF"
 	var b strings.Builder

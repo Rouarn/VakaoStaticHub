@@ -14,6 +14,8 @@ import (
 
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{2,31}$`)
 
+// handleLogin 校验账号密码并签发令牌。按客户端 IP 限流（每分钟 5 次），
+// 用户名不存在与密码错误返回同一提示，避免枚举账号。
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	ip := clientIP(r, s.cfg.TrustProxy)
 	if !s.loginLimiter.allow(ip) {
@@ -56,6 +58,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request, _ *CurrentU
 	return nil
 }
 
+// handleMe 返回当前登录用户的最新资料（不含密码哈希）。
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, current *CurrentUser) error {
 	record, err := s.store.UserByID(r.Context(), current.ID)
 	if err != nil {
@@ -68,6 +71,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, current *Curre
 	return nil
 }
 
+// handleLogout 只记审计：令牌无状态，由客户端丢弃。
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request, current *CurrentUser) error {
 	// Token 是无状态的，由客户端自行丢弃。修改密码会通过
 	// users.updated_at 校验使旧 Token 失效。
@@ -78,6 +82,8 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request, current *C
 	return nil
 }
 
+// handleChangePassword 校验旧密码后更新自己的密码；更新会推进
+// updated_at，因此当前令牌也会立即失效，需要重新登录。
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request, current *CurrentUser) error {
 	var req model.ChangePasswordRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -105,6 +111,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request, cu
 	return nil
 }
 
+// handleListUsers 返回分页用户列表（管理员），q 对用户名模糊匹配。
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	page, pageSize := pagination(r)
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -121,6 +128,8 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request, _ *Curr
 	return nil
 }
 
+// handleCreateUser 创建用户（管理员）。角色缺省为 user，
+// 只接受 admin/user 两种取值。
 func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.CreateUserRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -156,6 +165,8 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request, user *
 	return nil
 }
 
+// handleResetPassword 重置指定用户的密码（管理员），目标用户立即失效
+// 所有已签发的令牌。
 func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request, current *CurrentUser) error {
 	id, err := parseInt64(pathValue(r, "id"), "用户 id")
 	if err != nil {
@@ -183,6 +194,8 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request, cur
 	return nil
 }
 
+// handleDeleteUser 删除用户（管理员）。拒绝删除自己，也拒绝删除
+// 最后一个管理员，避免系统失去管理入口。
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, current *CurrentUser) error {
 	id, err := parseInt64(pathValue(r, "id"), "用户 id")
 	if err != nil {
@@ -218,6 +231,8 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, curren
 	return nil
 }
 
+// validatePassword 执行密码长度约束（6-128），错误带 password 字段，
+// 便于前端定位表单。复杂度要求刻意保持最低，避免影响可用性。
 func validatePassword(password string) error {
 	if len(password) < 6 {
 		return validationFailed("密码无效").WithField("password", "至少 6 个字符")

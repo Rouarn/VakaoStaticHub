@@ -50,6 +50,7 @@ func (s *Server) handleHitokoto(w http.ResponseWriter, r *http.Request, _ *Curre
 	return nil
 }
 
+// writeRaw 原样输出上游字节，并禁止浏览器嗅探类型。
 func writeRaw(w http.ResponseWriter, contentType string, body []byte) {
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -69,17 +70,20 @@ func writeProxyBody(w http.ResponseWriter, contentType string, body []byte) {
 	writeRaw(w, contentType, body)
 }
 
+// hitokotoEntry 是上游响应缓存项，expires 由 store 写入。
 type hitokotoEntry struct {
 	contentType string
 	body        []byte
 	expires     time.Time
 }
 
+// hitokotoCache 是按完整上游地址分键的进程内短缓存。
 type hitokotoCache struct {
 	mu      sync.Mutex
 	entries map[string]hitokotoEntry
 }
 
+// load 读取未过期的缓存项；过期项按未命中处理，不主动删除。
 func (c *hitokotoCache) load(key string) (hitokotoEntry, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -90,6 +94,8 @@ func (c *hitokotoCache) load(key string) (hitokotoEntry, bool) {
 	return entry, true
 }
 
+// store 写入缓存并固定 1 分钟有效期，用于压住上游的瞬时限流。
+// 键数超过 128 时整体清空，避免按任意查询参数无限增长。
 func (c *hitokotoCache) store(key string, entry hitokotoEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

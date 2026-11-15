@@ -22,6 +22,8 @@ func (s *Server) mountSPA() {
 	s.log.Info("serving frontend", "webDir", s.cfg.WebDir)
 }
 
+// spaFileHandler 服务 /assets/ 下的构建产物；不存在时返回 JSON 404，
+// 而不是目录页或纯文本。
 func spaFileHandler(dir string, root http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
@@ -59,6 +61,8 @@ func (s *Server) spaFallback(dir string, root http.FileSystem) http.Handler {
 	})
 }
 
+// serveSPAFile 按文件类型设置缓存策略：带指纹的 assets 与 sourcemap
+// 长期不可变，index.html 必须 no-store，其余静态资源 1 小时。
 func serveSPAFile(w http.ResponseWriter, r *http.Request, dir, name string) {
 	switch {
 	case strings.HasPrefix(name, "assets/"), strings.HasSuffix(name, ".map"):
@@ -79,6 +83,7 @@ func serveSPAFile(w http.ResponseWriter, r *http.Request, dir, name string) {
 	http.ServeFile(w, r, filepath.Join(dir, filepath.FromSlash(name)))
 }
 
+// fileExists 判断静态资源是否存在且不是目录。
 func fileExists(root http.FileSystem, name string) bool {
 	f, err := root.Open(name)
 	if err != nil {

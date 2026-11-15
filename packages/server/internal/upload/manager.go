@@ -18,9 +18,12 @@ import (
 )
 
 var (
+	// ErrInvalidSession 表示会话 id、元数据或目录状态不合法。
 	ErrInvalidSession = errors.New("invalid upload session")
-	ErrInvalidChunk   = errors.New("invalid chunk")
-	ErrIncomplete     = errors.New("upload is incomplete")
+	// ErrInvalidChunk 表示分片序号越界或分片大小与计划不一致。
+	ErrInvalidChunk = errors.New("invalid chunk")
+	// ErrIncomplete 表示合并时仍有分片缺失。
+	ErrIncomplete = errors.New("upload is incomplete")
 )
 
 // Session 描述一次分片上传。
@@ -58,18 +61,25 @@ func (s Session) ExpectedChunkSize(index int) int64 {
 	return s.ChunkSize
 }
 
+// Manager 管理磁盘上的分片会话，本身无可变状态，可并发使用。
+// 会话 id 会被直接拼进路径，因此必须先通过 validID 校验。
 type Manager struct {
 	dir string
 }
 
+// New 以 dir 作为会话根目录。目录由 Create 按需创建，
+// 构造阶段不检查其是否存在。
 func New(dir string) *Manager {
 	return &Manager{dir: dir}
 }
 
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
 
+// validID 限定会话 id 为 16-64 位字母数字与下划线/连字符，
+// 防止通过 id 做路径穿越。
 func validID(id string) bool { return idPattern.MatchString(id) }
 
+// sessionDir 返回会话目录；调用前必须确认 id 已通过 validID。
 func (m *Manager) sessionDir(id string) string {
 	return filepath.Join(m.dir, id)
 }
@@ -100,6 +110,8 @@ func (m *Manager) Create(session Session) (Session, error) {
 	return session, nil
 }
 
+// validate 拒绝非法 id、空文件名、非正大小、非正分片大小与
+// 超过 1 万片的会话。
 func (m *Manager) validate(session Session) error {
 	switch {
 	case !validID(session.ID):
@@ -133,6 +145,8 @@ func (m *Manager) Load(id string) (Session, []int, error) {
 	return session, m.uploadedChunks(session), nil
 }
 
+// uploadedChunks 扫描会话目录，返回大小与计划一致的分片序号；
+// 大小不符的分片视为未完成（可能被中断），不会被计入。
 func (m *Manager) uploadedChunks(session Session) []int {
 	indexes := make([]int, 0, session.ChunkCount())
 	total := session.ChunkCount()
@@ -145,6 +159,7 @@ func (m *Manager) uploadedChunks(session Session) []int {
 	return indexes
 }
 
+// chunkPath 返回分片文件路径，序号补零以便按名字排序。
 func (m *Manager) chunkPath(id string, index int) string {
 	return filepath.Join(m.sessionDir(id), fmt.Sprintf("chunk-%05d", index))
 }
@@ -211,6 +226,7 @@ func (m *Manager) Merge(session Session, w io.Writer) (int64, error) {
 	return total, nil
 }
 
+// ErrNotFound 表示会话目录不存在，供删除与查询统一返回。
 var ErrNotFound = errors.New("upload session not found")
 
 // Remove 删除会话及其所有分片。

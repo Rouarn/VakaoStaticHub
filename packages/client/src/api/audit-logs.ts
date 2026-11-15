@@ -1,3 +1,9 @@
+/**
+ * 审计日志接口与展示字典。
+ *
+ * 服务端 details 是任意 JSON，这里序列化成字符串交给详情抽屉展示；
+ * 动作/资源类型的中文名只在前端维护，后端只存稳定 code。
+ */
 import type { AuditLog, AuditLogPage, AuditLogQuery } from '@vakao/shared';
 import { http } from '@/utils/http';
 
@@ -29,6 +35,10 @@ function toAuditLog(log: ServerAuditLog): AuditLog {
   };
 }
 
+/**
+ * 分页查询审计日志。时间筛选以毫秒传入，转成 RFC 3339；
+ * 空字符串筛选条件不会发送，避免服务端把空值当成有效过滤。
+ */
 export async function listAuditLogs(query: AuditLogQuery) {
   const page = await http.get<{
     items: ServerAuditLog[];
@@ -124,6 +134,7 @@ export const ACTION_OPTIONS = [
   'app_version.force_update',
 ] as const;
 
+/** 资源类型中文名（与后端 resourceType 取值一一对应） */
 export const RESOURCE_TYPE_LABELS: Record<string, string> = {
   user: '用户',
   file: '文件',
@@ -134,6 +145,7 @@ export const RESOURCE_TYPE_LABELS: Record<string, string> = {
   root: '资源根',
 };
 
+/** 筛选项：保持与 RESOURCE_TYPE_LABELS 的键一致，顺序用于下拉展示 */
 export const RESOURCE_TYPE_OPTIONS = [
   'user',
   'file',

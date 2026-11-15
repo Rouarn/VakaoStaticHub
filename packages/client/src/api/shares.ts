@@ -1,3 +1,10 @@
+/**
+ * 分享链接接口封装：管理端走 http，公开访问页走 publicHttp。
+ *
+ * 公开访问必须用 publicHttp：密码错误返回 401，而 http 会把任意 401
+ * 当成登录态失效并跳转登录页。服务端把「已停用/已过期/次数用尽」
+ * 统一映射为可读的中文错误，页面据此渲染对应空态。
+ */
 import { RequestError } from '@vakao/axios';
 import type {
   CreateShareLinkParams,
@@ -179,6 +186,11 @@ export async function updateShare(token: string, body: UpdateShareLinkParams) {
   return toShareLink(updated);
 }
 
+/**
+ * 创建分享。expiresInMs 在客户端换算成绝对时间（服务端只接受 RFC 3339），
+ * 密码原样提交，服务端负责哈希；创建成功后返回的 password 字段已归一为
+ * hasPassword 布尔值。
+ */
 export async function createShare(body: CreateShareLinkParams) {
   const payload = {
     rootId: body.rootId,
@@ -262,6 +274,7 @@ export async function batchShareAction(
   };
 }
 
+/** 某条分享的访问记录（只取第一页，按时间倒序） */
 export async function listShareAccessLogs(token: string) {
   const page = await http.get<
     ServerPage<{
@@ -284,6 +297,10 @@ export async function listShareAccessLogs(token: string) {
   );
 }
 
+/**
+ * 读取公开分享信息。失败时由 translateShareError 转成带原因的 Error，
+ * 因此调用方只需捕获并展示 message。
+ */
 export async function getShareInfo(token: string) {
   try {
     const info = await publicHttp.get<ServerShareInfo>(
@@ -295,6 +312,10 @@ export async function getShareInfo(token: string) {
   }
 }
 
+/**
+ * 解锁密码分享，返回短期访问令牌（用于后续文件地址）。
+ * 令牌只带分享维度，转发地址依然需要令牌，无法绕过密码。
+ */
 export async function unlockShare(token: string, password?: string) {
   try {
     const result = await publicHttp.post<{ token: string; expiresAt: string }>(

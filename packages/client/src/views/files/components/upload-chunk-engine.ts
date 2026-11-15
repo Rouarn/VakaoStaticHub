@@ -8,6 +8,12 @@ import {
 /**
  * 分片上传引擎：初始化 → 并发写入缺失分片（失败重试 1 次）→ 合并校验。
  * 仅负责分片传输本身；队列状态与提示由上传面板维护。
+ *
+ * 关键约束：
+ * - 服务端返回的 uploadedChunks 是断点续传依据，只补传缺失分片；
+ * - 取消可能在任意 await 点发生，因此 init 之后、合并之前都要检查
+ *   cancelRequested，并清理服务端临时目录；
+ * - 进度按「已完成分片 + 当前各分片已上传字节」汇总，避免并发时回退。
  */
 export interface ChunkUploadTask {
   id: string;
@@ -45,6 +51,10 @@ async function uploadChunkWithRetry(
   }
 }
 
+/**
+ * 并行执行 worker，最多 size 个同时运行。
+ * 某个 worker 抛错时 Promise.all 立即失败，不再派发新任务（已开始的会跑完）。
+ */
 async function runPool<T>(
   items: T[],
   size: number,
@@ -63,6 +73,11 @@ async function runPool<T>(
   await Promise.all(runners);
 }
 
+/**
+ * 上传单个文件的全部分片。
+ * uploadIds 由调用方持有，取消时据此找到会话并清理；任务成功后不主动
+ * 移除该映射，由上传面板在任务出队时统一清理。
+ */
 export async function uploadChunked(
   task: ChunkUploadTask,
   controller: AbortController,

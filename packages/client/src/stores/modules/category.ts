@@ -20,6 +20,7 @@ import { getErrorMessage } from '@/utils/http';
  * - 新建 / 删除走后端 POST/DELETE /files/:rootId/categories，删除非空分类需显式 recursive
  */
 
+/** 分类面板条目：名称 + 该分类的文件数与总大小 */
 export interface CategoryEntry {
   name: string;
   fileCount: number;

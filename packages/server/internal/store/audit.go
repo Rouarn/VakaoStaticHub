@@ -8,6 +8,8 @@ import (
 	"vakao-static-hub/server/internal/model"
 )
 
+// AuditFilter 是审计日志查询条件。各字段为空表示不限制；
+// StartMS/EndMS 为闭区间，0 表示该端不设限。
 type AuditFilter struct {
 	UserID       *int64
 	Action       string
@@ -20,6 +22,8 @@ type AuditFilter struct {
 	PageSize     int
 }
 
+// InsertAudit 写入一条审计日志；Details 序列化为 JSON。CreatedAt
+// 为零值时取当前时间，IP 与 UserAgent 会截断到列宽。
 func (s *Store) InsertAudit(ctx context.Context, entry model.AuditLog) error {
 	details := "{}"
 	if entry.Details != nil {
@@ -42,6 +46,8 @@ func (s *Store) InsertAudit(ctx context.Context, entry model.AuditLog) error {
 	return err
 }
 
+// ListAudit 返回一页审计日志与过滤后的总数，按时间倒序。
+// Details 解析失败时保持 nil，不影响整行返回。
 func (s *Store) ListAudit(ctx context.Context, filter AuditFilter) ([]model.AuditLog, int, error) {
 	where := []string{"1 = 1"}
 	args := []any{}
@@ -118,6 +124,7 @@ func (s *Store) ListAudit(ctx context.Context, filter AuditFilter) ([]model.Audi
 	return items, total, rows.Err()
 }
 
+// CountAudit 返回审计日志总数。
 func (s *Store) CountAudit(ctx context.Context) (int, error) {
 	var n int
 	err := s.Reader.QueryRowContext(ctx, "SELECT COUNT(1) FROM audit_logs").Scan(&n)

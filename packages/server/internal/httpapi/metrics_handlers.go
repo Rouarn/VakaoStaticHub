@@ -12,6 +12,8 @@ import (
 	"vakao-static-hub/server/internal/sysinfo"
 )
 
+// handleMetrics 返回运行指标。除存储总量外，各项计数失败都按 0
+// 处理：监控数据不完整不应让整个接口失败。
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	ctx := r.Context()
 	var mem runtime.MemStats
@@ -69,6 +71,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request, _ *Curren
 	return nil
 }
 
+// handleMetricsSidebar 返回侧边栏所需的轻量计数，避免首页拉全量指标。
 func (s *Server) handleMetricsSidebar(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	ctx := r.Context()
 	files, totalSize, err := s.store.StorageTotals(ctx)
@@ -84,6 +87,7 @@ func (s *Server) handleMetricsSidebar(w http.ResponseWriter, r *http.Request, _ 
 	return nil
 }
 
+// fileSize 返回文件字节数；文件不存在或不可读时返回 0。
 func fileSize(path string) int64 {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -99,6 +103,8 @@ type qpsMeter struct {
 	second  int64
 }
 
+// hit 记录一次请求。跨秒时把中间的空秒桶清零，跨过一整轮（60 秒）
+// 则直接重置全部桶，因此内存占用固定且不会出现陈旧计数。
 func (m *qpsMeter) hit() {
 	now := time.Now().Unix()
 	m.mu.Lock()
@@ -117,6 +123,8 @@ func (m *qpsMeter) hit() {
 	m.buckets[now%int64(len(m.buckets))]++
 }
 
+// value 返回最近一分钟的每秒平均请求数，除数是固定窗口 60，
+// 因此空闲时数值会自然衰减。
 func (m *qpsMeter) value() float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()

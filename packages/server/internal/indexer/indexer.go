@@ -1,3 +1,11 @@
+// 包 indexer 把资源根目录的磁盘状态同步到 SQLite 索引。
+//
+// 扫描是单向的「磁盘 → 数据库」：磁盘上存在的文件写入/更新索引，
+// 索引里已消失的记录被删除；索引器不会删除磁盘文件。隐藏文件与
+// 隐藏目录一律跳过，与列表展示口径一致。
+//
+// 为控制 IO，只有当大小或修改时间发生变化时才重新计算内容哈希；
+// 短码由内容哈希派生，因此文件内容不变时访问地址保持稳定。
 package indexer
 
 import (
@@ -21,6 +29,7 @@ type Indexer struct {
 	store *store.Store
 }
 
+// New 基于 store 构造索引器。索引器本身无状态，可被多个根目录扫描共享。
 func New(st *store.Store) *Indexer {
 	return &Indexer{store: st}
 }
@@ -155,6 +164,8 @@ func scanRootDirectory(root model.ResourceRoot, onFile func(currentDir string)) 
 	return entries, nil
 }
 
+// hashFile 流式计算文件的 SHA-256 十六进制摘要。
+// 读取失败直接返回错误，调用方据此保留旧索引而不是写入空哈希。
 func hashFile(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {

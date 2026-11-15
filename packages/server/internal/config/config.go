@@ -1,3 +1,8 @@
+// 包 config 把环境变量（以及可选的 .env 回退）收敛为一份不可变的
+// 运行时配置。
+//
+// 约定：进程环境变量优先于 .env；相对路径一律按 BaseDir 解析；
+// 非法或危险的配置在 Load 阶段直接报错，而不是带着错误值启动。
 package config
 
 import (
@@ -194,10 +199,12 @@ func parseClock(value string) (int, int, error) {
 	return hour, minute, nil
 }
 
+// Addr 返回 http.Server 监听地址，格式为 host:port。
 func (c *Config) Addr() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
+// resolve 把配置里的相对路径按 base 展开为绝对路径；绝对路径只做 Clean。
 func resolve(base, value string) string {
 	if filepath.IsAbs(value) {
 		return filepath.Clean(value)
@@ -205,6 +212,9 @@ func resolve(base, value string) string {
 	return filepath.Join(base, value)
 }
 
+// loadDotEnv 读取 KEY=VALUE 形式的 .env 并补齐尚未设置的环境变量。
+// 文件不存在不是错误；已存在的环境变量不会被覆盖，因此容器或
+// systemd 注入的值始终优先。
 func loadDotEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -232,6 +242,7 @@ func loadDotEnv(path string) error {
 	return sc.Err()
 }
 
+// env 读取非空环境变量，空串按未设置处理并返回 fallback。
 func env(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {
 		return v
@@ -239,6 +250,8 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+// envInt 读取整数环境变量；缺失或解析失败时返回 fallback，
+// 不在读取阶段报错，范围校验交给 Load。
 func envInt(key string, fallback int) int {
 	if v, ok := os.LookupEnv(key); ok {
 		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
@@ -248,6 +261,7 @@ func envInt(key string, fallback int) int {
 	return fallback
 }
 
+// envInt64 是 envInt 的 int64 版本，用于文件大小等大数值配置。
 func envInt64(key string, fallback int64) int64 {
 	if v, ok := os.LookupEnv(key); ok {
 		if n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
@@ -257,6 +271,8 @@ func envInt64(key string, fallback int64) int64 {
 	return fallback
 }
 
+// envBool 解析布尔环境变量，接受 strconv.ParseBool 支持的形式；
+// 缺失或无法解析时返回 fallback。
 func envBool(key string, fallback bool) bool {
 	if v, ok := os.LookupEnv(key); ok {
 		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
@@ -266,6 +282,8 @@ func envBool(key string, fallback bool) bool {
 	return fallback
 }
 
+// envDuration 按 time.ParseDuration 解析时长（如 30m、720h）；
+// 缺失或无法解析时返回 fallback。
 func envDuration(key string, fallback time.Duration) time.Duration {
 	if v, ok := os.LookupEnv(key); ok {
 		if d, err := time.ParseDuration(strings.TrimSpace(v)); err == nil {
@@ -275,6 +293,7 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
+// splitList 按逗号切分列表配置，去除空白与空项。
 func splitList(value string) []string {
 	if strings.TrimSpace(value) == "" {
 		return nil

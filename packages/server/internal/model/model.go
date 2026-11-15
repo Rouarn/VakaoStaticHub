@@ -1,3 +1,8 @@
+// 包 model 定义 HTTP 层的传输入参/出参与共享契约结构。
+//
+// 这些类型同时被服务端编码和前端 TypeScript 声明消费，字段名与语义
+// 属于对外契约：改名或改语义等同于破坏 API。数据库内部状态（例如
+// 密码哈希、自增主键）不放在这里，见 store 包中的 *Record 类型。
 package model
 
 import (
@@ -346,11 +351,14 @@ type UpdateVersionRequest struct {
 }
 
 // NullableInt64 用于区分 JSON 字段缺失与显式 null。
+// Set 为 false 表示字段未出现（保持原值）；Set 为 true 且 Value 为 nil
+// 表示显式清除。
 type NullableInt64 struct {
 	Set   bool
 	Value *int64
 }
 
+// UnmarshalJSON 记录字段是否出现，并允许显式 null。
 func (n *NullableInt64) UnmarshalJSON(data []byte) error {
 	n.Set = true
 	if string(data) == "null" {

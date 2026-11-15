@@ -20,6 +20,7 @@ const maxBrowseEntries = 500
 
 var rootIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
+// handleListRoots 返回全部资源根目录（默认根在前）。
 func (s *Server) handleListRoots(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	roots, err := s.store.ListRoots(r.Context())
 	if err != nil {
@@ -29,6 +30,8 @@ func (s *Server) handleListRoots(w http.ResponseWriter, r *http.Request, _ *Curr
 	return nil
 }
 
+// handleCreateRoot 创建资源根目录：校验 id/名称/路径，确保目录存在，
+// 然后异步入队扫描，不等扫描完成就返回。
 func (s *Server) handleCreateRoot(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.CreateRootRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -100,6 +103,8 @@ func (s *Server) handleRootIndexStatus(w http.ResponseWriter, r *http.Request, _
 	return nil
 }
 
+// handleUpdateRoot 改名或迁移根目录。迁移路径只允许在旧目录为空时进行，
+// 避免把已有文件留在失去索引的目录里。
 func (s *Server) handleUpdateRoot(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	id := pathValue(r, "id")
 	var req model.UpdateRootRequest
@@ -169,6 +174,8 @@ func (s *Server) handleUpdateRoot(w http.ResponseWriter, r *http.Request, user *
 	return nil
 }
 
+// handleDeleteRoot 删除空根目录：至少保留一个根，且磁盘上不能残留
+// 非隐藏文件。数据库记录删除后不再回滚磁盘操作。
 func (s *Server) handleDeleteRoot(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	id := pathValue(r, "id")
 	root, err := s.store.RootByID(r.Context(), id)
@@ -203,6 +210,8 @@ func (s *Server) handleDeleteRoot(w http.ResponseWriter, r *http.Request, user *
 	return nil
 }
 
+// handleBrowse 列出服务器目录，供新建根目录时挑选路径。
+// 只返回目录；目标必须是授权边界的子目录，`..` 直接拒绝。
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	raw := strings.TrimSpace(r.URL.Query().Get("path"))
 	if raw != "" {
@@ -291,6 +300,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request, _ *Current
 	return nil
 }
 
+// handleBrowseBounds 返回浏览授权边界与根目录快捷入口。
 func (s *Server) handleBrowseBounds(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	bounds, roots, err := s.browseBounds(r.Context())
 	if err != nil {
@@ -362,6 +372,8 @@ func (s *Server) browseBounds(ctx context.Context) ([]model.BrowseBound, []model
 	return bounds, shortcuts, nil
 }
 
+// ensureDirectory 确保路径是目录：已存在且是目录则通过，不存在则创建；
+// 其他情况（权限不足、路径是文件）返回可读的 400。
 func ensureDirectory(path string) error {
 	info, err := os.Stat(path)
 	if err == nil {
@@ -382,6 +394,7 @@ func ensureDirectory(path string) error {
 	return nil
 }
 
+// countFiles 递归统计目录下非隐藏的普通文件数，用于判断根目录是否为空。
 func countFiles(dir string) (int, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

@@ -1,3 +1,8 @@
+// 包 httpapi 是唯一的 HTTP 入口：路由、鉴权、中间件与全部处理函数。
+//
+// 处理函数统一返回 error，由 wrap 转成 JSON 信封，因此业务代码不手写
+// 错误响应。路由清单见 contract.go，新增端点必须同步更新该表，
+// 否则启动日志与真实路由会不一致。
 package httpapi
 
 import (
@@ -55,6 +60,8 @@ type Server struct {
 	loginLimiter *rateLimiter
 }
 
+// New 组装所有依赖、注册路由并套上中间件。Office 转换器初始化失败时
+// 只禁用该能力，不影响服务启动；它会在后台打印契约路由表。
 func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version string) *Server {
 	ix := indexer.New(st)
 	s := &Server{
@@ -105,6 +112,8 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 	return s
 }
 
+// ServeHTTP 记录 QPS 后交给中间件链。apiErrorShape 负责把 ServeMux
+// 的纯文本 404/405 改写成统一 JSON 信封。
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.qps.hit()
 	s.handler.ServeHTTP(&apiErrorShape{ResponseWriter: w, path: r.URL.Path}, r)
@@ -114,18 +123,23 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 手写错误响应。
 type handleFunc func(w http.ResponseWriter, r *http.Request, user *CurrentUser) error
 
+// public 注册无需登录的端点。
 func (s *Server) public(fn handleFunc) http.Handler {
 	return s.wrap(Public, fn)
 }
 
+// user 注册要求登录的端点。
 func (s *Server) user(fn handleFunc) http.Handler {
 	return s.wrap(User, fn)
 }
 
+// admin 注册要求管理员角色的端点。
 func (s *Server) admin(fn handleFunc) http.Handler {
 	return s.wrap(Admin, fn)
 }
 
+// wrap 按鉴权级别注入 CurrentUser，并把处理函数返回的 error
+// 统一写成错误响应。
 func (s *Server) wrap(level AuthLevel, fn handleFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var user *CurrentUser
@@ -147,6 +161,8 @@ func (s *Server) wrap(level AuthLevel, fn handleFunc) http.Handler {
 	})
 }
 
+// fail 写出错误响应；5xx 额外记录一条带 requestId 的错误日志，
+// 便于把客户端看到的失败与日志对上。
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	apiErr := asAPIError(err)
 	if apiErr.Status >= http.StatusInternalServerError {
@@ -160,6 +176,8 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	writeError(w, apiErr)
 }
 
+// authenticate 从 Authorization 头解析令牌，再回查数据库确认账号
+// 仍存在且令牌晚于最近一次改密。角色以数据库为准，不信任 claims。
 func (s *Server) authenticate(r *http.Request) (CurrentUser, error) {
 	claims, err := s.tokens.TokenFromHeader(r.Header.Get("Authorization"))
 	if err != nil {
@@ -426,6 +444,7 @@ func (s *Server) processGrayRollouts(ctx context.Context) {
 	}
 }
 
+// handleHealth 返回存活、版本与运行时长；不需要鉴权，供探针使用。
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request, _ *CurrentUser) error {
 	writeJSON(w, map[string]any{
 		"status":        "ok",

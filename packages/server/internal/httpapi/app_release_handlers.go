@@ -11,6 +11,8 @@ import (
 	"vakao-static-hub/server/internal/store"
 )
 
+// handlePublishVersion 发布版本，支持立即或定时上线。灰度比例
+// 被夹紧到 0-100；定时发布在到点前保持草稿，由定时任务推进。
 func (s *Server) handlePublishVersion(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {
@@ -73,6 +75,8 @@ func (s *Server) handlePublishVersion(w http.ResponseWriter, r *http.Request, us
 	return nil
 }
 
+// handleOfflineVersion 下架版本并记录原因。下架只影响后续检查更新，
+// 已下载的安装包仍可访问。
 func (s *Server) handleOfflineVersion(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {
@@ -101,6 +105,7 @@ func (s *Server) handleOfflineVersion(w http.ResponseWriter, r *http.Request, us
 	return nil
 }
 
+// handleForceVersion 切换强制更新标记，仅对已发布版本生效。
 func (s *Server) handleForceVersion(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {
@@ -131,10 +136,10 @@ func (s *Server) handleForceVersion(w http.ResponseWriter, r *http.Request, user
 	return nil
 }
 
-// handleRollbackVersion 恢复较旧的构建。路径中的 id 是操作者
-// 发起回滚时所处的版本（通常是当前发布版本）；请求体可通过
-// toVersionId 指定候选版本，否则恢复最新的合格旧
-// 版本。响应为被恢复的版本。
+// handleRollbackVersion 把当前发布版本退回为草稿，并重新发布目标版本。
+// 路径中的 id 是操作者发起回滚时所在的版本；请求体可用 toVersionId
+// 指定候选，否则恢复最新的合格旧版本。目标必须属于同一应用且
+// 处于已发布/已下架状态。
 func (s *Server) handleRollbackVersion(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {
@@ -188,6 +193,8 @@ func (s *Server) handleRollbackVersion(w http.ResponseWriter, r *http.Request, u
 	return nil
 }
 
+// handleRollbackCandidates 返回可回滚的历史版本（已发布或已下架），
+// 排除当前线和草稿。
 func (s *Server) handleRollbackCandidates(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	record, err := s.versionByID(r)
 	if err != nil {

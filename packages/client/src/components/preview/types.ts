@@ -17,6 +17,7 @@ export interface PreviewProps {
   downloadSrc?: string;
 }
 
+/** 预览组件懒加载器，按需返回组件实现 */
 export type PreviewLoader = () => Promise<Component>;
 
 /** 预览弹窗的单个目标（列表页与独立预览页共用） */

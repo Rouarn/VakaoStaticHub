@@ -79,11 +79,13 @@ export function highlightCode(code: string, filename: string): string {
   }
 }
 
+/** 按扩展名选择已注册的语言；未知扩展名返回 'text'（不高亮） */
 export function languageOf(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return LANGUAGE_BY_EXT[ext] ?? 'text';
 }
 
+/** HTML 转义，用于把纯文本安全地塞进 v-html */
 export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

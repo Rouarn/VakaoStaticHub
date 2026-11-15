@@ -62,12 +62,17 @@ func (s *Server) removeVersionFile(ctx context.Context, record model.AppVersion)
 	_ = s.store.DeleteFileEntry(ctx, root.ID, record.Category, record.RelPath)
 }
 
+// inGrayBucket 用 FNV-1a(deviceID:versionID) 做稳定分桶。
+// 同一设备对同一版本永远落在同一桶，因此灰度比例只增不减时
+// 已覆盖的设备不会被踢出；percent 为 100 时全员命中。
 func inGrayBucket(deviceID string, versionID int64, percent int) bool {
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(deviceID + ":" + strconv.FormatInt(versionID, 10)))
 	return int(hasher.Sum32()%100) < percent
 }
 
+// parseFutureTime 解析 RFC 3339 定时发布时间，拒绝空值、格式错误
+// 与不晚于当前时间的值。错误字段固定为 publishAt。
 func parseFutureTime(value string) (time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -83,6 +88,7 @@ func parseFutureTime(value string) (time.Time, error) {
 	return parsed, nil
 }
 
+// appPlatform 读取并归一化 platform 查询参数，缺省为 android。
 func appPlatform(r *http.Request) string {
 	platform := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("platform")))
 	if platform == "" {
@@ -91,6 +97,8 @@ func appPlatform(r *http.Request) string {
 	return platform
 }
 
+// truncateText 按字节截断文本以适配数据库列宽；可能截断多字节字符，
+// 因此只用于日志/埋点等非展示字段。
 func truncateText(value string, limit int) string {
 	if len(value) <= limit {
 		return value
@@ -98,6 +106,8 @@ func truncateText(value string, limit int) string {
 	return value[:limit]
 }
 
+// isUniqueErr 判断 SQLite 错误是否为唯一约束冲突。
+// SQLite 没有导出的错误码，只能按消息判断。
 func isUniqueErr(err error) bool {
 	return err != nil && strings.Contains(strings.ToUpper(err.Error()), "UNIQUE")
 }

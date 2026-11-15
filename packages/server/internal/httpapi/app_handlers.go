@@ -14,6 +14,7 @@ const (
 	maxPackageSize     = 2 << 30 // 2 GiB 上限，防止上传失控
 )
 
+// handleListApps 返回全部应用，并带上最近事件等摘要信息。
 func (s *Server) handleListApps(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	apps, err := s.store.ListApps(r.Context())
 	if err != nil {
@@ -23,6 +24,7 @@ func (s *Server) handleListApps(w http.ResponseWriter, r *http.Request, _ *Curre
 	return nil
 }
 
+// handleCreateApp 创建应用；appKey 缺省时从名称推导，名称缺省时回落到 appKey。
 func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.CreateAppRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -52,6 +54,7 @@ func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request, user *C
 	return nil
 }
 
+// handleUpdateApp 只允许改展示名称；appKey 与平台是稳定标识，不提供修改。
 func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	var req model.UpdateAppRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -99,6 +102,8 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request, user *C
 	return nil
 }
 
+// handleDeleteApp 删除应用。存在版本时直接拒绝，要求先清理版本，
+// 避免安装包文件与索引不同步。
 func (s *Server) handleDeleteApp(w http.ResponseWriter, r *http.Request, user *CurrentUser) error {
 	appKey := pathValue(r, "appKey")
 	platform := appPlatform(r)

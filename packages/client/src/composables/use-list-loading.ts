@@ -2,6 +2,7 @@ import { computed, onScopeDispose, ref, type Ref } from 'vue';
 import { useMessage } from 'naive-ui';
 import { getErrorMessage } from '@/utils/http';
 
+/** 列表加载态选项；page 用于生成「第 N 页」提示，text 覆盖非翻页提示 */
 export interface ListLoadingOptions {
   /** 提示文案使用的页码；未传时按第一页处理 */
   page?: Ref<number>;

@@ -20,6 +20,8 @@ type VersionRecord struct {
 	model.AppVersion
 }
 
+// VersionFilter 是版本列表条件。Status 支持 draft/published/offline，
+// 以及聚合值 gray（已发布且灰度 <100）与 full（灰度 =100）。
 type VersionFilter struct {
 	AppKey   string
 	Platform string
@@ -28,6 +30,8 @@ type VersionFilter struct {
 	PageSize int
 }
 
+// VersionUpdate 是版本的部分更新：nil 字段保持原值，
+// ScheduledAt 为 0 表示清除定时发布。
 type VersionUpdate struct {
 	VersionName          *string
 	UpdateLog            *string
@@ -42,6 +46,7 @@ type VersionUpdate struct {
 	ScheduledGrayPercent *int
 }
 
+// ListApps 返回全部应用，按 appKey + 平台排序。
 func (s *Store) ListApps(ctx context.Context) ([]model.App, error) {
 	rows, err := s.Reader.QueryContext(ctx,
 		`SELECT app_key, platform, name, created_at, updated_at FROM apps ORDER BY app_key, platform`)
@@ -67,6 +72,7 @@ func (s *Store) ListApps(ctx context.Context) ([]model.App, error) {
 	return apps, rows.Err()
 }
 
+// AppByKey 按 appKey + 平台读取应用及其内部 id；不存在返回 ErrNotFound。
 func (s *Store) AppByKey(ctx context.Context, appKey, platform string) (AppRecord, error) {
 	row := s.Reader.QueryRowContext(ctx,
 		`SELECT id, app_key, platform, name, created_at, updated_at FROM apps WHERE app_key = ? AND platform = ?`,
@@ -87,6 +93,7 @@ func (s *Store) AppByKey(ctx context.Context, appKey, platform string) (AppRecor
 	return record, nil
 }
 
+// CreateApp 插入应用；平台为空时按 android 处理，名称保持调用方给的值。
 func (s *Store) CreateApp(ctx context.Context, app model.App) (model.App, error) {
 	now := NowMS()
 	if app.Platform == "" {
@@ -104,6 +111,7 @@ func (s *Store) CreateApp(ctx context.Context, app model.App) (model.App, error)
 	return record.App, nil
 }
 
+// UpdateAppName 修改展示名称；应用不存在返回 ErrNotFound。
 func (s *Store) UpdateAppName(ctx context.Context, appKey, platform, name string) error {
 	result, err := s.Writer.ExecContext(ctx,
 		`UPDATE apps SET name = ?, updated_at = ? WHERE app_key = ? AND platform = ?`,
@@ -159,6 +167,8 @@ func (s *Store) CountAppVersions(ctx context.Context, appKey, platform string) (
 	return n, err
 }
 
+// DeleteApp 删除应用记录；版本与事件依赖外键级联清理，
+// 安装包文件由调用方另行删除。
 func (s *Store) DeleteApp(ctx context.Context, appKey, platform string) error {
 	result, err := s.Writer.ExecContext(ctx,
 		`DELETE FROM apps WHERE app_key = ? AND platform = ?`, appKey, platform)

@@ -47,6 +47,7 @@ const darkInput = {
   arrowColor: colors.ink.darkSecondary,
 } as const;
 
+/** NaiveUI 浅色主题覆盖：所有颜色取自 design-tokens，不在组件内覆写 */
 export const lightThemeOverrides: GlobalThemeOverrides = {
   common: {
     ...commonBase,
@@ -120,6 +121,10 @@ export const lightThemeOverrides: GlobalThemeOverrides = {
   Pagination: { itemBorderRadius: '999px' },
 };
 
+/**
+ * NaiveUI 深色主题覆盖。主色刻意降到 600 号：500 号在深底上
+ * 白字对比度不足 4.5:1，改这里前先验证对比度。
+ */
 export const darkThemeOverrides: GlobalThemeOverrides = {
   common: {
     ...commonBase,

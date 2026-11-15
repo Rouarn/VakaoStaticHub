@@ -25,6 +25,7 @@ export const brand = {
   950: '#221f48',
 } as const;
 
+/** 语义色：底色、玻璃面板、文字与焦点环，均区分 light / dark */
 export const colors = {
   /** 页面底色（壁纸缺省 / 回退） */
   bg: {

@@ -1,3 +1,10 @@
+/**
+ * 文件库与服务端文件接口封装。
+ *
+ * 服务端返回的 mtime 是 RFC 3339 字符串，这里统一转成毫秒时间戳；
+ * 相对路径 relPath 对前端暴露为 path。组件不要用 rootId + path 拼地址，
+ * 下载/预览一律经过 utils/file-url。
+ */
 import type {
   BatchDeleteResult,
   BatchMoveResult,
@@ -62,10 +69,12 @@ function toFileItem(entry: ServerFileEntry): FileItem {
   };
 }
 
+/** 文件管理配置（目前只有默认分类名） */
 export function getFileConfig() {
   return http.get<FileConfig>('/files/config');
 }
 
+/** 某根目录下的分类名列表（磁盘目录与索引统计合并后的结果） */
 export async function listCategories(rootId: string) {
   const items = await http.get<ServerCategoryInfo[]>('/files/categories', {
     rootId,
@@ -113,6 +122,7 @@ export async function renameCategory(
   });
 }
 
+/** 文件列表查询参数；q 同时匹配名称与相对路径，缺省按 mtime 倒序 */
 export interface ListFilesParams {
   page: number;
   pageSize: number;
@@ -121,6 +131,7 @@ export interface ListFilesParams {
   order?: 'asc' | 'desc';
 }
 
+/** 某根目录下的一页文件；返回结构与服务端分页信封一一对应 */
 export async function listFiles(
   rootId: string,
   category: string,
@@ -148,6 +159,7 @@ export async function listFiles(
  */
 let usageInflight: Promise<UsageStatsResult> | null = null;
 
+/** 存储用量统计；并发调用共享同一次请求，见上方 in-flight 说明 */
 export function getUsageStats() {
   if (usageInflight) return usageInflight;
   const task = http
@@ -279,6 +291,7 @@ export function uploadFiles(
 
 // ==================== 分片上传 ====================
 
+/** 创建分片上传会话，返回 uploadId 与后端实际采用的分片大小 */
 export function initChunkUpload(body: {
   rootId: string;
   category: string;
@@ -311,6 +324,10 @@ export function uploadChunk(
   );
 }
 
+/**
+ * 合并分片并登记文件。请求里的元数据必须与会话一致，
+ * 否则服务端拒绝；返回内容哈希供调用方做完整性校验。
+ */
 export function completeChunkUpload(body: {
   uploadId: string;
   rootId: string;
@@ -340,6 +357,7 @@ export function completeChunkUpload(body: {
     );
 }
 
+/** 放弃分片上传会话并清理临时文件 */
 export async function cancelChunkUpload(uploadId: string) {
   await http.delete(`/uploads/${encodeURIComponent(uploadId)}`);
   return { success: true };
@@ -357,6 +375,10 @@ export function syncFileIndex(rootId?: string) {
 
 // ==================== 文件操作 ====================
 
+/**
+ * 批量删除文件。服务端逐条删除，遇到失败会中止并返回 400；
+ * 已删除的部分不会回滚，因此调用方需按整体失败提示。
+ */
 export async function batchDelete(
   rootId: string,
   category: string,
@@ -370,6 +392,10 @@ export async function batchDelete(
   return { deletedCount: result.deleted } satisfies BatchDeleteResult;
 }
 
+/**
+ * 批量移动文件到目标分类。服务端先校验全部目标冲突再执行；
+ * 成功后每个路径都视为成功，因此结果列表由入参直接映射。
+ */
 export async function batchMove(
   rootId: string,
   category: string,
@@ -388,6 +414,7 @@ export async function batchMove(
   } satisfies BatchMoveResult;
 }
 
+/** 重命名分类内文件；newName 只能是文件名，不能包含路径分隔符 */
 export async function renameFile(
   rootId: string,
   category: string,
@@ -402,6 +429,7 @@ export async function renameFile(
   });
 }
 
+/** 删除单个文件（不支持目录） */
 export async function deleteFile(
   rootId: string,
   category: string,

@@ -45,6 +45,8 @@ type Client struct {
 	logger   *slog.Logger
 }
 
+// New 构造 CDN 客户端。logger 为空时使用 slog 默认实例；
+// 凭据不完整时客户端仍然可用，PurgePrefix 会直接空转。
 func New(cfg Config) *Client {
 	logger := cfg.Logger
 	if logger == nil {
@@ -102,6 +104,8 @@ func (c *Client) PurgePrefix(ctx context.Context, origin, pathPrefix string) {
 	c.logger.Info("cdn purge submitted", "prefix", url)
 }
 
+// enabled 判断凭据是否齐备。任一凭据缺失都视为未配置，
+// 刷新操作直接空转而不是报错。
 func (c *Client) enabled() bool {
 	return c.config.SecretID != "" && c.config.SecretKey != "" && c.config.ZoneID != ""
 }
@@ -163,11 +167,13 @@ func parseError(body []byte) string {
 	return resp.Response.Error.Code + ": " + resp.Response.Error.Message
 }
 
+// hashHex 返回数据的 SHA-256 十六进制摘要，用于签名规范。
 func hashHex(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
 
+// hmacSHA256 计算 HMAC-SHA256，是 TC3 派生签名密钥的基础操作。
 func hmacSHA256(key []byte, data string) []byte {
 	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write([]byte(data))

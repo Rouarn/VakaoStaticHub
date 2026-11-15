@@ -31,6 +31,7 @@ type CleanupStats struct {
 	RemainingBytes int64 // 清理后缓存占用
 }
 
+// cacheFile 是回收扫描时使用的轻量元数据。
 type cacheFile struct {
 	path string
 	size int64

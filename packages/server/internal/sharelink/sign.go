@@ -21,6 +21,8 @@ type Signer struct {
 	secret []byte
 }
 
+// NewSigner 使用 SHARE_SIGN_KEY 构造签名器。密钥由 config 保证长度，
+// 替换密钥会让所有已下发的文件地址立即失效。
 func NewSigner(secret string) *Signer {
 	return &Signer{secret: []byte(secret)}
 }

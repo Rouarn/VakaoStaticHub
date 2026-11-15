@@ -10,6 +10,8 @@ import (
 	"vakao-static-hub/server/internal/store"
 )
 
+// handleAuditLogs 返回一页审计日志；过滤条件全部来自查询参数，
+// 时间窗为 RFC 3339 闭区间，分页参数与文件列表口径一致。
 func (s *Server) handleAuditLogs(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	query := r.URL.Query()
 	filter := store.AuditFilter{
@@ -52,6 +54,8 @@ func (s *Server) handleAuditLogs(w http.ResponseWriter, r *http.Request, _ *Curr
 	return nil
 }
 
+// audit 异步语义地写一条审计日志：使用独立 context 与 3 秒超时，
+// 因此请求被客户端取消也不影响记录；写失败只告警，不改变业务结果。
 func (s *Server) audit(r *http.Request, user *CurrentUser, action, resourceType, resourceID string, details map[string]any) {
 	entry := model.AuditLog{
 		Username:     "system",
