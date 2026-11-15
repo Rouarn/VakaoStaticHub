@@ -123,6 +123,10 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 其余资源（`/v1/i`、缩略图、转换 PDF）仍是 `max-age=31536000, immutable`。
 因此最坏情况下（刷新未配置或失败）边缘副本最多再存活 7 天。
 
+> 部署提示：宝塔反向代理默认开启 nginx `proxy_cache`（`/www/server/nginx/conf/proxy.conf`），
+> 它会在 CDN 之下再缓一层，导致撤销后 CDN 回源仍拿到旧的 200。站点配置里需对 `/v1/`
+> 加 `proxy_cache_bypass` / `proxy_no_cache`，把缓存只留给 CDN 一层。
+
 刷新失败只写日志，不影响删除/停用本身，也不会重试。
 
 ## `.env` 键名说明
