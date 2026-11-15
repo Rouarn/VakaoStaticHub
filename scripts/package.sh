@@ -142,6 +142,7 @@ printf '==> 组装发布目录\n'
 # 根目录，缺失时服务端会回退到内置的 default 与 software-update，
 # 所以不带它不影响运行；反之带上开发机的路径反而会把线上根目录指错。
 JWT_SECRET="$(random_hex 32)"
+SHARE_SIGN_KEY="$(random_hex 32)"
 AUTH_PASS="$(random_hex 16)"
 mkdir -p "$WORK_DIR/web" "$WORK_DIR/data"
 cp -R "$ROOT_DIR/packages/client/dist/." "$WORK_DIR/web/"
@@ -159,6 +160,7 @@ AUTH_USER=admin
 AUTH_PASS=${AUTH_PASS}
 JWT_SECRET=${JWT_SECRET}
 JWT_EXPIRES_IN=12h
+SHARE_SIGN_KEY=${SHARE_SIGN_KEY}
 
 # 跨域与反向代理
 CORS_ORIGIN=

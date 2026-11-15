@@ -43,6 +43,7 @@ interface ServerShareFile {
   exists: boolean;
   extension: string;
   mtime: string | null;
+  signature?: string;
 }
 
 interface ServerShareInfo {
@@ -103,6 +104,7 @@ function toShareInfo(info: ServerShareInfo): ShareInfo {
       exists: file.exists,
       extension: file.extension,
       mtime: file.mtime ? new Date(file.mtime).getTime() : null,
+      signature: file.signature || undefined,
     })),
   };
 }

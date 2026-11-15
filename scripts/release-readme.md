@@ -83,9 +83,10 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 3. **只替换 `vakao-server` 与 `web/`**（`README.md` 可一并替换），不要覆盖 `data/` 与 `.env`。
 4. 重新启动守护进程，访问 `/healthz` 确认版本号已更新。
 
-**默认不要覆盖线上已有的 `.env`。** 每次打包都会生成新的 `JWT_SECRET` 与 `AUTH_PASS`，直接覆盖会带来：
+**默认不要覆盖线上已有的 `.env`。** 每次打包都会生成新的 `JWT_SECRET`、`SHARE_SIGN_KEY` 与 `AUTH_PASS`，直接覆盖会带来：
 
 - `JWT_SECRET` 变化：**所有已登录会话立即失效**，所有人需要重新登录。
+- `SHARE_SIGN_KEY` 变化：**已发出的公开分享文件地址全部失效**，访问者回到分享页刷新即可拿到新地址。
 - `AUTH_PASS` 变化：**不会修改已存在管理员的密码**（播种只在 `users` 表为空时执行一次），因此"密码被重置了"的预期会落空，登录仍使用旧密码。
 - 新版本若新增配置键，请对照新包 `.env.example`/`.env` 手动补到线上 `.env` 中，而不是整体覆盖。
 
@@ -120,6 +121,7 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 | `AUTH_PASS` | 首次启动播种的管理员密码；已存在管理员时不再生效 |
 | `JWT_SECRET` | JWT 签名密钥，泄露等同于会话可被伪造 |
 | `JWT_EXPIRES_IN` | 登录令牌有效期 |
+| `SHARE_SIGN_KEY` | 公开分享文件地址的签名密钥，换掉即让所有旧地址作废 |
 | `CORS_ORIGIN` | 跨域来源白名单，逗号分隔；留空不开放跨域 |
 | `TRUST_PROXY` | 是否采用反向代理传来的 `X-Forwarded-*` 头 |
 | `DB_PATH` | SQLite 数据库文件路径 |

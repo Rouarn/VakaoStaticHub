@@ -44,6 +44,7 @@ type Server struct {
 	documents  *office.Converter
 
 	shareTokens   *sharelink.Manager
+	shareSigner   *sharelink.Signer
 	shareLimiter  *rateLimiter
 	hitokotoCache hitokotoCache
 	photos        *photoPools
@@ -65,6 +66,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 		loginLimiter:  newRateLimiter(5, time.Minute),
 		shareLimiter:  newRateLimiter(10, time.Minute),
 		shareTokens:   sharelink.NewManager(cfg.JWTSecret, 30*time.Minute),
+		shareSigner:   sharelink.NewSigner(cfg.ShareSignKey),
 		indexQueue:    indexer.NewQueue(ix, st, logger),
 		thumbnails:    media.NewThumbnailer(cfg.CacheDir, cfg.MaxImagePixels, cfg.MaxImageDimension, cfg.ThumbConcurrency),
 		uploads:       upload.New(cfg.UploadTempDir),

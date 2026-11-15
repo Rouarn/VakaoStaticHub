@@ -255,29 +255,22 @@ export interface ShareCollectionFile {
   extension: string;
   /** 磁盘修改时间（毫秒）；文件不存在时为 null */
   mtime: number | null;
+  /** 公开分享的稳定签名（分享 + 文件 + 版本）；密码分享为空，只能凭会话令牌访问 */
+  signature?: string;
 }
-
-/** 分享访问令牌有效期：30 分钟（后端签发与前端「令牌已过期」提示共用） */
-export const SHARE_ACCESS_TOKEN_TTL_MS = 30 * 60 * 1000;
-
-/** 分享访问令牌传递的 query 参数名 */
-export const SHARE_ACCESS_TOKEN_QUERY = 'accessToken';
 
 /**
- * 分享访问令牌（accessToken）的正式契约
+ * 分享内文件的两种访问凭证
  *
- * - 签发：`POST /share/:token/verify` 解锁成功后返回，一次打开只签发一次
- * - 形态：`<issuedAt>.<hmac>`，`issuedAt` 为毫秒时间戳，`hmac` 为
- *   `HMAC-SHA256(JWT_SECRET, '<shareToken>.<issuedAt>')` 的 64 位小写 hex
- * - 绑定：只对签发时的分享 token 有效，不能跨链接复用
- * - 有效期：`SHARE_ACCESS_TOKEN_TTL_MS`（30 分钟），超期需重新解锁
- * - 传递：`GET /share/:token?accessToken=<token>`（下载/预览/多文件列表通用）
- * - 失效：超期、链接被停用/过期/撤销、服务端密钥变更 → 401
+ * - 公开分享：`sig` 是对「分享 + 文件 + 版本」的 HMAC 稳定签名，
+ *   同一版本的同一文件永远得到同一地址，可直接长缓存；服务端每次请求
+ *   都会重新校验分享状态，取消或过期后地址立即失效；
+ * - 密码分享：解锁后签发短期 `accessToken`（默认 30 分钟），地址随会话
+ *   变化且不可转发复用——稳定签名会让拿到地址的人绕过密码。
+ *
+ * 下面的常量是密码分享的 query 参数名。
  */
-export interface ShareAccessGrant {
-  success: true;
-  accessToken: string;
-}
+export const SHARE_ACCESS_TOKEN_QUERY = 'accessToken';
 
 /**
  * 分享链接不可用的三类原因：

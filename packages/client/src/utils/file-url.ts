@@ -117,7 +117,10 @@ export function buildSharePageUrl(token: string): string {
 }
 
 export interface ShareFileUrlOptions {
+  /** 密码分享解锁后的短期令牌；公开分享不需要 */
   accessToken?: string;
+  /** 公开分享的稳定签名（分享 + 文件 + 版本）；密码分享不用 */
+  signature?: string;
   /** collection 分享中的文件下标；单文件分享为 0 */
   index?: number;
   download?: boolean;
@@ -127,11 +130,12 @@ export interface ShareFileUrlOptions {
   version?: string;
 }
 
-/** 分享内文件访问地址：`<origin>/v1/s/<token>/f/<index>`，解锁后凭 accessToken 访问 */
+/** 分享内文件访问地址：`<origin>/v1/s/<token>/f/<index>` */
 export function buildShareFileUrl(
   token: string,
   {
     accessToken,
+    signature,
     index,
     download,
     imageTier,
@@ -140,6 +144,7 @@ export function buildShareFileUrl(
 ): string {
   const query: string[] = [];
   if (accessToken) query.push(`accessToken=${encodeURIComponent(accessToken)}`);
+  if (signature) query.push(`sig=${encodeURIComponent(signature)}`);
   if (download) query.push('download=1');
   const qs = query.length > 0 ? `?${query.join('&')}` : '';
   const fileIndex = index ?? 0;

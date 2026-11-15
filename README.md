@@ -157,6 +157,7 @@ chmod +x vakao-server
 | `AUTH_PASS`      | `''`               | 首次启动播种的管理员密码；留空则不播种                      |
 | `JWT_SECRET`     | 无（必填）         | JWT 签名密钥，至少 16 字节且不能为默认占位值                |
 | `JWT_EXPIRES_IN` | `12h`              | Token 有效期                                                |
+| `SHARE_SIGN_KEY` | 无（必填）         | 公开分享文件地址的签名密钥，至少 16 字节；换掉即作废旧地址  |
 
 ### 存储与数据库
 

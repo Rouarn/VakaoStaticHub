@@ -60,6 +60,10 @@ type Config struct {
 	AuthUser   string
 	AuthPass   string
 
+	// ShareSignKey 是公开分享文件地址的签名密钥（SHARE_SIGN_KEY）。
+	// 换掉它等于让所有旧的文件地址签名一次性作废。
+	ShareSignKey string
+
 	CORSOrigin    string
 	TrustProxy    bool
 	LogLevel      string
@@ -118,6 +122,7 @@ func Load() (*Config, error) {
 		OfficeCacheDir:    resolve(base, env("OFFICE_CACHE_DIR", filepath.Join(os.TempDir(), "vakao-static-hub-office"))),
 		SofficePath:       env("SOFFICE_PATH", "soffice"),
 		JWTSecret:         os.Getenv("JWT_SECRET"),
+		ShareSignKey:      os.Getenv("SHARE_SIGN_KEY"),
 		JWTExpires:        envDuration("JWT_EXPIRES_IN", 12*time.Hour),
 		AuthUser:          env("AUTH_USER", "admin"),
 		AuthPass:          env("AUTH_PASS", ""),
@@ -133,6 +138,9 @@ func Load() (*Config, error) {
 	}
 	if len(cfg.JWTSecret) < 16 {
 		return nil, errors.New("JWT_SECRET must be at least 16 bytes")
+	}
+	if len(cfg.ShareSignKey) < 16 {
+		return nil, errors.New("SHARE_SIGN_KEY must be at least 16 bytes")
 	}
 	if cfg.MaxUploadCount < 1 {
 		return nil, errors.New("UPLOAD_MAX_COUNT must be positive")

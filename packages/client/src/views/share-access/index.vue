@@ -258,9 +258,19 @@ function versionAt(index: number) {
   return fileVersion(file?.size, file?.mtime);
 }
 
+/**
+ * 访问凭证：公开分享用服务端下发的稳定签名——同一版本的同一文件永远是
+ * 同一个地址，CDN 才能真正复用缓存；密码分享的签名可被自由转发，
+ * 等于绕过密码，因此只认解锁后的会话令牌（宁可缓存命中差）。
+ */
+function credentialAt(index: number) {
+  const signature = collectionFiles.value[index]?.signature;
+  return signature ? { signature } : { accessToken: accessToken.value };
+}
+
 function fileUrl(index: number, download = false) {
   return buildShareFileUrl(token.value, {
-    accessToken: accessToken.value,
+    ...credentialAt(index),
     index,
     download,
     version: versionAt(index),
@@ -270,7 +280,7 @@ function fileUrl(index: number, download = false) {
 /** 分享页展示用图片地址：按 share 档位缩放，避免拉取原图 */
 function imageUrl(index: number) {
   return buildShareFileUrl(token.value, {
-    accessToken: accessToken.value,
+    ...credentialAt(index),
     index,
     imageTier: 'share',
     version: versionAt(index),
@@ -449,8 +459,11 @@ onBeforeUnmount(() => {
             ><ShieldCheckmarkOutline
           /></NIcon>
           <span>
-            已成功解锁，本次访问已计数。文件访问令牌有效期 30
-            分钟，过期后刷新页面重新打开即可（可能再消耗一次打开次数）。
+            已成功解锁，本次访问已计数。
+            <template v-if="info?.hasPassword">
+              文件访问令牌有效期 30
+              分钟，过期后刷新页面重新打开即可（可能再消耗一次打开次数）。
+            </template>
           </span>
         </div>
 

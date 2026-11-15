@@ -236,9 +236,17 @@ func (s *Server) handleUnlockShare(w http.ResponseWriter, r *http.Request, _ *Cu
 		_ = s.store.InsertShareAccessLog(r.Context(), record.ID, ip, agent, false)
 		return unauthorized("访问密码错误")
 	}
-	token, expiresAt, err := s.shareTokens.Issue(record.ID, record.Token)
-	if err != nil {
-		return internalError(err)
+	// 公开分享的文件地址用稳定签名，不签发会话令牌；
+	// 只有密码分享需要解锁后的短期令牌。
+	var (
+		token     string
+		expiresAt time.Time
+	)
+	if record.PasswordHash != "" {
+		token, expiresAt, err = s.shareTokens.Issue(record.ID, record.Token)
+		if err != nil {
+			return internalError(err)
+		}
 	}
 	if err := s.store.IncrementShareAccess(r.Context(), record.ID); err != nil {
 		s.log.Error("increment share access failed", "error", err, "token", record.Token)
@@ -291,11 +299,20 @@ func (s *Server) shareFiles(r *http.Request, record store.ShareRecord) ([]model.
 				item.Exists = true
 				mtime := info.ModTime().UTC()
 				item.MTime = &mtime
+				if record.PasswordHash == "" {
+					item.Signature = s.shareSigner.Sign(record.Token, index, fileVersion(info))
+				}
 			}
 		}
 		files = append(files, item)
 	}
 	return files, nil
+}
+
+// fileVersion 是文件版本标识：大小 + 修改时间（毫秒），
+// 与前端 fileVersion(size, mtime) 同口径，用于区分同一路径的不同内容。
+func fileVersion(info os.FileInfo) string {
+	return strconv.FormatInt(info.Size(), 10) + "-" + strconv.FormatInt(info.ModTime().UnixMilli(), 10)
 }
 
 // shareInfo 去除密码哈希，并将记录映射为公开结构。
@@ -317,9 +334,6 @@ func shareInfo(record store.ShareRecord) model.ShareInfo {
 func (s *Server) handleShareFileContent(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	record, err := s.availableShare(r, pathValue(r, "token"), true)
 	if err != nil {
-		return err
-	}
-	if _, err := s.authorizeShareAccess(r, record); err != nil {
 		return err
 	}
 	index, err := parseInt64(pathValue(r, "index"), "文件序号")
@@ -344,6 +358,16 @@ func (s *Server) handleShareFileContent(w http.ResponseWriter, r *http.Request, 
 	info, err := os.Stat(full)
 	if err != nil || info.IsDir() {
 		return notFound("文件不存在")
+	}
+	// 公开分享：地址本身就是凭证，校验「分享 + 文件 + 版本」的稳定签名；
+	// 分享状态已在 availableShare 里按当前记录校验，取消或过期即刻失效。
+	// 密码分享：稳定签名等于绕过密码，因此只认会话内令牌。
+	if record.PasswordHash == "" {
+		if !s.shareSigner.Verify(record.Token, int(index), fileVersion(info), r.URL.Query().Get("sig")) {
+			return forbidden("文件地址签名无效")
+		}
+	} else if _, err := s.authorizeShareAccess(r, record); err != nil {
+		return err
 	}
 	return s.serveStoredFile(w, r, full, info, "share:"+record.Token+"/"+rel)
 }

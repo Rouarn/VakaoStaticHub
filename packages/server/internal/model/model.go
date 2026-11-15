@@ -558,6 +558,9 @@ type ShareFile struct {
 	Exists bool `json:"exists"`
 	// MTime 是磁盘上的修改时间；文件不存在时为 null。
 	MTime *time.Time `json:"mtime"`
+	// Signature 是公开分享文件地址的稳定签名（分享 + 文件 + 版本）。
+	// 密码分享不下发：这类分享只能凭会话内令牌访问。
+	Signature string `json:"signature,omitempty"`
 }
 
 type ShareContent struct {
