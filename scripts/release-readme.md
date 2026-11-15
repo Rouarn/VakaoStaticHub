@@ -140,8 +140,7 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 | `OFFICE_CONVERT_CONCURRENCY` | Office 转 PDF 并发数 |
 | `OFFICE_CONVERT_TIMEOUT` | 单次转换超时（如 `90s`） |
 | `OFFICE_MAX_INPUT_MB` | 单个文件转换上限（MB），超限返回 422 |
-| `OFFICE_CACHE_RETENTION_DAYS` | 转换缓存保留天数，`0` 表示不按时间清理 |
-| `OFFICE_CACHE_MAX_MB` | 转换缓存总容量上限（MB），`0` 表示不限 |
+| `OFFICE_CACHE_DIR` | 转换缓存目录，默认 `/tmp/vakao-static-hub-office` |
 | `SOFFICE_PATH` | LibreOffice 可执行文件路径 |
 | `CACHE_REFRESH_INTERVAL_MS` | 文件索引刷新间隔（毫秒） |
 | `ROOT_BROWSE_WHITELIST` | 服务器目录浏览额外允许的绝对路径，逗号分隔 |
@@ -171,9 +170,9 @@ dnf history undo 55 -y
 
 - 安装后磁盘占用约增加 500 MB（`/` 从 15G 到 16G）。
 - 不引入任何常驻进程：转换时临时拉起 `soffice`，结束后自动退出。
-- 转换缓存位于 `<CACHE_DIR>/office/`（默认 `data/.cache/office`），按
-  `OFFICE_CACHE_RETENTION_DAYS` 与 `OFFICE_CACHE_MAX_MB` 每日清理，
-  可随缓存目录一起删除。
+- 转换缓存位于 `OFFICE_CACHE_DIR`（默认系统临时目录下的
+  `vakao-static-hub-office`），进程启动时按需重建。缓存随时可能被系统清掉，
+  代价只是下一次预览重新转换一次，因此没有保留期、容量上限与每日清理。
 
 ## 常见问题
 
