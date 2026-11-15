@@ -64,6 +64,11 @@ type Config struct {
 	// 换掉它等于让所有旧的文件地址签名一次性作废。
 	ShareSignKey string
 
+	// CDN 缓存刷新凭据（EdgeOne）；任一项为空即不刷新，靠缓存 TTL 兜底。
+	TencentSecretID  string
+	TencentSecretKey string
+	EdgeOneZoneID    string
+
 	CORSOrigin    string
 	TrustProxy    bool
 	LogLevel      string
@@ -123,6 +128,9 @@ func Load() (*Config, error) {
 		SofficePath:       env("SOFFICE_PATH", "soffice"),
 		JWTSecret:         os.Getenv("JWT_SECRET"),
 		ShareSignKey:      os.Getenv("SHARE_SIGN_KEY"),
+		TencentSecretID:   os.Getenv("TENCENTCLOUD_SECRET_ID"),
+		TencentSecretKey:  os.Getenv("TENCENTCLOUD_SECRET_KEY"),
+		EdgeOneZoneID:     os.Getenv("EDGEONE_ZONE_ID"),
 		JWTExpires:        envDuration("JWT_EXPIRES_IN", 12*time.Hour),
 		AuthUser:          env("AUTH_USER", "admin"),
 		AuthPass:          env("AUTH_PASS", ""),

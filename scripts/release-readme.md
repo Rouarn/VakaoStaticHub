@@ -108,6 +108,19 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 - **新增用户 / 重置他人密码 / 删除用户**：管理员登录后在「用户」页面操作（对应接口 `POST /v1/users`、`PATCH /v1/users/{id}/password`、`DELETE /v1/users/{id}`）。
 - **忘记管理员密码**：没有内置找回流程。可先备份后删除 `data/vakao.db` 让服务重新播种管理员，但这会丢失索引、分享、审计等数据库记录（磁盘上的文件不会删除），请谨慎操作。
 
+## 分享文件与 CDN 缓存
+
+公开分享的文件地址带稳定签名（`sig`），同一版本的同一文件永远指向同一地址，
+因此可以放心交给 CDN 缓存。撤销分享时：
+
+- 源站立即返回 404/410（每次请求都会重新校验分享状态）；
+- 若配置了 `TENCENTCLOUD_SECRET_ID` / `TENCENTCLOUD_SECRET_KEY` / `EDGEONE_ZONE_ID`，
+  删除或停用分享会按 `/v1/s/<token>/f/` 目录前缀刷新 EdgeOne 缓存，一次请求覆盖
+  该分享的全部文件与变体；
+- 三项任意留空则不刷新、不外呼，靠缓存自然过期兜底。
+
+刷新失败只写日志，不影响删除/停用本身，也不会重试。
+
 ## `.env` 键名说明
 
 以下只说明键名与含义，不包含真实取值。新版本新增的键会在新包的 `.env` 中出现。
@@ -122,6 +135,9 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 | `JWT_SECRET` | JWT 签名密钥，泄露等同于会话可被伪造 |
 | `JWT_EXPIRES_IN` | 登录令牌有效期 |
 | `SHARE_SIGN_KEY` | 公开分享文件地址的签名密钥，换掉即让所有旧地址作废 |
+| `TENCENTCLOUD_SECRET_ID` | 撤销分享时刷新 EdgeOne 缓存的 SecretId；留空则不刷新 |
+| `TENCENTCLOUD_SECRET_KEY` | 同上，SecretKey |
+| `EDGEONE_ZONE_ID` | EdgeOne 站点 ID；三项齐全才启用刷新 |
 | `CORS_ORIGIN` | 跨域来源白名单，逗号分隔；留空不开放跨域 |
 | `TRUST_PROXY` | 是否采用反向代理传来的 `X-Forwarded-*` 头 |
 | `DB_PATH` | SQLite 数据库文件路径 |

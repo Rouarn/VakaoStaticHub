@@ -158,6 +158,9 @@ chmod +x vakao-server
 | `JWT_SECRET`     | 无（必填）         | JWT 签名密钥，至少 16 字节且不能为默认占位值                |
 | `JWT_EXPIRES_IN` | `12h`              | Token 有效期                                                |
 | `SHARE_SIGN_KEY` | 无（必填）         | 公开分享文件地址的签名密钥，至少 16 字节；换掉即作废旧地址  |
+| `TENCENTCLOUD_SECRET_ID` | -        | 撤销分享时刷新 CDN 缓存的 SecretId；留空则不刷新            |
+| `TENCENTCLOUD_SECRET_KEY` | -       | 同上，SecretKey；三项齐全才启用刷新                         |
+| `EDGEONE_ZONE_ID` | -                 | EdgeOne 站点 ID；三项齐全才启用刷新                          |
 
 ### 存储与数据库
 

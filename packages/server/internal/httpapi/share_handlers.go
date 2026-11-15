@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -162,6 +163,9 @@ func (s *Server) handleUpdateShare(w http.ResponseWriter, r *http.Request, user 
 	if err != nil {
 		return internalError(err)
 	}
+	if !updated.Enabled {
+		s.purgeShareCache(r, token)
+	}
 	s.audit(r, user, "share.update", "share", token, nil)
 	writeJSON(w, updated.ShareLink)
 	return nil
@@ -176,8 +180,15 @@ func (s *Server) handleDeleteShare(w http.ResponseWriter, r *http.Request, user 
 		return internalError(err)
 	}
 	s.audit(r, user, "share.revoke", "share", token, nil)
+	s.purgeShareCache(r, token)
 	writeJSON(w, nil)
 	return nil
+}
+
+// purgeShareCache 让 CDN 丢掉该分享下所有文件的缓存：一次按前缀刷新，
+// 覆盖全部文件与变体。刷新失败只记日志，不影响删除/停用本身。
+func (s *Server) purgeShareCache(r *http.Request, token string) {
+	go s.cdn.PurgePrefix(context.WithoutCancel(r.Context()), r.Host, "/v1/s/"+token+"/f/")
 }
 
 func (s *Server) handleShareAccessLogs(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {

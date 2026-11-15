@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vakao-static-hub/server/internal/auth"
+	"vakao-static-hub/server/internal/cdn"
 	"vakao-static-hub/server/internal/config"
 	"vakao-static-hub/server/internal/indexer"
 	"vakao-static-hub/server/internal/media"
@@ -45,6 +46,7 @@ type Server struct {
 
 	shareTokens   *sharelink.Manager
 	shareSigner   *sharelink.Signer
+	cdn           *cdn.Client
 	shareLimiter  *rateLimiter
 	hitokotoCache hitokotoCache
 	photos        *photoPools
@@ -56,17 +58,23 @@ type Server struct {
 func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version string) *Server {
 	ix := indexer.New(st)
 	s := &Server{
-		cfg:           cfg,
-		store:         st,
-		tokens:        auth.NewManager(cfg.JWTSecret, cfg.JWTExpires),
-		log:           logger,
-		version:       version,
-		started:       time.Now(),
-		mux:           http.NewServeMux(),
-		loginLimiter:  newRateLimiter(5, time.Minute),
-		shareLimiter:  newRateLimiter(10, time.Minute),
-		shareTokens:   sharelink.NewManager(cfg.JWTSecret, 30*time.Minute),
-		shareSigner:   sharelink.NewSigner(cfg.ShareSignKey),
+		cfg:          cfg,
+		store:        st,
+		tokens:       auth.NewManager(cfg.JWTSecret, cfg.JWTExpires),
+		log:          logger,
+		version:      version,
+		started:      time.Now(),
+		mux:          http.NewServeMux(),
+		loginLimiter: newRateLimiter(5, time.Minute),
+		shareLimiter: newRateLimiter(10, time.Minute),
+		shareTokens:  sharelink.NewManager(cfg.JWTSecret, 30*time.Minute),
+		shareSigner:  sharelink.NewSigner(cfg.ShareSignKey),
+		cdn: cdn.New(cdn.Config{
+			SecretID:  cfg.TencentSecretID,
+			SecretKey: cfg.TencentSecretKey,
+			ZoneID:    cfg.EdgeOneZoneID,
+			Logger:    logger,
+		}),
 		indexQueue:    indexer.NewQueue(ix, st, logger),
 		thumbnails:    media.NewThumbnailer(cfg.CacheDir, cfg.MaxImagePixels, cfg.MaxImageDimension, cfg.ThumbConcurrency),
 		uploads:       upload.New(cfg.UploadTempDir),
