@@ -73,10 +73,7 @@ const { loadingText: unlockLoadingText } = useListLoading({
 const singleSize = ref<number | null>(null);
 const singleMtime = ref<number | null>(null);
 const singleMissing = ref(false);
-/** 单文件分享的版本标识，拼服务端转换地址用 */
-const singleVersion = computed(() =>
-  fileVersion(singleSize.value, singleMtime.value),
-);
+
 const collectionMissingCount = computed(
   () => collectionFiles.value.filter((file) => !file.exists).length,
 );
@@ -324,8 +321,8 @@ function openSinglePreview() {
         ? singleImageSrc.value
         : singleSrc.value,
       downloadSrc: singleDownloadSrc.value,
-      ...(singleSize.value !== null ? { size: singleSize.value } : {}),
-      ...(singleVersion.value ? { version: singleVersion.value } : {}),
+      size: singleSize.value ?? undefined,
+      version: fileVersion(singleSize.value, singleMtime.value),
     },
   ];
   previewIndex.value = 0;

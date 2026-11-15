@@ -18,6 +18,10 @@ import (
 // shortCodePattern 限定内容短码的形态：sha256 前 12 位十六进制字符。
 var shortCodePattern = regexp.MustCompile(`^[0-9a-f]{12}$`)
 
+// immutableCacheControl 用于「文件名/地址随内容变化」的产物：
+// 缩略图、按内容短码读取的原始文件、带文件版本的转换 PDF。
+const immutableCacheControl = "public, max-age=31536000, immutable"
+
 func (s *Server) handleFileContent(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	code := strings.ToLower(strings.TrimSpace(pathValue(r, "code")))
 	if !shortCodePattern.MatchString(code) {
@@ -116,7 +120,7 @@ func serveOriginal(w http.ResponseWriter, r *http.Request, path string, info os.
 	header := w.Header()
 	header.Set("ETag", `W/"`+strconv.FormatInt(info.Size(), 10)+`-`+strconv.FormatInt(info.ModTime().UnixMilli(), 10)+`"`)
 	// 地址与内容短码绑定：内容变化即换地址，可按内容不可变长期缓存。
-	header.Set("Cache-Control", "public, max-age=31536000, immutable")
+	header.Set("Cache-Control", immutableCacheControl)
 	header.Set("Content-Disposition", contentDisposition(info.Name(), download))
 	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(info.Name())), ".")
 	if extension == "html" || extension == "htm" || extension == "svg" {
@@ -142,7 +146,7 @@ func serveThumbnail(w http.ResponseWriter, r *http.Request, result media.Result)
 	header.Set("Content-Type", result.ContentType)
 	header.Set("ETag", result.ETag)
 	// 缩略图地址由内容短码构成，内容变化即换地址，可按内容不可变长期缓存。
-	header.Set("Cache-Control", "public, max-age=31536000, immutable")
+	header.Set("Cache-Control", immutableCacheControl)
 	header.Set("Content-Disposition", "inline")
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }

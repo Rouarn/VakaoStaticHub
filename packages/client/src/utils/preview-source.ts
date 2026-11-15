@@ -41,13 +41,18 @@ export function withPdfConversion(url: string, version?: string): string {
   return `${url}${separator}as=pdf&v=${value}`;
 }
 
-/** 按文件名修正预览地址；无需转换时原样返回 */
-export function previewSrc(
-  filename: string,
-  src: string,
-  version?: string,
-): string {
-  return CONVERTED_KINDS.has(getFileKind(filename))
-    ? withPdfConversion(src, version)
-    : src;
+/** 是否是服务端转换地址（含 `as=pdf`） */
+export function isPdfConversion(url: string): boolean {
+  return /[?&]as=pdf(&|$)/.test(url);
+}
+
+/** 预览目标的最终地址：需要转换时按文件名改写成带版本的转换地址 */
+export function previewTargetSrc(target: {
+  filename: string;
+  src: string;
+  version?: string;
+}): string {
+  return CONVERTED_KINDS.has(getFileKind(target.filename))
+    ? withPdfConversion(target.src, target.version)
+    : target.src;
 }

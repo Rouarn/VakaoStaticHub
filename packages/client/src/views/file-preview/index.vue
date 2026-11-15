@@ -27,7 +27,7 @@ import {
   isImage,
 } from '@/utils/file-types';
 import { normalizeNameHint } from '@/utils/preview-name';
-import { previewSrc } from '@/utils/preview-source';
+import { previewTargetSrc } from '@/utils/preview-source';
 
 /**
  * 文件预览（内部 / 外部共用一份逻辑与渲染）
@@ -54,9 +54,7 @@ const failed = ref('');
 const canOpen = computed(() => url.value.trim().length > 0);
 /** 最终预览地址：演示文稿会被改写成带文件版本的转换地址，key 跟着版本走 */
 const previewSource = computed(() =>
-  target.value
-    ? previewSrc(target.value.filename, target.value.src, target.value.version)
-    : '',
+  target.value ? previewTargetSrc(target.value) : '',
 );
 
 function filenameOf(raw: string): string {

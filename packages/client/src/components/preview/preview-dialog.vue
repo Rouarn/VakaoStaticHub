@@ -16,7 +16,7 @@ import {
   registerBuiltinPreviews,
 } from '@/utils/preview-registry';
 import { formatBytes, getFileKind } from '@/utils/file-types';
-import { previewSrc } from '@/utils/preview-source';
+import { previewTargetSrc } from '@/utils/preview-source';
 import DefaultPreview from './default-preview.vue';
 import PreviewOverlay from './preview-overlay.vue';
 
@@ -50,13 +50,7 @@ const current = computed<PreviewTarget | undefined>(
 );
 /** 最终预览地址：演示文稿会被改写成带文件版本的转换地址，key 跟着版本走 */
 const previewSource = computed(() =>
-  current.value
-    ? previewSrc(
-        current.value.filename,
-        current.value.src,
-        current.value.version,
-      )
-    : '',
+  current.value ? previewTargetSrc(current.value) : '',
 );
 const kind = computed(() => getFileKind(current.value?.filename ?? ''));
 const isMedia = computed(() =>

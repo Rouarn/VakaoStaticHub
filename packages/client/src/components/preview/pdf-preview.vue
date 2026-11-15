@@ -9,6 +9,7 @@ import {
 } from '@vicons/ionicons5';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 import type { PreviewProps } from './types';
+import { isPdfConversion } from '@/utils/preview-source';
 import PreviewOverlay from './preview-overlay.vue';
 
 /**
@@ -19,7 +20,7 @@ import PreviewOverlay from './preview-overlay.vue';
 const props = defineProps<PreviewProps>();
 
 /** 转换地址：需要等服务端 LibreOffice 转出 PDF，等待时间明显更长 */
-const converted = /[?&]as=pdf(&|$)/.test(props.src);
+const converted = isPdfConversion(props.src);
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const loading = ref(true);
