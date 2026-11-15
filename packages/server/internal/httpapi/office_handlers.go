@@ -13,7 +13,9 @@ import (
 )
 
 // serveConvertedDocument 输出 Office 文档转换后的 PDF。
-// 转换结果按「源路径 + 大小 + 修改时间」落盘缓存，同一文件只转一次。
+// 转换结果按「源路径 + 大小 + 修改时间」落盘缓存，同一文件只转一次；
+// 前端拼地址时会把同一份「大小 + 修改时间」作为版本参数带上，文件一变
+// 地址就变，因此这里的响应可以按内容不可变长期缓存。
 func (s *Server) serveConvertedDocument(w http.ResponseWriter, r *http.Request, full string, info os.FileInfo) error {
 	if s.documents == nil {
 		return &APIError{Status: http.StatusServiceUnavailable, Code: "office_unavailable", Message: "文档转换服务不可用"}
@@ -52,10 +54,9 @@ func (s *Server) serveConvertedDocument(w http.ResponseWriter, r *http.Request, 
 	header := w.Header()
 	header.Set("Content-Type", "application/pdf")
 	header.Set("ETag", result.ETag)
-	// 转换结果 URL 稳定（源地址 + as=pdf），允许 CDN/浏览器短缓存：
-	// 未缓存的响应会落到 CDN 的动态回源通道，大文件既慢又容易在并发
-	// Range 请求下被中断。内容变化最多滞后 5 分钟。
-	header.Set("Cache-Control", "public, max-age=300")
+	// 地址里带文件版本，内容变化即换地址：按内容不可变长期缓存，
+	// 不再需要靠缩短 max-age 兜陈旧，也不会每次回源触发重新下载。
+	header.Set("Cache-Control", "public, max-age=31536000, immutable")
 	header.Set("Content-Disposition", contentDisposition(strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))+".pdf", false))
 	http.ServeContent(w, r, pdfInfo.Name(), pdfInfo.ModTime(), f)
 	return nil

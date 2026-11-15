@@ -12,6 +12,7 @@ import { listRoots } from '@/api/roots';
 import { getErrorMessage } from '@/utils/http';
 import { isImage } from '@/utils/file-types';
 import { buildFileUrl, buildThumbUrl } from '@/utils/file-url';
+import { fileVersion } from '@/utils/preview-source';
 import PageHeader from '@/components/common/page-header.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import ErrorState from '@/components/common/error-state.vue';
@@ -78,6 +79,7 @@ function openPreview(group: DuplicateGroup, index: number) {
       download: true,
     }),
     size: file.size,
+    version: fileVersion(file.size, file.mtime),
   }));
   previewIndex.value = index;
   previewShow.value = true;

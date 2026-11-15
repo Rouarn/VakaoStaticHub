@@ -11,6 +11,8 @@ export interface PreviewProps {
   filename: string;
   /** 字节大小；未知时不传（远程直链、无元信息接口），界面显示「大小未知」而不是 0 B */
   size?: number;
+  /** 文件版本标识（大小 + 修改时间），服务端转换地址据此换地址，未知时不传 */
+  version?: string;
   /** 强制下载地址（可选，媒体错误态用；缺省时不展示下载动作） */
   downloadSrc?: string;
 }
@@ -26,4 +28,6 @@ export interface PreviewTarget {
   downloadSrc: string;
   /** 字节大小；未知时省略，由展示层显示「大小未知」 */
   size?: number;
+  /** 文件版本标识（大小 + 修改时间）；未知时省略，转换地址退回本页固定版本 */
+  version?: string;
 }

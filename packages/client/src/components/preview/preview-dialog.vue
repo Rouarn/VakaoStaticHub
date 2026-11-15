@@ -47,6 +47,16 @@ const bypassSizeGuard = ref(false);
 const current = computed<PreviewTarget | undefined>(
   () => props.files[props.index],
 );
+/** 最终预览地址：演示文稿会被改写成带文件版本的转换地址，key 跟着版本走 */
+const previewSource = computed(() =>
+  current.value
+    ? previewSrc(
+        current.value.filename,
+        current.value.src,
+        current.value.version,
+      )
+    : '',
+);
 const kind = computed(() => getFileKind(current.value?.filename ?? ''));
 const isMedia = computed(() =>
   ['image', 'video', 'audio'].includes(kind.value),
@@ -258,10 +268,11 @@ function forcePreview() {
             <component
               :is="component"
               v-else-if="component && current"
-              :key="current.src"
-              :src="previewSrc(current.filename, current.src)"
+              :key="previewSource"
+              :src="previewSource"
               :filename="current.filename"
               :size="current.size"
+              :version="current.version"
               :download-src="current.downloadSrc"
             />
           </div>

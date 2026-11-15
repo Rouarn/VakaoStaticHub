@@ -12,6 +12,7 @@ import { getShareInfo, SHARE_TOKEN_RE, unlockShare } from '@/api/shares';
 import type { ShareCollectionFile } from '@/api/shares';
 import { buildShareFileUrl } from '@/utils/file-url';
 import { isImage, isPreviewable } from '@/utils/file-types';
+import { fileVersion } from '@/utils/preview-source';
 import { formatDateTime } from '@/utils/format';
 import PublicPage from '@/components/common/public-page.vue';
 import { useListLoading } from '@/composables/use-list-loading';
@@ -68,9 +69,14 @@ const { loadingText: bootLoadingText } = useListLoading({
 const { loadingText: unlockLoadingText } = useListLoading({
   text: '正在校验访问密码…',
 });
-/** 单文件分享的大小与存在性：优先取分享信息里的 files[0]（后端已随 /s/{token} 下发） */
+/** 单文件分享的大小与修改时间：优先取分享信息里的 files[0]（后端已随 /s/{token} 下发） */
 const singleSize = ref<number | null>(null);
+const singleMtime = ref<number | null>(null);
 const singleMissing = ref(false);
+/** 单文件分享的版本标识，拼服务端转换地址用 */
+const singleVersion = computed(() =>
+  fileVersion(singleSize.value, singleMtime.value),
+);
 const collectionMissingCount = computed(
   () => collectionFiles.value.filter((file) => !file.exists).length,
 );
@@ -135,6 +141,7 @@ async function init() {
   collectionRootId.value = '';
   collectionCategory.value = '';
   singleSize.value = null;
+  singleMtime.value = null;
   singleMissing.value = false;
   errorText.value = '';
   password.value = '';
@@ -227,6 +234,7 @@ function applyShareFiles() {
   if (singleFile.value) {
     const file = files[0];
     singleSize.value = file?.size ?? null;
+    singleMtime.value = file?.mtime ?? null;
     singleMissing.value = file ? !file.exists : false;
     return;
   }
@@ -317,6 +325,7 @@ function openSinglePreview() {
         : singleSrc.value,
       downloadSrc: singleDownloadSrc.value,
       ...(singleSize.value !== null ? { size: singleSize.value } : {}),
+      ...(singleVersion.value ? { version: singleVersion.value } : {}),
     },
   ];
   previewIndex.value = 0;
@@ -336,6 +345,7 @@ function openCollectionPreview(index: number) {
     src: isImage(file.name) ? imageUrl(i) : fileUrl(i),
     downloadSrc: fileUrl(i, true),
     size: file.size ?? undefined,
+    version: fileVersion(file.size, file.mtime),
   }));
   previewIndex.value = position;
   previewShow.value = true;

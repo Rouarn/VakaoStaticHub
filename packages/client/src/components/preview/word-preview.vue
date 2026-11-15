@@ -27,7 +27,7 @@ onMounted(async () => {
       ignoreLastRenderedPageBreak: false,
     });
   } catch {
-    fallbackSrc.value = withPdfConversion(props.src);
+    fallbackSrc.value = withPdfConversion(props.src, props.version);
   } finally {
     loading.value = false;
   }
@@ -40,6 +40,7 @@ onMounted(async () => {
     :src="fallbackSrc"
     :filename="props.filename"
     :size="props.size"
+    :version="props.version"
     :download-src="props.downloadSrc"
   />
   <div v-else class="w-full h-full overflow-auto">

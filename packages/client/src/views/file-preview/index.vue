@@ -51,6 +51,12 @@ const component = shallowRef<Component | null>(null);
 const loading = ref(false);
 const failed = ref('');
 const canOpen = computed(() => url.value.trim().length > 0);
+/** 最终预览地址：演示文稿会被改写成带文件版本的转换地址，key 跟着版本走 */
+const previewSource = computed(() =>
+  target.value
+    ? previewSrc(target.value.filename, target.value.src, target.value.version)
+    : '',
+);
 
 function filenameOf(raw: string): string {
   try {
@@ -109,9 +115,15 @@ function setTarget(
   filename: string,
   nameForPreview = filename,
   autoLoad = true,
+  version?: string,
 ) {
   // 未知大小不写 0：交给展示层显示「大小未知」
-  target.value = { src, downloadSrc, filename };
+  target.value = {
+    src,
+    downloadSrc,
+    filename,
+    ...(version ? { version } : {}),
+  };
   previewName.value = nameForPreview;
   invalid.value = '';
   if (autoLoad) void load();
@@ -219,6 +231,9 @@ function applyQuery() {
       buildFileUrl({ code, download: true }),
       hint?.display ?? fallback,
       fileName,
+      true,
+      // 内容短码本身就是内容哈希派生的，作为转换地址的版本号即可换址
+      code,
     );
     // 图片预览走缩略图，大小仍按原始文件读
     void fillSizeFromHead(buildFileUrl({ code }), src);
@@ -327,10 +342,11 @@ watch(() => route.fullPath, applyQuery);
           <component
             :is="component"
             v-else-if="component"
-            :key="target.src"
-            :src="previewSrc(target.filename, target.src)"
+            :key="previewSource"
+            :src="previewSource"
             :filename="target.filename"
             :size="target.size"
+            :version="target.version"
             :download-src="target.downloadSrc"
           />
         </div>
@@ -390,10 +406,11 @@ watch(() => route.fullPath, applyQuery);
       <component
         :is="component"
         v-else-if="component"
-        :key="target.src"
-        :src="previewSrc(target.filename, target.src)"
+        :key="previewSource"
+        :src="previewSource"
         :filename="target.filename"
         :size="target.size"
+        :version="target.version"
         :download-src="target.downloadSrc"
       />
     </div>

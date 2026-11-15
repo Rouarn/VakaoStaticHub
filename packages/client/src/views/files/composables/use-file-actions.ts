@@ -11,6 +11,7 @@ import {
   buildThumbUrl,
 } from '@/utils/file-url';
 import { isImage } from '@/utils/file-types';
+import { fileVersion } from '@/utils/preview-source';
 import { getErrorMessage } from '@/utils/http';
 import type { PreviewTarget } from '@/components/preview/types';
 
@@ -48,6 +49,7 @@ export function useFileActions(options: {
         download: true,
       }),
       size: file.size,
+      version: fileVersion(file.size, file.mtime),
     };
   }
 
