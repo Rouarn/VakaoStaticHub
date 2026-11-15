@@ -69,6 +69,12 @@ func (s *Server) handleMultipartUpload(w http.ResponseWriter, r *http.Request, u
 		result.Uploaded = append(result.Uploaded, entry)
 	}
 
+	// 一个文件都没收到（字段名写错或只传了普通表单字段）时按 400 明确拒绝，
+	// 否则调用方会把「空成功」误当成上传完成。
+	if len(result.Uploaded) == 0 && len(result.Failed) == 0 {
+		return badRequest("没有收到名为 files 的文件，请使用 multipart 字段 files 上传")
+	}
+
 	writeJSON(w, result)
 	if len(result.Uploaded) > 0 {
 		s.audit(r, user, "file.upload", "file", category, map[string]any{

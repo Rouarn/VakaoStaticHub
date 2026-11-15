@@ -86,7 +86,7 @@ var contractEntries = []ContractEntry{
 	{Route{"GET", "/v1/i/{code}", Public, "按内容短码读取文件内容或缩略图（Range、w、h、format=jpeg|png|webp|original、q=30-95、cover=0|1、download、as=pdf）"}, true},
 
 	// 上传
-	{Route{"POST", "/v1/files/upload", User, "multipart 表单上传（files[]）"}, true},
+	{Route{"POST", "/v1/files/upload", User, "multipart 表单上传（字段名 files，可重复）"}, true},
 	{Route{"POST", "/v1/uploads", User, "开始分片上传"}, true},
 	{Route{"PUT", "/v1/uploads/{id}/chunks/{index}", User, "写入单个分片（原始请求体）"}, true},
 	{Route{"POST", "/v1/uploads/{id}/complete", User, "合并分片并登记文件"}, true},
