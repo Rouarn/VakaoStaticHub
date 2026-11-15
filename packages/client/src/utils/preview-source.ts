@@ -1,4 +1,5 @@
 import { getFileKind } from './file-types';
+import { withVersion } from './file-url';
 
 /**
  * 预览地址修正
@@ -37,8 +38,7 @@ const FALLBACK_VERSION = Date.now().toString(36);
 /** 给内容地址追加 `as=pdf` 与文件版本（保留已有 query） */
 export function withPdfConversion(url: string, version?: string): string {
   const separator = url.includes('?') ? '&' : '?';
-  const value = encodeURIComponent(version ?? FALLBACK_VERSION);
-  return `${url}${separator}as=pdf&v=${value}`;
+  return withVersion(`${url}${separator}as=pdf`, version ?? FALLBACK_VERSION);
 }
 
 /** 是否是服务端转换地址（含 `as=pdf`） */

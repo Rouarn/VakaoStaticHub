@@ -69,10 +69,12 @@ const { loadingText: bootLoadingText } = useListLoading({
 const { loadingText: unlockLoadingText } = useListLoading({
   text: '正在校验访问密码…',
 });
-/** 单文件分享的大小与修改时间：优先取分享信息里的 files[0]（后端已随 /s/{token} 下发） */
-const singleSize = ref<number | null>(null);
-const singleMtime = ref<number | null>(null);
-const singleMissing = ref(false);
+/** 单文件分享的文件元信息就是 files[0]：与集合共用同一份数据，不再单独存一份 */
+const singleMeta = computed(() => collectionFiles.value[0]);
+const singleSize = computed(() => singleMeta.value?.size ?? null);
+const singleMissing = computed(() =>
+  singleMeta.value ? !singleMeta.value.exists : false,
+);
 
 const collectionMissingCount = computed(
   () => collectionFiles.value.filter((file) => !file.exists).length,
@@ -137,9 +139,6 @@ async function init() {
   collectionFiles.value = [];
   collectionRootId.value = '';
   collectionCategory.value = '';
-  singleSize.value = null;
-  singleMtime.value = null;
-  singleMissing.value = false;
   errorText.value = '';
   password.value = '';
   passwordError.value = '';
@@ -227,15 +226,7 @@ async function unlock() {
 
 /** 分享信息已包含全部文件元信息：解锁后直接使用，不再请求文件列表接口 */
 function applyShareFiles() {
-  const files = info.value?.files ?? [];
-  if (singleFile.value) {
-    const file = files[0];
-    singleSize.value = file?.size ?? null;
-    singleMtime.value = file?.mtime ?? null;
-    singleMissing.value = file ? !file.exists : false;
-    return;
-  }
-  collectionFiles.value = files;
+  collectionFiles.value = info.value?.files ?? [];
   collectionRootId.value = info.value?.rootId ?? '';
   collectionCategory.value = info.value?.category ?? '';
 }
@@ -261,11 +252,18 @@ async function refreshFiles() {
   }
 }
 
+/** 文件版本：后端随 `/s/{token}` 下发的 size + mtime，不额外发请求 */
+function versionAt(index: number) {
+  const file = collectionFiles.value[index];
+  return fileVersion(file?.size, file?.mtime);
+}
+
 function fileUrl(index: number, download = false) {
   return buildShareFileUrl(token.value, {
     accessToken: accessToken.value,
     index,
     download,
+    version: versionAt(index),
   });
 }
 
@@ -275,19 +273,13 @@ function imageUrl(index: number) {
     accessToken: accessToken.value,
     index,
     imageTier: 'share',
+    version: versionAt(index),
   });
 }
 
-const singleSrc = computed(() =>
-  buildShareFileUrl(token.value, { accessToken: accessToken.value }),
-);
+const singleSrc = computed(() => fileUrl(0));
 const singleImageSrc = computed(() => imageUrl(0));
-const singleDownloadSrc = computed(() =>
-  buildShareFileUrl(token.value, {
-    accessToken: accessToken.value,
-    download: true,
-  }),
-);
+const singleDownloadSrc = computed(() => fileUrl(0, true));
 
 function nameOf(path: string) {
   return path.split('/').pop() ?? path;
@@ -322,7 +314,7 @@ function openSinglePreview() {
         : singleSrc.value,
       downloadSrc: singleDownloadSrc.value,
       size: singleSize.value ?? undefined,
-      version: fileVersion(singleSize.value, singleMtime.value),
+      version: versionAt(0),
     },
   ];
   previewIndex.value = 0;
@@ -342,7 +334,7 @@ function openCollectionPreview(index: number) {
     src: isImage(file.name) ? imageUrl(i) : fileUrl(i),
     downloadSrc: fileUrl(i, true),
     size: file.size ?? undefined,
-    version: fileVersion(file.size, file.mtime),
+    version: versionAt(i),
   }));
   previewIndex.value = position;
   previewShow.value = true;

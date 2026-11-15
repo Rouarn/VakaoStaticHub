@@ -42,18 +42,37 @@ export function getApiBaseUrl(): string {
   return `${getApiOrigin()}${API_PREFIX}`;
 }
 
+/**
+ * 追加文件版本参数：地址随内容变化，内容一变地址就变，因此可以长缓存。
+ * 服务端不解析该参数，只认它带来的「换址」效果。
+ */
+export function withVersion(url: string, version?: string): string {
+  if (!version) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}v=${encodeURIComponent(version)}`;
+}
+
 export interface FileUrlParams {
   /** 内容短码（sha256 前 12 位），由后端随文件返回 */
   code: string;
   /** true 时追加 `download=1`，强制浏览器下载 */
   download?: boolean;
+  /** 文件版本标识（大小 + 修改时间），传入后地址随内容变化 */
+  version?: string;
 }
 
-/** 文件直链：`<origin>/v1/i/<code>[?download=1]` */
-export function buildFileUrl({ code, download }: FileUrlParams): string {
+/** 文件直链：`<origin>/v1/i/<code>[?download=1][&v=<版本>]` */
+export function buildFileUrl({
+  code,
+  download,
+  version,
+}: FileUrlParams): string {
   const encoded = encodeURIComponent(code);
   const qs = download ? '?download=1' : '';
-  return `${getApiOrigin()}${API_PREFIX}/i/${encoded}${qs}`;
+  return withVersion(
+    `${getApiOrigin()}${API_PREFIX}/i/${encoded}${qs}`,
+    version,
+  );
 }
 
 /** 追加后端识别的缩放参数；所有图片地址都必须经过这里 */
@@ -104,12 +123,20 @@ export interface ShareFileUrlOptions {
   download?: boolean;
   /** 传入后按该档位输出缩放图；不传则返回原始文件 */
   imageTier?: ImageTier;
+  /** 文件版本标识（大小 + 修改时间），传入后地址随内容变化 */
+  version?: string;
 }
 
 /** 分享内文件访问地址：`<origin>/v1/s/<token>/f/<index>`，解锁后凭 accessToken 访问 */
 export function buildShareFileUrl(
   token: string,
-  { accessToken, index, download, imageTier }: ShareFileUrlOptions = {},
+  {
+    accessToken,
+    index,
+    download,
+    imageTier,
+    version,
+  }: ShareFileUrlOptions = {},
 ): string {
   const query: string[] = [];
   if (accessToken) query.push(`accessToken=${encodeURIComponent(accessToken)}`);
@@ -117,7 +144,10 @@ export function buildShareFileUrl(
   const qs = query.length > 0 ? `?${query.join('&')}` : '';
   const fileIndex = index ?? 0;
   const url = `${getApiBaseUrl()}/s/${encodeURIComponent(token)}/f/${fileIndex}${qs}`;
-  return imageTier ? withImageParams(url, imageTier) : url;
+  return withVersion(
+    imageTier ? withImageParams(url, imageTier) : url,
+    version,
+  );
 }
 
 /**
