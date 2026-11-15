@@ -23,4 +23,4 @@
 | APP（管理）  | `/apps`、`/apps/{appKey}/versions`、`/app-versions/{id}/*`      |
 | APP（客户端）| `/a/{appKey}/update`、`/a/versions/{id}/download`               |
 | 可观测性     | `/audit-logs`、`/metrics`、`/metrics/sidebar`                   |
-| 杂项公开     | `/hitokoto`、`/i/photo`、`/i/placeholder`                       |
+| 杂项公开     | `/runtime-config`、`/i/photo`、`/i/placeholder`                 |

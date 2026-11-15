@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   NButton,
   NIcon,
@@ -27,6 +27,7 @@ import type {
 import {
   HitokotoError,
   buildHitokotoUrl,
+  loadHitokotoBaseUrl,
   requestHitokoto,
 } from '@/api/hitokoto';
 import { formatDateTime } from '@/utils/format';
@@ -42,9 +43,9 @@ import EmptyState from '@/components/common/empty-state.vue';
 /**
  * 一言调试工具
  *
- * 后端反向代理 GET /v1/hitokoto → HITOKOTO_API_URL，JSON 响应套统一信封，纯文本原样返回。
- * 未配置上游时后端返回 503 + HITOKOTO_PROXY_DISABLED，这里给出「代理未启用」的明确原因；
- * 上游不可达时返回 502，同样展示具体原因而不是「请求失败」。
+ * 地址来自服务端运行时配置（HITOKOTO_API_URL），页面直接请求一言服务，
+ * 不再经过本服务转发。JSON 模式是一言记录本身，text 模式是纯文本；
+ * 地址为空时提示「未配置」，一言服务返回错误时展示其 message。
  */
 const message = useMessage();
 
@@ -85,12 +86,16 @@ const errorKind = ref<HitokotoErrorKind | null>(null);
 const result = ref<HitokotoResult | null>(null);
 const rawText = ref('');
 const history = ref<HistoryItem[]>(loadHistory());
+const baseUrl = ref('');
+const configLoading = ref(false);
 
 const requestUrl = computed(() =>
-  buildHitokotoUrl({
-    categories: categories.value,
-    encode: encode.value,
-  } satisfies HitokotoRequest),
+  baseUrl.value
+    ? buildHitokotoUrl(baseUrl.value, {
+        categories: categories.value,
+        encode: encode.value,
+      } satisfies HitokotoRequest)
+    : '',
 );
 
 const displaySentence = computed(() =>
@@ -105,19 +110,37 @@ const displayFrom = computed(() => {
 });
 
 const ERROR_LABEL: Record<HitokotoErrorKind, string> = {
-  'proxy-disabled': '代理未启用（503）',
-  upstream: '上游服务不可用',
+  disabled: '一言地址未配置',
+  upstream: '一言服务返回错误',
   network: '网络连接失败',
   format: '响应格式异常',
-  http: '请求失败',
+  http: '读取配置失败',
 };
+
+/** 首次进入或上次读取失败时拉取一言地址，成功后整个页面复用 */
+async function ensureBaseUrl(): Promise<string> {
+  if (baseUrl.value) return baseUrl.value;
+  configLoading.value = true;
+  try {
+    baseUrl.value = await loadHitokotoBaseUrl();
+    return baseUrl.value;
+  } finally {
+    configLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  // 失败原因在点击「请求一言」时统一展示，这里只负责提前填充请求地址
+  void ensureBaseUrl().catch(() => {});
+});
 
 async function send() {
   loading.value = true;
   error.value = '';
   errorKind.value = null;
   try {
-    const response = await requestHitokoto({
+    const base = await ensureBaseUrl();
+    const response = await requestHitokoto(base, {
       categories: categories.value,
       encode: encode.value,
     });
@@ -185,7 +208,7 @@ const jsonPreview = computed(() => {
   <div class="h-full min-h-0 flex flex-col gap-4">
     <PageHeader
       title="一言"
-      description="调试分类与编码参数，查看原始响应与历史记录（后端反向代理 HITOKOTO_API_URL）"
+      description="调试分类与编码参数，查看原始响应与历史记录（页面直连 HITOKOTO_API_URL）"
       :icon="ChatbubbleOutline"
     >
       <template #actions>
@@ -233,6 +256,9 @@ const jsonPreview = computed(() => {
                 /></NIcon>
                 <NInput
                   :value="requestUrl"
+                  :placeholder="
+                    configLoading ? '正在读取一言地址…' : '一言地址未配置'
+                  "
                   size="small"
                   readonly
                   class="font-mono"
@@ -276,7 +302,7 @@ const jsonPreview = computed(() => {
                 {{ result.type ?? '未标注类型' }}
               </NTag>
               <span class="ml-auto text-11px text-ink-sub"
-                >原样透传，不走后端信封</span
+                >页面直连一言服务，不经过本服务转发</span
               >
             </div>
 
@@ -295,11 +321,11 @@ const jsonPreview = computed(() => {
                   <NButton size="tiny" @click="send">重试</NButton>
                   <span class="text-10px text-ink-sub">
                     {{
-                      errorKind === 'proxy-disabled'
-                        ? '后端未启用一言代理（503）：检查 HITOKOTO_API_URL 是否为空或被显式禁用'
+                      errorKind === 'disabled'
+                        ? '服务端 HITOKOTO_API_URL 为空：补齐地址后刷新页面即可请求'
                         : errorKind === 'network'
-                          ? '网络问题：确认后端服务与网络连通，而非代理配置问题'
-                          : '若持续失败，请确认后端代理目标可达'
+                          ? '网络问题：确认一言地址可从当前网络访问，且允许跨域请求'
+                          : '若持续失败，请确认一言地址可达且返回格式正确'
                     }}
                   </span>
                 </div>

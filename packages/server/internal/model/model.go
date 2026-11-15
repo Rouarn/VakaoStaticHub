@@ -88,6 +88,12 @@ type FileConfig struct {
 	CacheRefreshMS    int64  `json:"cacheRefreshMs"`
 }
 
+// RuntimeConfig 是前端启动时读取的公开运行时配置。
+// HitokotoURL 为空表示页面关闭一言请求。
+type RuntimeConfig struct {
+	HitokotoURL string `json:"hitokotoUrl"`
+}
+
 type Page[T any] struct {
 	Items    []T `json:"items"`
 	Total    int `json:"total"`

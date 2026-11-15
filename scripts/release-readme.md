@@ -180,7 +180,7 @@ chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 | `SOFFICE_PATH` | LibreOffice 可执行文件路径 |
 | `CACHE_REFRESH_INTERVAL_MS` | 文件索引刷新间隔（毫秒） |
 | `ROOT_BROWSE_WHITELIST` | 服务器目录浏览额外允许的绝对路径，逗号分隔 |
-| `HITOKOTO_API_URL` | 一言代理目标地址；留空则禁用 |
+| `HITOKOTO_API_URL` | 一言服务地址，页面直接请求；留空则禁用 |
 | `APP_PUBLIC_BASE_URL` | 安装包下载链接的外部基址；留空按请求头拼接 |
 | `LOG_LEVEL` | 日志级别：`debug` / `info` / `warn` / `error` |
 

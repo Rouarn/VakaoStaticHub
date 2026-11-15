@@ -49,13 +49,12 @@ type Server struct {
 	uploads    *upload.Manager
 	documents  *office.Converter
 
-	shareTokens   *sharelink.Manager
-	shareSigner   *sharelink.Signer
-	cdn           *cdn.Client
-	shareLimiter  *rateLimiter
-	hitokotoCache hitokotoCache
-	photos        *photoPools
-	qps           qpsMeter
+	shareTokens  *sharelink.Manager
+	shareSigner  *sharelink.Signer
+	cdn          *cdn.Client
+	shareLimiter *rateLimiter
+	photos       *photoPools
+	qps          qpsMeter
 
 	loginLimiter *rateLimiter
 }
@@ -82,11 +81,10 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 			ZoneID:    cfg.EdgeOneZoneID,
 			Logger:    logger,
 		}),
-		indexQueue:    indexer.NewQueue(ix, st, logger),
-		thumbnails:    media.NewThumbnailer(cfg.CacheDir, cfg.MaxImagePixels, cfg.MaxImageDimension, cfg.ThumbConcurrency),
-		uploads:       upload.New(cfg.UploadTempDir),
-		hitokotoCache: hitokotoCache{entries: make(map[string]hitokotoEntry)},
-		photos:        newPhotoPools(),
+		indexQueue: indexer.NewQueue(ix, st, logger),
+		thumbnails: media.NewThumbnailer(cfg.CacheDir, cfg.MaxImagePixels, cfg.MaxImageDimension, cfg.ThumbConcurrency),
+		uploads:    upload.New(cfg.UploadTempDir),
+		photos:     newPhotoPools(),
 	}
 	documents, err := office.New(office.Config{
 		CacheDir:      cfg.OfficeCacheDir,
@@ -279,7 +277,7 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /v1/metrics", s.user(s.handleMetrics))
 	s.mux.Handle("GET /v1/metrics/sidebar", s.user(s.handleMetricsSidebar))
 
-	s.mux.Handle("GET /v1/hitokoto", s.public(s.handleHitokoto))
+	s.mux.Handle("GET /v1/runtime-config", s.public(s.handleRuntimeConfig))
 
 	s.mountSPA()
 }

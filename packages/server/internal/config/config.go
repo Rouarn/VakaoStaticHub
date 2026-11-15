@@ -79,7 +79,8 @@ type Config struct {
 	CORSOrigins []string
 	TrustProxy  bool
 	LogLevel    string
-	// HitokotoURL 是一言代理的目标地址；为空表示关闭该接口。
+	// HitokotoURL 是页面直连的一言服务地址（HITOKOTO_API_URL），
+	// 由运行时配置接口下发给前端；为空表示页面关闭一言请求。
 	HitokotoURL   string
 	AppPublicBase string
 

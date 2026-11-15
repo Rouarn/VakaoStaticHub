@@ -188,6 +188,7 @@ CACHE_REFRESH_INTERVAL_MS=300000
 
 # 目录浏览与外部服务
 ROOT_BROWSE_WHITELIST=
+# 一言服务地址：页面直接请求该地址，不再由本服务转发
 HITOKOTO_API_URL=https://static.shixian.xyz/static/hitokoto
 APP_PUBLIC_BASE_URL=
 

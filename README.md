@@ -4,7 +4,7 @@
   <img src="./packages/client/public/intro.svg" width="300" height="155" alt="Vakao Static Hub Logo" />
 </p>
 
-基于 **Go 1.27** + **Vue 3** 的静态资源管理系统，采用 pnpm monorepo（`packages/shared` / `packages/server` / `packages/client`）。提供多根目录文件管理、随机图片服务、占位图生成、一言代理、文件分享链接和 APP 在线更新中心等能力。
+基于 **Go 1.27** + **Vue 3** 的静态资源管理系统，采用 pnpm monorepo（`packages/shared` / `packages/server` / `packages/client`）。提供多根目录文件管理、随机图片服务、占位图生成、一言展示、文件分享链接和 APP 在线更新中心等能力。
 
 ## 文档索引
 

@@ -133,7 +133,7 @@ var contractEntries = []ContractEntry{
 	{Route{"GET", "/v1/metrics/sidebar", User, "侧边栏用的精简计数"}, true},
 
 	// 杂项公开辅助接口
-	{Route{"GET", "/v1/hitokoto", Public, "代理的一言短句"}, true},
+	{Route{"GET", "/v1/runtime-config", Public, "前端运行时配置（一言直连地址）"}, true},
 	{Route{"GET", "/v1/i/photo", Public, "随机图片内容（rootId、category、w、h、format=jpeg|png|webp|original、q=30-95、cover=0|1）"}, true},
 	{Route{"GET", "/v1/i/placeholder", Public, "生成的 SVG 占位图"}, true},
 	{Route{"GET", "/v1/i/placeholder/{width}/{height}", Public, "生成指定尺寸的 SVG 占位图"}, true},
