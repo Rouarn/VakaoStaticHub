@@ -106,7 +106,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, version strin
 		recoverMiddleware(logger),
 		loggingMiddleware{log: logger, trustProxy: cfg.TrustProxy}.handle,
 		securityHeadersMiddleware,
-		corsMiddleware(cfg.CORSOrigin),
+		corsMiddleware(cfg.CORSOrigins),
 	)
 	go s.logContract()
 	return s

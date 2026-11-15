@@ -74,9 +74,12 @@ type Config struct {
 	TencentSecretKey string
 	EdgeOneZoneID    string
 
-	CORSOrigin    string
-	TrustProxy    bool
-	LogLevel      string
+	// CORSOrigins 是允许跨域的前端来源（CORS_ORIGIN，逗号分隔）。
+	// 为空或包含 "*" 表示放行全部来源。
+	CORSOrigins []string
+	TrustProxy  bool
+	LogLevel    string
+	// HitokotoURL 是一言代理的目标地址；为空表示关闭该接口。
 	HitokotoURL   string
 	AppPublicBase string
 
@@ -139,10 +142,10 @@ func Load() (*Config, error) {
 		JWTExpires:        envDuration("JWT_EXPIRES_IN", 12*time.Hour),
 		AuthUser:          env("AUTH_USER", "admin"),
 		AuthPass:          env("AUTH_PASS", ""),
-		CORSOrigin:        os.Getenv("CORS_ORIGIN"),
+		CORSOrigins:       splitList(os.Getenv("CORS_ORIGIN")),
 		TrustProxy:        envBool("TRUST_PROXY", false),
 		LogLevel:          env("LOG_LEVEL", "info"),
-		HitokotoURL:       env("HITOKOTO_API_URL", "https://static.shixian.xyz/static/hitokoto"),
+		HitokotoURL:       os.Getenv("HITOKOTO_API_URL"),
 		AppPublicBase:     strings.TrimRight(os.Getenv("APP_PUBLIC_BASE_URL"), "/"),
 		BrowseWhitelist:   splitList(os.Getenv("ROOT_BROWSE_WHITELIST")),
 	}

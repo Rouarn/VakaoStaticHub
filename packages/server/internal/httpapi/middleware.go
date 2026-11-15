@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -199,22 +200,32 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// corsMiddleware 只对配置的单一来源放开凭据跨域；origin 为空时
-// 完全跳过，不做通配。OPTIONS 预检直接返回 204。
-func corsMiddleware(origin string) middleware {
-	return func(next http.Handler) http.Handler {
-		if origin == "" {
-			return next
+// corsMiddleware 按配置放行跨域来源：来源列表为空或包含 "*" 时放行全部，
+// 否则只放行精确匹配的来源。
+//
+// 跨域请求需要携带 Authorization 与凭据，因此固定回
+// Access-Control-Allow-Credentials: true；带凭据时规范禁止把
+// Access-Control-Allow-Origin 设为 "*"，只能回显请求的 Origin，并用
+// Vary: Origin 让缓存按来源区分。OPTIONS 预检直接返回 204，未放行的
+// 来源拿不到 CORS 头，由浏览器自行拦截。
+func corsMiddleware(origins []string) middleware {
+	allowAll := len(origins) == 0
+	for _, origin := range origins {
+		if origin == "*" {
+			allowAll = true
+			break
 		}
+	}
+	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Origin") == origin {
-				h := w.Header()
+			origin := r.Header.Get("Origin")
+			h := w.Header()
+			h.Add("Vary", "Origin")
+			if origin != "" && (allowAll || slices.Contains(origins, origin)) {
 				h.Set("Access-Control-Allow-Origin", origin)
-				h.Set("Vary", "Origin")
 				h.Set("Access-Control-Allow-Credentials", "true")
 			}
 			if r.Method == http.MethodOptions {
-				h := w.Header()
 				h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
 				h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-Id")
 				h.Set("Access-Control-Max-Age", "600")

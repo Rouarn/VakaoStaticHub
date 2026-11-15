@@ -135,8 +135,8 @@ func (s *Server) storeUploadedPart(ctx context.Context, root *model.ResourceRoot
 }
 
 // handleInitChunk 创建分片上传会话。分片大小缺省 5 MiB，需在
-// 256 KiB-64 MiB 之间；分片总数上限 maxChunkCount，防止建出
-// 海量临时文件。
+// 256 KiB-64 MiB 之间，且不得超过配置的 CHUNK_FILE_SIZE_LIMIT；
+// 分片总数上限 maxChunkCount，防止建出海量临时文件。
 func (s *Server) handleInitChunk(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {
 	var req model.ChunkInitRequest
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -159,6 +159,11 @@ func (s *Server) handleInitChunk(w http.ResponseWriter, r *http.Request, _ *Curr
 	}
 	if chunkSize < minChunkSize || chunkSize > maxChunkSize {
 		return validationFailed("分片大小超出范围").WithField("chunkSize", "分片大小需在 256 KiB 到 64 MiB 之间")
+	}
+	// 配置项是硬上限：不在这里校验的话，CHUNK_FILE_SIZE_LIMIT 调小也不会生效，
+	// 只靠协议上限兜底。默认 100MB 高于 64 MiB，因此日常部署行为不变。
+	if chunkSize > s.cfg.ChunkSizeLimit {
+		return validationFailed("分片大小超过服务端上限").WithField("chunkSize", "分片大小不能超过 CHUNK_FILE_SIZE_LIMIT")
 	}
 	if (req.Size+chunkSize-1)/chunkSize > maxChunkCount {
 		return validationFailed("分片数量过多").WithField("chunkSize", "请增大分片大小")
