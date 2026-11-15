@@ -23,7 +23,7 @@ func TestPurgePrefixDisabledWithoutCredentials(t *testing.T) {
 	}))
 	defer server.Close()
 
-	New(Config{}).PurgePrefix(context.Background(), "static.example.com", "/v1/s/tok/f/")
+	New(Config{}).PurgePrefix(context.Background(), "https://static.example.com", "/v1/s/tok/f/")
 	if called {
 		t.Fatal("未配置凭据时不应发出请求")
 	}
@@ -39,12 +39,12 @@ func TestPurgePrefixSignsAndSendsPrefix(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testClient(server.URL).PurgePrefix(context.Background(), "static.example.com", "/v1/s/tok/f/")
+	testClient(server.URL).PurgePrefix(context.Background(), "https://static.example.com", "/v1/s/tok/f/")
 
 	var payload struct {
-		ZoneID string   `json:"ZoneId"`
-		Type   string   `json:"Type"`
-		Paths  []string `json:"Paths"`
+		ZoneID  string   `json:"ZoneId"`
+		Type    string   `json:"Type"`
+		Targets []string `json:"Targets"`
 	}
 	if err := json.Unmarshal(gotBody, &payload); err != nil {
 		t.Fatalf("请求体不是合法 JSON: %v", err)
@@ -52,10 +52,10 @@ func TestPurgePrefixSignsAndSendsPrefix(t *testing.T) {
 	if payload.ZoneID != "zone-1" || payload.Type != "purge_prefix" {
 		t.Fatalf("请求体字段不对: %+v", payload)
 	}
-	if len(payload.Paths) != 1 || payload.Paths[0] != "https://static.example.com/v1/s/tok/f/" {
-		t.Fatalf("刷新前缀不对: %+v", payload.Paths)
+	if len(payload.Targets) != 1 || payload.Targets[0] != "https://static.example.com/v1/s/tok/f/" {
+		t.Fatalf("刷新前缀不对: %+v", payload.Targets)
 	}
-	if gotHeader.Get("X-TC-Action") != "PurgePathCache" {
+	if gotHeader.Get("X-TC-Action") != "CreatePurgeTask" {
 		t.Fatalf("Action 头不对: %q", gotHeader.Get("X-TC-Action"))
 	}
 	auth := gotHeader.Get("Authorization")
@@ -76,5 +76,5 @@ func TestPurgePrefixIgnoresFailure(t *testing.T) {
 	defer server.Close()
 
 	// 失败只记日志：调用会正常返回。
-	testClient(server.URL).PurgePrefix(context.Background(), "static.example.com", "/v1/s/tok/f/")
+	testClient(server.URL).PurgePrefix(context.Background(), "https://static.example.com", "/v1/s/tok/f/")
 }

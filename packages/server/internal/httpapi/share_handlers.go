@@ -185,10 +185,23 @@ func (s *Server) handleDeleteShare(w http.ResponseWriter, r *http.Request, user 
 	return nil
 }
 
+// publicOrigin 是访问分享文件时用的外部基址：优先取配置的公开地址，
+// 未配置时退回当前请求的 Host（经 CDN 访问时即为站点域名）。
+func (s *Server) publicOrigin(r *http.Request) string {
+	if s.cfg.AppPublicBase != "" {
+		return s.cfg.AppPublicBase
+	}
+	scheme := "https"
+	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") == "http" {
+		scheme = "http"
+	}
+	return scheme + "://" + r.Host
+}
+
 // purgeShareCache 让 CDN 丢掉该分享下所有文件的缓存：一次按前缀刷新，
 // 覆盖全部文件与变体。刷新失败只记日志，不影响删除/停用本身。
 func (s *Server) purgeShareCache(r *http.Request, token string) {
-	go s.cdn.PurgePrefix(context.WithoutCancel(r.Context()), r.Host, "/v1/s/"+token+"/f/")
+	go s.cdn.PurgePrefix(context.WithoutCancel(r.Context()), s.publicOrigin(r), "/v1/s/"+token+"/f/")
 }
 
 func (s *Server) handleShareAccessLogs(w http.ResponseWriter, r *http.Request, _ *CurrentUser) error {

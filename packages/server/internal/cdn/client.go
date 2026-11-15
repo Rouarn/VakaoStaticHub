@@ -25,7 +25,7 @@ const (
 	apiHost  = "teo.tencentcloudapi.com"
 	service  = "teo"
 	version  = "2022-09-01"
-	action   = "PurgePathCache"
+	action   = "CreatePurgeTask"
 	purgeTTL = 10 * time.Second
 )
 
@@ -60,19 +60,19 @@ func New(cfg Config) *Client {
 
 // PurgePrefix 按目录前缀刷新缓存，覆盖该前缀下的所有文件与变体。
 // 未配置凭据时直接返回；任何失败只写日志，不返回错误、不重试。
-func (c *Client) PurgePrefix(ctx context.Context, host, pathPrefix string) {
+func (c *Client) PurgePrefix(ctx context.Context, origin, pathPrefix string) {
 	if !c.enabled() {
 		return
 	}
-	if host == "" || pathPrefix == "" {
-		c.logger.Warn("cdn purge skipped: empty host or prefix")
+	if origin == "" || pathPrefix == "" {
+		c.logger.Warn("cdn purge skipped: empty origin or prefix")
 		return
 	}
-	url := "https://" + host + pathPrefix
+	url := strings.TrimRight(origin, "/") + pathPrefix
 	payload, err := json.Marshal(map[string]any{
-		"ZoneId": c.config.ZoneID,
-		"Type":   "purge_prefix",
-		"Paths":  []string{url},
+		"ZoneId":  c.config.ZoneID,
+		"Type":    "purge_prefix",
+		"Targets": []string{url},
 	})
 	if err != nil {
 		c.logger.Error("cdn purge marshal failed", "prefix", url, "err", err)
