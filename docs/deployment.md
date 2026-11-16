@@ -42,21 +42,37 @@ chmod +x vakao-server
 
 初始管理员为 `admin`，密码见打包终端输出或包内 `.env` 的 `AUTH_PASS`。该密码仅用于首次启动播种管理员，登录后请立即修改。默认以当前目录为基准目录，读取 `web/`、写入 `data/`，监听 `0.0.0.0:9865`。
 
-宝塔面板可在「进程守护管理器」中添加守护进程：运行目录填解包目录，启动命令填 `./vakao-server`，运行用户建议 `www`，并放行 9865 端口（或由 Nginx 反向代理）。
+### 服务器实际运行方式
 
-### 以 `www` 身份手动重启
+线上部署目录为 `/www/wwwroot/vakao-static-hub`，由 `www` 用户以 `nohup` 方式直接运行 `./vakao-server`，监听 `9865`。服务器上**没有**宝塔「进程守护管理器」的 supervisor 配置，进程退出后不会被自动拉起，需要手动启动。
 
-宝塔的启动脚本只负责拉起、不负责杀旧进程，直接启动会出现端口被占用。稳妥做法是先停旧进程再以 `www` 身份启动：
+启动命令（工作目录必须是部署目录，日志追加到 `/www/wwwlogs/go/VakaoStaticHub.log`）：
 
 ```bash
 APP=/www/wwwroot/vakao-static-hub
-OLD=$(ss -lptn 'sport = :9865' | grep -o 'pid=[0-9]*' | cut -d= -f2)
-[ -n "$OLD" ] && kill "$OLD" && sleep 3 && (ps -p "$OLD" >/dev/null && kill -9 "$OLD")
 su -s /bin/bash www -c "cd $APP && nohup ./vakao-server >> /www/wwwlogs/go/VakaoStaticHub.log 2>&1 &"
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9865/healthz
 ```
 
-`healthz` 返回 `200` 才算启动成功。
+启动前先停掉占用 9865 的旧进程，否则会因端口占用失败：
+
+```bash
+OLD=$(ss -lptn 'sport = :9865' | grep -o 'pid=[0-9]*' | cut -d= -f2 | head -1)
+[ -n "$OLD" ] && kill "$OLD"
+sleep 3
+[ -n "$OLD" ] && ps -p "$OLD" >/dev/null 2>&1 && kill -9 "$OLD"
+```
+
+启动后验证：
+
+```bash
+ss -lptn 'sport = :9865'
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9865/healthz
+tail -n 20 /www/wwwlogs/go/VakaoStaticHub.log
+```
+
+`healthz` 返回 `200`、监听地址出现 `*:9865`，且日志没有新的 `level=ERROR`，才算启动成功。
+
+对外访问由 Nginx 站点 `/www/server/panel/vhost/nginx/go_VakaoStaticHub.conf` 反向代理到 `http://127.0.0.1:9865`，不需要额外配置进程守护。
 
 ## 升级
 

@@ -47,41 +47,51 @@ curl -s http://127.0.0.1:9865/healthz
 
 ## 日志
 
-- 服务端日志通过 `slog` 输出到标准输出（stdout/stderr），不单独写文件。
-- 使用宝塔「进程守护管理器」时，守护进程会收集标准输出，在守护进程的日志页面查看。
-- 自行以 nohup 或 systemd 启动时，请重定向到文件，例如：
-
-```bash
-mkdir -p logs
-nohup ./vakao-server >> logs/server.log 2>&1 &
-```
-
+- 服务端日志通过 `slog` 输出到标准输出（stdout/stderr），本身不写日志文件。
+- 线上启动命令把标准输出重定向到 `/www/wwwlogs/go/VakaoStaticHub.log`，用 `tail -f /www/wwwlogs/go/VakaoStaticHub.log` 查看。
 - 日志详细程度由 `.env` 的 `LOG_LEVEL` 控制：`debug` / `info` / `warn` / `error`。
 
-## 宝塔面板进程守护
+## 服务器实际运行方式
 
-1. 将解包目录放到站点目录，例如 `/www/wwwroot/vakao-static-hub`。
-2. 确保运行用户对目录有读写权限，尤其是 `data/`：
+1. 将解包目录放到 `/www/wwwroot/vakao-static-hub`，确保运行用户对目录有读写权限，尤其是 `data/`：
 
 ```bash
 chown -R www:www /www/wwwroot/vakao-static-hub
 chmod +x /www/wwwroot/vakao-static-hub/vakao-server
 ```
 
-3. 在宝塔「软件商店」安装「进程守护管理器」，添加守护进程：
-   - 名称：`vakao-static-hub`
-   - 启动用户：`www`
-   - 运行目录：`/www/wwwroot/vakao-static-hub`
-   - 启动命令：`./vakao-server`
-   - 进程数量：`1`
-4. 放行 `9865` 端口；如使用 Nginx 反向代理，可将站点代理到 `http://127.0.0.1:9865`，并保留 `Host`、`X-Forwarded-For`、`X-Forwarded-Proto` 请求头（同时在 `.env` 中设置 `TRUST_PROXY=true`）。
+2. 服务器上**没有**宝塔「进程守护管理器」的 supervisor 配置，直接用 `www` 身份以 `nohup` 后台启动，监听 `9865`：
+
+```bash
+APP=/www/wwwroot/vakao-static-hub
+su -s /bin/bash www -c "cd $APP && nohup ./vakao-server >> /www/wwwlogs/go/VakaoStaticHub.log 2>&1 &"
+```
+
+3. 停止时先找到占用 `9865` 的进程再结束；进程退出后不会被自动拉起：
+
+```bash
+OLD=$(ss -lptn 'sport = :9865' | grep -o 'pid=[0-9]*' | cut -d= -f2 | head -1)
+[ -n "$OLD" ] && kill "$OLD"
+sleep 3
+[ -n "$OLD" ] && ps -p "$OLD" >/dev/null 2>&1 && kill -9 "$OLD"
+```
+
+4. 启动后验证：
+
+```bash
+ss -lptn 'sport = :9865'
+curl -s http://127.0.0.1:9865/healthz
+tail -n 20 /www/wwwlogs/go/VakaoStaticHub.log
+```
+
+对外访问由 Nginx 站点 `/www/server/panel/vhost/nginx/go_VakaoStaticHub.conf` 反向代理到 `http://127.0.0.1:9865`，并将 `Host`、`X-Forwarded-For`、`X-Forwarded-Proto` 请求头透传给上游（同时在 `.env` 中设置 `TRUST_PROXY=true`）。
 
 ## 升级
 
-1. 在「进程守护管理器」中停止旧进程。
+1. 按「服务器实际运行方式」中的停止命令结束旧进程（`ss` 找到 9865 的 PID 后 `kill`）。
 2. 备份 `data/` 与 `.env`。
 3. **只替换 `vakao-server` 与 `web/`**（`README.md` 可一并替换），不要覆盖 `data/` 与 `.env`。
-4. 重新启动守护进程，访问 `/healthz` 确认版本号已更新。
+4. 按「服务器实际运行方式」中的启动命令重新拉起，访问 `/healthz` 确认版本号已更新。
 
 **默认不要覆盖线上已有的 `.env`。** 每次打包都会生成新的 `JWT_SECRET`、`SHARE_SIGN_KEY` 与 `AUTH_PASS`，直接覆盖会带来：
 
